@@ -1,3 +1,10 @@
 litestar==2.13.0
 pydantic==2.10.2
 SQLAlchemy==2.0.36
+scikit-learn
+numpy
+picamera2
+imutils
+uvicorn
+seaborn
+matplotlib
