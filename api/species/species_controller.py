@@ -5,7 +5,7 @@ from litestar.di import Provide
 from litestar.status_codes import HTTP_201_CREATED, HTTP_200_OK, HTTP_204_NO_CONTENT
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from database import connect_to_db
+from database.connection import connect_to_db
 
 from api.species.species_operations import (create_species,
                                             update_species,
