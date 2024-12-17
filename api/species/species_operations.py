@@ -23,7 +23,7 @@ async def create_species(req_data: SpeciesCreatorRequestSchema,
             new_species = Species(**record)
             new_species_list.append(new_species)
 
-        session.add(new_species)
+        session.add_all(new_species_list)
         await session.commit()
 
         return SpeciesResponseSchema(code=201,
@@ -56,7 +56,7 @@ async def update_species(req_data: SpeciesUpdaterRequestSchema,
                                      message='request handled successfully!',
                                      body=[SpeciesResponseStruct(**updated_species.as_dict()) for updated_species in updated_species_list])
         
-async def delete_species(req_data: SpeciesDeleterRequestSchema, db_connection: async_sessionmaker):
+async def delete_species(req_data: SpeciesDeleterRequestSchema, db_connection: async_sessionmaker) -> None:
 
     req_data = req_data.model_dump()
 
