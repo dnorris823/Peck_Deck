@@ -7,6 +7,12 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from database import connect_to_db
 
+from api.species.species_schemas import (SpeciesCreatorRequestSchema, 
+                                         SpeciesUpdaterRequestSchema, 
+                                         SpeciesDeleterRequestSchema,
+                                         SpeciesResponseSchema)
+
+
 class SpeciesController(Controller):
     dependencies = {'db_connection': Provide(connect_to_db)}
     
