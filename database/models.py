@@ -30,7 +30,7 @@ class Devices(Base):
     device_users = relationship('DeviceUsers', back_populates='devices')
     sightings = relationship('Sightings', back_populates='devices')
     
-class DevicesUsers(Base):
+class DeviceUsers(Base):
     __tablename__ = 'device_users'
     id = Column(Integer, primary_key=True)
     device_id = Column(Integer, ForeignKey('Devices.id'))

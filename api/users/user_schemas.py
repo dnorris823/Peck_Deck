@@ -1,4 +1,4 @@
-
+from typing import Optional
 from pydantic import BaseModel
 
 class UsersCreatorStruct(BaseModel):
@@ -7,8 +7,8 @@ class UsersCreatorStruct(BaseModel):
 
 class UsersUpdaterStruct(BaseModel):
     users_id: int
-    email: str
-    password: str
+    email: Optional[str] = None
+    password: Optional[str] = None
 
 class UsersDeleterStruct(BaseModel):
     users_id: int
