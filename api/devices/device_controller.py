@@ -18,7 +18,7 @@ from api.devices.device_schemas import (DevicesCreatorRequestSchema,
                                          DevicesResponseSchema)
 
 
-class DevicesController(Controller):
+class DeviceController(Controller):
     dependencies = {'db_connection': Provide(connect_to_db)}
     
     @post(path="/create", status_code=HTTP_201_CREATED)
