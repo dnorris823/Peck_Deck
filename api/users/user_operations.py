@@ -2,16 +2,24 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
+from passlib.context import CryptContext
+
 from database.models import Users
 from api.users.user_schemas import (UsersCreatorRequestSchema,
                                     UsersUpdaterRequestSchema,
                                     UsersDeleterRequestSchema,
+                                    UserLoginRequestSchema,
                                     UsersResponseStruct,
-                                    UsersResponseSchema)
+                                    UserLoginResponseStruct,
+                                    UsersResponseSchema,
+                                    UserLoginResponseSchema)
 
 class UserOperations:
+    
+    # Initialize Passlib CryptContext with Argon2
+    pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")
 
-    async def create_users(req_data: UsersCreatorRequestSchema, 
+    async def create_users(self, req_data: UsersCreatorRequestSchema, 
                         db_connection: async_sessionmaker) -> UsersResponseSchema:
 
         req_data = req_data.model_dump()
@@ -21,6 +29,8 @@ class UserOperations:
             new_users_list = []
 
             for record in req_data.get('records_list'):
+                
+                record['password'] = self.pwd_context.hash(record.get('password'))
 
                 new_user = Users(**record)
                 new_users_list.append(new_user)
@@ -32,7 +42,7 @@ class UserOperations:
                                     message='request handled successfully!',
                                     body=[UsersResponseStruct({'user_id': new_user.id, 'email': new_user.email}) for new_user in new_users_list])
             
-    async def update_users(req_data: UsersUpdaterRequestSchema, 
+    async def update_users(self, req_data: UsersUpdaterRequestSchema, 
                         db_connection: async_sessionmaker) -> UsersResponseSchema:
 
         req_data = req_data.model_dump()
@@ -48,6 +58,8 @@ class UserOperations:
                 # go through all optional items in request and update users if present
                 for k, v in record.items():
                     if k != 'users_id':
+                        if k == 'password':
+                            v = self.pwd_context.hash(v)
                         setattr(updated_users, k, v)
 
                 updated_users_list.append(updated_users)
@@ -73,4 +85,21 @@ class UserOperations:
 
             await session.commit()
 
-            return None       
+            return None    
+        
+    async def user_login(self, req_data: UserLoginRequestSchema, db_connection: async_sessionmaker) -> UserLoginResponseSchema:
+           
+        req_data = req_data.model_dump()
+
+        async with db_connection.async_session() as session:
+            
+            user = await session.execute(Users).where(Users.email == req_data.get('email'))
+            user = user.scalar_one()
+            
+            # Verify the password
+        if self.pwd_context.verify(req_data.get('password'), user.password):
+            return UserLoginResponseSchema(code=200,
+                                            message='request handled successfully!',
+                                            body=UserLoginResponseStruct({'jwt_token': 'fake JWT token'}))
+        return {"message": "Invalid credentials"}, 401
+            

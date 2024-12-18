@@ -24,12 +24,24 @@ class UsersUpdaterRequestSchema(BaseModel):
 class UsersDeleterRequestSchema(BaseModel):
 
     records_list: list[UsersDeleterStruct]
+    
+class UserLoginRequestSchema(BaseModel):
+    email: str
+    password: str
 
 class UsersResponseStruct(BaseModel):
     users_id: int
     email: str
+    
+class UserLoginResponseStruct(BaseModel):
+    jwt_token: str
 
 class UsersResponseSchema(BaseModel):
     code: int
     message: str
     body: list[UsersResponseStruct]
+    
+class UserLoginResponseSchema(BaseModel):
+    code: int
+    message: str
+    body: UsersResponseStruct
