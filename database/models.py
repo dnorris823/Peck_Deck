@@ -5,13 +5,40 @@ from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
 
-class User(Base):
+class Users(Base):
     __tablename__ = 'users'
     id = Column(Integer, primary_key=True)
     email = Column(String, nullable=False)
     password = Column(String, nullable=False)
 
-    sightings = relationship('Sightings', back_populates='user')
+    # children
+    devices = relationship('Devices', back_populates='users')
+    device_users = relationship('DeviceUsers', back_populates='users')
+    
+class Devices(Base):
+    __tablename__ = 'devices'
+    id = Column(Integer, primary_key=True)
+    name = Column(String, nullable=False)
+    city = Column(String, nullable=False)
+    state = Column(String, nullable=False)
+    owner = Column(Integer, ForeignKey('Users.id'))
+    
+    # parent
+    users = relationship('Users', back_populates='devices')
+    
+    # children
+    device_users = relationship('DeviceUsers', back_populates='devices')
+    sightings = relationship('Sightings', back_populates='devices')
+    
+class DeviceUsers(Base):
+    __tablename__ = 'device_users'
+    id = Column(Integer, primary_key=True)
+    device_id = Column(Integer, ForeignKey('Devices.id'))
+    user_id = Column(Integer, ForeignKey('Users.id'))
+    
+    # parent
+    devices = relationship('Devices', back_populates='device_users')
+    users = relationship('Users', back_populates='device_users')
 
 class Species(Base):
     __tablename__ = 'species'
@@ -22,18 +49,20 @@ class Species(Base):
     order = Column(String, nullable=False)
     wiki_url = Column(String, nullable=False)
 
+    # children
     sightings = relationship('Sightings', back_populates='species')
 
-class Sighting(Base):
-    __tablename__ = 'sighting'
+class Sightings(Base):
+    __tablename__ = 'sightings'
     id = Column(Integer, primary_key=True)
     species = Column(Integer, ForeignKey('Species.id'))
-    user = Column(Integer, ForeignKey('User.id'))
+    device = Column(Integer, ForeignKey('Devices.id'))
     datetime = Column(DateTime, nullable=False)
     photo_location = Column(String)
     weather_conditions = Column(String)
     feed_type = Column(String)
 
+    # parents
     species = relationship('Species', back_populates='sightings')
-    user = relationship('User', back_populates='sightings')
+    devices = relationship('Devices', back_populates='sightings')
 

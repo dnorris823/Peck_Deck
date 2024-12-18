@@ -13,11 +13,11 @@ class SpeciesCreatorStruct(BaseModel):
 
 class SpeciesUpdaterStruct(BaseModel):
     species_id: int
-    common_name: str
-    genus: str
-    species: str
-    order: str
-    wiki_url: str
+    common_name: Optional[str] = None
+    genus: Optional[str] = None
+    species: Optional[str] = None
+    order: Optional[str] = None
+    wiki_url: Optional[str] = None
 
 class SpeciesDeleterStruct(BaseModel):
     species_id: int
