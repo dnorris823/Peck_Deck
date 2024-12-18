@@ -58,7 +58,7 @@ class Sightings(Base):
     species = Column(Integer, ForeignKey('Species.id'))
     device = Column(Integer, ForeignKey('Devices.id'))
     datetime = Column(DateTime, nullable=False)
-    photo_location = Column(String)
+    photo_storage_location = Column(String)
     weather_conditions = Column(String)
     feed_type = Column(String)
 
