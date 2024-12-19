@@ -21,7 +21,7 @@ class Devices(Base):
     name = Column(String, nullable=False)
     city = Column(String, nullable=False)
     state = Column(String, nullable=False)
-    owner = Column(Integer, ForeignKey('Users.id'))
+    owner = Column(Integer, ForeignKey('users.id'))
     
     # parent
     users = relationship('Users', back_populates='devices')
@@ -33,8 +33,8 @@ class Devices(Base):
 class DeviceUsers(Base):
     __tablename__ = 'device_users'
     id = Column(Integer, primary_key=True)
-    device_id = Column(Integer, ForeignKey('Devices.id'))
-    user_id = Column(Integer, ForeignKey('Users.id'))
+    device_id = Column(Integer, ForeignKey('devices.id'))
+    user_id = Column(Integer, ForeignKey('users.id'))
     
     # parent
     devices = relationship('Devices', back_populates='device_users')
@@ -55,8 +55,8 @@ class Species(Base):
 class Sightings(Base):
     __tablename__ = 'sightings'
     id = Column(Integer, primary_key=True)
-    species = Column(Integer, ForeignKey('Species.id'))
-    device = Column(Integer, ForeignKey('Devices.id'))
+    species_id= Column(Integer, ForeignKey('species.id'))
+    device = Column(Integer, ForeignKey('devices.id'))
     datetime = Column(DateTime, nullable=False)
     photo_storage_location = Column(String)
     weather_conditions = Column(String)

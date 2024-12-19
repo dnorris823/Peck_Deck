@@ -23,7 +23,7 @@ class UserOperations:
 
         req_data = req_data.model_dump()
 
-        async with db_connection.async_session() as session:
+        async with db_connection() as session:
 
             new_users_list = []
 
@@ -39,7 +39,7 @@ class UserOperations:
 
             return UsersResponseSchema(code=201,
                                     message='request handled successfully!',
-                                    body=[UsersResponseStruct({'user_id': new_user.id, 'email': new_user.email}) for new_user in new_users_list])
+                                    body=[UsersResponseStruct(**{'user_id': new_user.id, 'email': new_user.email}) for new_user in new_users_list])
             
     async def update_users(self, req_data: UsersUpdaterRequestSchema, 
                         db_connection: async_sessionmaker) -> UsersResponseSchema:

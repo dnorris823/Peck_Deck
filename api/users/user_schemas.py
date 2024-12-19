@@ -6,12 +6,12 @@ class UsersCreatorStruct(BaseModel):
     password: str
 
 class UsersUpdaterStruct(BaseModel):
-    users_id: int
+    user_id: int
     email: Optional[str] = None
     password: Optional[str] = None
 
 class UsersDeleterStruct(BaseModel):
-    users_id: int
+    user_id: int
 
 class UsersCreatorRequestSchema(BaseModel):
 
@@ -26,7 +26,7 @@ class UsersDeleterRequestSchema(BaseModel):
     records_list: list[UsersDeleterStruct]
     
 class UsersResponseStruct(BaseModel):
-    users_id: int
+    user_id: int
     email: str
 
 class UsersResponseSchema(BaseModel):
