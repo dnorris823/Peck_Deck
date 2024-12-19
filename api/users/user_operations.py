@@ -1,4 +1,6 @@
 
+from litestar.exceptions import NotAuthorizedException
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
@@ -8,11 +10,8 @@ from database.models import Users
 from api.users.user_schemas import (UsersCreatorRequestSchema,
                                     UsersUpdaterRequestSchema,
                                     UsersDeleterRequestSchema,
-                                    UserLoginRequestSchema,
                                     UsersResponseStruct,
-                                    UserLoginResponseStruct,
-                                    UsersResponseSchema,
-                                    UserLoginResponseSchema)
+                                    UsersResponseSchema,)
 
 class UserOperations:
     
@@ -87,19 +86,4 @@ class UserOperations:
 
             return None    
         
-    async def user_login(self, req_data: UserLoginRequestSchema, db_connection: async_sessionmaker) -> UserLoginResponseSchema:
-           
-        req_data = req_data.model_dump()
-
-        async with db_connection.async_session() as session:
-            
-            user = await session.execute(Users).where(Users.email == req_data.get('email'))
-            user = user.scalar_one()
-            
-            # Verify the password
-        if self.pwd_context.verify(req_data.get('password'), user.password):
-            return UserLoginResponseSchema(code=200,
-                                            message='request handled successfully!',
-                                            body=UserLoginResponseStruct({'jwt_token': 'fake JWT token'}))
-        return {"message": "Invalid credentials"}, 401
             

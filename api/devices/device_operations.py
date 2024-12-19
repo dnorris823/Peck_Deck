@@ -14,7 +14,7 @@ from api.devices.device_schemas import (DevicesCreatorRequestSchema,
                                          DevicesAddUsersResponseSchema
                                          )
 
-class DevicesOperations:
+class DeviceOperations:
     
     async def create_devices(req_data: DevicesCreatorRequestSchema, 
                             db_connection: async_sessionmaker) -> DevicesResponseSchema:
