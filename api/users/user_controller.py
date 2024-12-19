@@ -12,9 +12,7 @@ from api.users.user_operations import UserOperations
 from api.users.user_schemas import (UsersCreatorRequestSchema, 
                                          UsersUpdaterRequestSchema, 
                                          UsersDeleterRequestSchema,
-                                         UserLoginRequestSchema,
-                                         UsersResponseSchema,
-                                         UserLoginResponseSchema)
+                                         UsersResponseSchema)
 
 class UsersController(Controller):
     dependencies = {'db_connection': Provide(connect_to_db)}

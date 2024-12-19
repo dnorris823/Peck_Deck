@@ -1,5 +1,5 @@
 
-
+import os
 from typing import Any
 
 from pydantic import BaseModel, EmailStr
@@ -7,16 +7,12 @@ from pydantic import BaseModel, EmailStr
 from litestar import Response, post
 from litestar.connection import ASGIConnection
 from litestar.security.jwt import Token
+from litestar.security.jwt import JWTAuth
 
 from passlib.context import CryptContext
 
-from main import jwt_auth
-
 from database.connection import connect_to_db
 from database.models import Users
-
-from api.users.user_schemas import UsersResponseStruct
-
 
 # Let's assume we have a User model that is a pydantic model.
 # This though is not required - we need some sort of user class -
@@ -25,15 +21,24 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
     
-
+class UserLoginResponse(BaseModel):
+    users_id: int
+    email: str
+    
 # JWTAuth requires a retrieve handler callable that receives the JWT token model and the ASGI connection
 # and returns the 'User' instance correlating to it.
 async def retrieve_user_handler(token: Token, connection: "ASGIConnection[Any, Any, Any, Any]") -> int | None:
     return token.sub
 
+jwt_auth = JWTAuth[UserLogin](
+    retrieve_user_handler=retrieve_user_handler,
+    token_secret=os.getenv("JWT_SECRET"),
+    exclude=["/login", "/schema"],
+)
+
 # Given an instance of 'JWTAuth' we can create a login handler function:
 @post("/login")
-async def login_handler(req_data: UserLogin) -> Response[UsersResponseStruct]:
+async def login_handler(req_data: UserLogin) -> Response[UserLoginResponse]:
     
     # Initialize Passlib CryptContext with Argon2
     pwd_context = CryptContext(schemes=["argon2"], deprecated="auto")

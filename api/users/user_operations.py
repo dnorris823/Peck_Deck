@@ -6,17 +6,12 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from passlib.context import CryptContext
 
-from api.jwt_middleware import create_jwt
-
 from database.models import Users
 from api.users.user_schemas import (UsersCreatorRequestSchema,
                                     UsersUpdaterRequestSchema,
                                     UsersDeleterRequestSchema,
-                                    UserLoginRequestSchema,
                                     UsersResponseStruct,
-                                    UserLoginResponseStruct,
-                                    UsersResponseSchema,
-                                    UserLoginResponseSchema)
+                                    UsersResponseSchema,)
 
 class UserOperations:
     
