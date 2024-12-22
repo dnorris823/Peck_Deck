@@ -30,7 +30,7 @@ class SpeciesController(Controller):
         print(f"request_body: {data}")
         return await SpeciesOperations.update_species(data, db_connection)
     
-    @delete(path="/delete", status_code=HTTP_204_NO_CONTENT)
+    @post(path="/delete", status_code=HTTP_204_NO_CONTENT)
     async def delete_species(self, data: SpeciesDeleterRequestSchema, db_connection: async_sessionmaker) -> None:
         print(f"endpoint: /species/delete")
         print(f"request_body: {data}")

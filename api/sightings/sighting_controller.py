@@ -30,7 +30,7 @@ class SightingsController(Controller):
         print(f"request_body: {data}")
         return await SightingsOperations.update_sightings(data, db_connection)
     
-    @delete(path="/delete", status_code=HTTP_204_NO_CONTENT)
+    @post(path="/delete", status_code=HTTP_204_NO_CONTENT)
     async def delete_sightings(self, data: SightingsDeleterRequestSchema, db_connection: async_sessionmaker) -> None:
         print(f"endpoint: /sightings/delete")
         print(f"request_body: {data}")
