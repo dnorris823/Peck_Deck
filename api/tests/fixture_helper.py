@@ -68,7 +68,6 @@ class FixtureHelper:
     
     async def create_device(self, name: str = 'test_device', city: str = 'spokompton', state: str = 'WA'):
         
-        await self.login_user()
         await self.create_user()
         
         create_device_request = {'records_list': [{'name': name, 
@@ -87,8 +86,6 @@ class FixtureHelper:
     
     async def update_device(self, name: str = 'test_device2', city: str = 'rain_city', state: str = 'cascadia'):
         
-        await self.login_user()
-        await self.create_user()
         await self.create_device()
         
         update_device_request = {'records_list': [{'device_id': self.device_ids[0], 
@@ -104,8 +101,6 @@ class FixtureHelper:
     
     async def delete_device(self):
         
-        await self.login_user()
-        await self.create_user()
         await self.create_device()
         
         delete_device_request = {'records_list': [{'device_id': self.device_ids[0]}]}
@@ -118,8 +113,6 @@ class FixtureHelper:
     
     async def device_add_user(self):
         
-        await self.login_user()
-        await self.create_user()
         await self.create_device()
         
         device_add_user_request = {'records_list': [{'device_id': self.device_ids[0], 'user_id': 1}]}
@@ -136,9 +129,6 @@ class FixtureHelper:
     
     async def remove_device_user(self):
         
-        await self.login_user()
-        await self.create_user()
-        await self.create_device()
         await self.device_add_user()
         
         remove_device_user_request = {'records_list': [{'device_user_id': self.device_user_ids[1]}]}
@@ -177,7 +167,6 @@ class FixtureHelper:
                              genus: str = 'gandalfius2', 
                              species: str = 'fernius2'):
         
-        await self.login_user()
         await self.create_species()
         
         update_species_request = {'records_list': [{'species_id': self.species_ids[0],
@@ -193,13 +182,58 @@ class FixtureHelper:
     
     async def delete_species(self):
         
-        await self.login_user()
         await self.create_species()
         
         delete_species_request = {'records_list': [{'species_id': self.species_ids[0]}]}
 
         response = await self.test_client.post("/species/delete", 
                                                data=json.dumps(delete_species_request),
+                                               headers={"Authorization": self.jwt_token})
+        
+        return response
+    
+    async def create_sighting(self):
+        
+        await self.create_species()
+        await self.create_device()
+        
+        create_sighting_request = {'records_list': [{'species_id': self.species_ids[0], 
+                                                   'device_id': self.device_ids[0], 
+                                                   'photo_storage_location': 'test_location', 
+                                                   'weather_conditions': 'raining',
+                                                   'feed_type': 'seeds'}]}
+
+        response = await self.test_client.post("/sightings/create", 
+                                               data=json.dumps(create_sighting_request),
+                                               headers={"Authorization": self.jwt_token})
+        response_body = response.json()
+        
+        self.sighting_ids = [sighting.get('sighting_id') for sighting in response_body.get('body')]
+        return response
+    
+    async def update_sighting(self, name: str = 'test_device2', city: str = 'rain_city', state: str = 'cascadia'):
+        
+        await self.create_sighting()
+        
+        update_sighting_request = {'records_list': [{'sighting_id': self.sighting_ids[0],
+                                                   'photo_storage_location': 'test_location2', 
+                                                   'weather_conditions': 'sunny',
+                                                   'feed_type': 'insects'}]}
+
+        response = await self.test_client.patch("/sightings/update", 
+                                               data=json.dumps(update_sighting_request),
+                                               headers={"Authorization": self.jwt_token})
+        
+        return response
+    
+    async def delete_sighting(self):
+        
+        await self.create_sighting()
+        
+        delete_sighting_request = {'records_list': [{'sighting_id': self.sighting_ids[0]}]}
+
+        response = await self.test_client.post("/sightings/delete", 
+                                               data=json.dumps(delete_sighting_request),
                                                headers={"Authorization": self.jwt_token})
         
         return response

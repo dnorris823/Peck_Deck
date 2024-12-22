@@ -1,5 +1,5 @@
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, text
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -59,8 +59,8 @@ class Sightings(Base):
     __tablename__ = 'sightings'
     id = Column(Integer, primary_key=True)
     species_id= Column(Integer, ForeignKey('species.id'))
-    device = Column(Integer, ForeignKey('devices.id'))
-    datetime = Column(DateTime, nullable=False)
+    device_id = Column(Integer, ForeignKey('devices.id'))
+    datetime = Column(DateTime, nullable=False, server_default=text('CURRENT_TIMESTAMP'))
     photo_storage_location = Column(String)
     weather_conditions = Column(String)
     feed_type = Column(String)
