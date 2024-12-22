@@ -54,6 +54,7 @@ class DevicesResponseStruct(BaseModel):
     city: str
     state: str
     owner: int
+    device_user_id: Optional[int] = None
     
 class DevicesAddUsersResponseStruct(BaseModel):
     device_user_id: int

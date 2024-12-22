@@ -33,7 +33,7 @@ class DeviceController(Controller):
         print(f"request_body: {data}")
         return await DeviceOperations.update_devices(data, db_connection)
     
-    @delete(path="/delete", status_code=HTTP_204_NO_CONTENT)
+    @post(path="/delete", status_code=HTTP_204_NO_CONTENT)
     async def delete_devices(self, data: DevicesDeleterRequestSchema, db_connection: async_sessionmaker) -> None:
         print(f"endpoint: /devices/delete")
         print(f"request_body: {data}")
@@ -45,7 +45,7 @@ class DeviceController(Controller):
         print(f"request_body: {data}")
         return await DeviceOperations.add_users_to_device(data, db_connection)
     
-    @delete(path="/remove_users", status_code=HTTP_201_CREATED)
+    @post(path="/remove_users", status_code=HTTP_204_NO_CONTENT)
     async def remove_users_from_device(self, data: DevicesRemoveUsersRequestSchema, db_connection: async_sessionmaker) -> None:
         print(f"endpoint: /devices/remove_users")
         print(f"request_body: {data}")

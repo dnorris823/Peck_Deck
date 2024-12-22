@@ -23,7 +23,7 @@ class TestUserEndpoints:
             assert user.email == 'test2@peckdeck.com'
             assert user.password != 'test123'
             
-            assert response.jsonget('code') == 201
+            assert response.json().get('code') == 201
             assert response_body.get('email') == 'test2@peckdeck.com'
             assert response_body.get('user_id') == fixture_helper.user_ids[0]
                     

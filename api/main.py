@@ -19,6 +19,7 @@ species_router = Router(path="/species", route_handlers=[SpeciesController])
 app = Litestar(route_handlers=
                [login_handler,
                 species_router, 
+                device_router,
                 user_router],
                openapi_config=OpenAPIConfig(title="Peck_Deck API", version="1.0.0"),
                on_app_init=[jwt_auth.on_app_init],
