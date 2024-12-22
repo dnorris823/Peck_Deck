@@ -148,3 +148,58 @@ class FixtureHelper:
                                                headers={"Authorization": self.jwt_token})
         
         return response
+    
+    async def create_species(self, 
+                             common_name: str = 'test_species', 
+                             genus: str = 'gandalfius', 
+                             species: str = 'fernius', 
+                             order: str = 'test_order', 
+                             wiki_url: str = 'https://en.wikipedia.org/wiki/test_species'):
+        
+        await self.login_user()
+        
+        create_species_request = {'records_list': [{'common_name': common_name,
+                                                    'genus': genus,
+                                                   'species': species,
+                                                   'order': order,
+                                                   'wiki_url': wiki_url}]}
+
+        response = await self.test_client.post("/species/create", 
+                                               data=json.dumps(create_species_request),
+                                               headers={"Authorization": self.jwt_token})
+        response_body = response.json()
+        
+        self.species_ids = [species.get('species_id') for species in response_body.get('body')]
+        return response
+    
+    async def update_species(self, 
+                             common_name: str = 'test_species2', 
+                             genus: str = 'gandalfius2', 
+                             species: str = 'fernius2'):
+        
+        await self.login_user()
+        await self.create_species()
+        
+        update_species_request = {'records_list': [{'species_id': self.species_ids[0],
+                                                    'common_name': common_name,
+                                                    'genus': genus,
+                                                    'species': species}]}
+
+        response = await self.test_client.patch("/species/update", 
+                                               data=json.dumps(update_species_request),
+                                               headers={"Authorization": self.jwt_token})
+        
+        return response
+    
+    async def delete_species(self):
+        
+        await self.login_user()
+        await self.create_species()
+        
+        delete_species_request = {'records_list': [{'species_id': self.species_ids[0]}]}
+
+        response = await self.test_client.post("/species/delete", 
+                                               data=json.dumps(delete_species_request),
+                                               headers={"Authorization": self.jwt_token})
+        
+        return response
