@@ -16,22 +16,23 @@ from api.users.user_schemas import (UsersCreatorRequestSchema,
 
 class UsersController(Controller):
     dependencies = {'db_connection': Provide(connect_to_db)}
+    user_operations = UserOperations()
     
     @post(path="/create", status_code=HTTP_201_CREATED)
     async def create_users(self, data: UsersCreatorRequestSchema, db_connection: async_sessionmaker) -> UsersResponseSchema:
         print(f"endpoint: /users/create")
         print(f"request_body: {data}")
-        return await UserOperations.create_users(data, db_connection)
+        return await self.user_operations.create_users(req_data=data, db_connection=db_connection)
     
     @patch(path="/update", status_code=HTTP_200_OK)
     async def update_users(self, data: UsersUpdaterRequestSchema, db_connection: async_sessionmaker) -> UsersResponseSchema:
         print(f"endpoint: /users/update")
         print(f"request_body: {data}")
-        return await UserOperations.update_users(data, db_connection)
+        return await self.user_operations.update_users(data, db_connection)
     
-    @delete(path="/delete", status_code=HTTP_204_NO_CONTENT)
+    @post(path="/delete", status_code=HTTP_204_NO_CONTENT)
     async def delete_users(self, data: UsersDeleterRequestSchema, db_connection: async_sessionmaker) -> None:
         print(f"endpoint: /users/delete")
         print(f"request_body: {data}")
-        return await UserOperations.delete_users(data, db_connection)
+        return await self.user_operations.delete_users(data, db_connection)
     
