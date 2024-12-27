@@ -42,9 +42,6 @@ class FixtureHelper:
     
     async def update_user(self, email: str = 'test3@peckdeck.com'):
         
-        await self.login_user()
-        await self.create_user()
-        
         update_user_request = {'records_list': [{'user_id': self.user_ids[0], 'email': email}]}
 
         response = await self.test_client.patch("/users/update", 
@@ -55,9 +52,6 @@ class FixtureHelper:
     
     async def delete_user(self):
         
-        await self.login_user()
-        await self.create_user()
-        
         delete_user_request = {'records_list': [{'user_id': self.user_ids[0]}]}
 
         response = await self.test_client.post("/users/delete", 
@@ -67,8 +61,6 @@ class FixtureHelper:
         return response
     
     async def create_device(self, name: str = 'test_device', city: str = 'spokompton', state: str = 'WA'):
-        
-        await self.create_user()
         
         create_device_request = {'records_list': [{'name': name, 
                                                    'city': city, 
@@ -86,8 +78,6 @@ class FixtureHelper:
     
     async def update_device(self, name: str = 'test_device2', city: str = 'rain_city', state: str = 'cascadia'):
         
-        await self.create_device()
-        
         update_device_request = {'records_list': [{'device_id': self.device_ids[0], 
                                                  'name': name, 
                                                  'city': city, 
@@ -101,8 +91,6 @@ class FixtureHelper:
     
     async def delete_device(self):
         
-        await self.create_device()
-        
         delete_device_request = {'records_list': [{'device_id': self.device_ids[0]}]}
 
         response = await self.test_client.post("/devices/delete", 
@@ -112,8 +100,6 @@ class FixtureHelper:
         return response
     
     async def device_add_user(self):
-        
-        await self.create_device()
         
         device_add_user_request = {'records_list': [{'device_id': self.device_ids[0], 'user_id': 1}]}
 
@@ -129,8 +115,6 @@ class FixtureHelper:
     
     async def remove_device_user(self):
         
-        await self.device_add_user()
-        
         remove_device_user_request = {'records_list': [{'device_user_id': self.device_user_ids[1]}]}
 
         response = await self.test_client.post("/devices/remove_users", 
@@ -145,8 +129,6 @@ class FixtureHelper:
                              species: str = 'fernius', 
                              order: str = 'test_order', 
                              wiki_url: str = 'https://en.wikipedia.org/wiki/test_species'):
-        
-        await self.login_user()
         
         create_species_request = {'records_list': [{'common_name': common_name,
                                                     'genus': genus,
@@ -167,8 +149,6 @@ class FixtureHelper:
                              genus: str = 'gandalfius2', 
                              species: str = 'fernius2'):
         
-        await self.create_species()
-        
         update_species_request = {'records_list': [{'species_id': self.species_ids[0],
                                                     'common_name': common_name,
                                                     'genus': genus,
@@ -182,8 +162,6 @@ class FixtureHelper:
     
     async def delete_species(self):
         
-        await self.create_species()
-        
         delete_species_request = {'records_list': [{'species_id': self.species_ids[0]}]}
 
         response = await self.test_client.post("/species/delete", 
@@ -193,9 +171,6 @@ class FixtureHelper:
         return response
     
     async def create_sighting(self):
-        
-        await self.create_species()
-        await self.create_device()
         
         create_sighting_request = {'records_list': [{'species_id': self.species_ids[0], 
                                                    'device_id': self.device_ids[0], 
@@ -213,8 +188,6 @@ class FixtureHelper:
     
     async def update_sighting(self, name: str = 'test_device2', city: str = 'rain_city', state: str = 'cascadia'):
         
-        await self.create_sighting()
-        
         update_sighting_request = {'records_list': [{'sighting_id': self.sighting_ids[0],
                                                    'photo_storage_location': 'test_location2', 
                                                    'weather_conditions': 'sunny',
@@ -227,8 +200,6 @@ class FixtureHelper:
         return response
     
     async def delete_sighting(self):
-        
-        await self.create_sighting()
         
         delete_sighting_request = {'records_list': [{'sighting_id': self.sighting_ids[0]}]}
 
