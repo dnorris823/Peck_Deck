@@ -13,6 +13,8 @@ class TestDeviceEndpoints:
     async def test_create_device(self, init_db, test_client):
         
         fixture_helper = FixtureHelper(test_client, init_db)
+        await fixture_helper.login_user()
+        await fixture_helper.create_user()
         response = await fixture_helper.create_device()
         response_body = response.json().get('body')[0]
         
@@ -36,6 +38,9 @@ class TestDeviceEndpoints:
     async def test_update_device(self, init_db, test_client):
         
         fixture_helper = FixtureHelper(test_client, init_db)
+        await fixture_helper.login_user()
+        await fixture_helper.create_user()
+        await fixture_helper.create_device()
         response = await fixture_helper.update_device()
         response_body = response.json().get('body')[0]
         
@@ -57,6 +62,9 @@ class TestDeviceEndpoints:
     async def test_delete_device(self, init_db, test_client):
         
         fixture_helper = FixtureHelper(test_client, init_db)
+        await fixture_helper.login_user()
+        await fixture_helper.create_user()
+        await fixture_helper.create_device()
         response = await fixture_helper.delete_device()
         
         async with init_db() as session:
@@ -71,6 +79,9 @@ class TestDeviceEndpoints:
     async def test_device_add_user(self, init_db, test_client):
         
         fixture_helper = FixtureHelper(test_client, init_db)
+        await fixture_helper.login_user()
+        await fixture_helper.create_user()
+        await fixture_helper.create_device()
         response = await fixture_helper.device_add_user()
         response_body = response.json().get('body')[0]
         
@@ -90,6 +101,10 @@ class TestDeviceEndpoints:
     async def test_delete_device_user(self, init_db, test_client):
         
         fixture_helper = FixtureHelper(test_client, init_db)
+        await fixture_helper.login_user()
+        await fixture_helper.create_user()
+        await fixture_helper.create_device()
+        await fixture_helper.device_add_user()
         response = await fixture_helper.remove_device_user()
         
         async with init_db() as session:

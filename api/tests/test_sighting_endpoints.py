@@ -13,6 +13,10 @@ class TestSightingsEndpoints:
     async def test_create_sighting(self, init_db, test_client):
         
         fixture_helper = FixtureHelper(test_client, init_db)
+        await fixture_helper.login_user()
+        await fixture_helper.create_user()
+        await fixture_helper.create_species()
+        await fixture_helper.create_device()
         response = await fixture_helper.create_sighting()
         response_body = response.json().get('body')[0]
         
@@ -39,6 +43,11 @@ class TestSightingsEndpoints:
     async def test_update_sighting(self, init_db, test_client):
         
         fixture_helper = FixtureHelper(test_client, init_db)
+        await fixture_helper.login_user()
+        await fixture_helper.create_user()
+        await fixture_helper.create_species()
+        await fixture_helper.create_device()
+        await fixture_helper.create_sighting()
         response = await fixture_helper.update_sighting()
         response_body = response.json().get('body')[0]
         
@@ -58,6 +67,11 @@ class TestSightingsEndpoints:
     async def test_delete_sighting(self, init_db, test_client):
         
         fixture_helper = FixtureHelper(test_client, init_db)
+        await fixture_helper.login_user()
+        await fixture_helper.create_user()
+        await fixture_helper.create_species()
+        await fixture_helper.create_device()
+        await fixture_helper.create_sighting()
         response = await fixture_helper.delete_sighting()
         
         async with init_db() as session:

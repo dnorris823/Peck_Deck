@@ -12,6 +12,7 @@ class TestSpeciesEndpoints:
     async def test_create_species(self, init_db, test_client):
         
         fixture_helper = FixtureHelper(test_client, init_db)
+        await fixture_helper.login_user()
         response = await fixture_helper.create_species()
         response_body = response.json().get('body')[0]
         
@@ -36,6 +37,8 @@ class TestSpeciesEndpoints:
     async def test_update_species(self, init_db, test_client):
         
         fixture_helper = FixtureHelper(test_client, init_db)
+        await fixture_helper.login_user()
+        await fixture_helper.create_species()
         response = await fixture_helper.update_species()
         response_body = response.json().get('body')[0]
         
@@ -55,6 +58,8 @@ class TestSpeciesEndpoints:
     async def test_delete_species(self, init_db, test_client):
         
         fixture_helper = FixtureHelper(test_client, init_db)
+        await fixture_helper.login_user()
+        await fixture_helper.create_species()
         response = await fixture_helper.delete_species()
         
         async with init_db() as session:

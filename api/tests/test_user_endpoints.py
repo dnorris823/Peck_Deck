@@ -13,6 +13,7 @@ class TestUserEndpoints:
     async def test_create_user(self, init_db, test_client):
         
         fixture_helper = FixtureHelper(test_client, init_db)
+        await fixture_helper.login_user()
         response = await fixture_helper.create_user('test2@peckdeck.com', 'test123')
         response_body = response.json().get('body')[0]
         
@@ -31,6 +32,8 @@ class TestUserEndpoints:
     async def test_update_user(self, init_db, test_client):
         
         fixture_helper = FixtureHelper(test_client, init_db)
+        await fixture_helper.login_user()
+        await fixture_helper.create_user()
         response = await fixture_helper.update_user()
         response_body = response.json().get('body')[0]
         
@@ -47,6 +50,8 @@ class TestUserEndpoints:
     async def test_delete_user(self, init_db, test_client):
         
         fixture_helper = FixtureHelper(test_client, init_db)
+        await fixture_helper.login_user()
+        await fixture_helper.create_user()
         response = await fixture_helper.delete_user()
         
         async with init_db() as session:
