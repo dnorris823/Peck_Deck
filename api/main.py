@@ -12,6 +12,7 @@ from api.users.user_controller import UsersController
 from api.sightings.sighting_controller import SightingsController
 
 from api.jwt_middleware import login_handler, jwt_auth
+from api.load_model import cv_model
 
 user_router = Router(path='/users', route_handlers=[UsersController])
 device_router = Router(path='/devices', route_handlers=[DeviceController])
@@ -26,6 +27,7 @@ app = Litestar(route_handlers=
                 sighting_router],
                openapi_config=OpenAPIConfig(title="Peck_Deck API", version="1.0.0"),
                on_app_init=[jwt_auth.on_app_init],
+               on_startup=[cv_model],  # Runs once for the entire app
                debug=True,
                pdb_on_exception=True)
 
