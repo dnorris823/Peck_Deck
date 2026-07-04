@@ -1,3 +1,5 @@
+import json
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,6 +52,9 @@ async def create_species(
     species_name: str,
     order_name: str | None,
     wiki_url: str | None,
+    palette: list[str] | None = None,
+    silhouette: str | None = None,
+    note: str | None = None,
 ) -> Species:
     species = Species(
         common_name=common_name,
@@ -57,6 +62,9 @@ async def create_species(
         species_name=species_name,
         order_name=order_name,
         wiki_url=wiki_url,
+        palette=json.dumps(palette) if palette else None,
+        silhouette=silhouette,
+        note=note,
     )
     db.add(species)
     await db.flush()

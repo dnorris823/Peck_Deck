@@ -49,6 +49,14 @@ class Device(Base):
     feed_type: Mapped[str | None] = mapped_column(String, nullable=True)
     token: Mapped[str] = mapped_column(String, unique=True, nullable=False)
 
+    # Runtime telemetry reported by the Pi via POST /devices/{id}/heartbeat.
+    # All nullable — a freshly registered device has never checked in yet.
+    battery: Mapped[float | None] = mapped_column(Float, nullable=True)  # 0.0–1.0
+    signal: Mapped[str | None] = mapped_column(String, nullable=True)  # good|weak|none
+    last_seen: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     owner: Mapped["User"] = relationship(
         "User", foreign_keys=[owner_id], back_populates="owned_devices"
     )
@@ -80,6 +88,12 @@ class Species(Base):
     species_name: Mapped[str] = mapped_column(String, nullable=False)
     order_name: Mapped[str | None] = mapped_column(String, nullable=True)
     wiki_url: Mapped[str | None] = mapped_column(String, nullable=True)
+
+    # Field-guide presentation metadata used to render the stylized SVG plates
+    # in the web app. `palette` is a JSON-encoded list of hex colors.
+    palette: Mapped[str | None] = mapped_column(String, nullable=True)
+    silhouette: Mapped[str | None] = mapped_column(String, nullable=True)
+    note: Mapped[str | None] = mapped_column(String, nullable=True)
 
     sightings: Mapped[list["Sighting"]] = relationship("Sighting", back_populates="species")
 

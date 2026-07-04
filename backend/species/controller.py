@@ -1,3 +1,5 @@
+import json
+
 from litestar import Controller, get, post
 from litestar.exceptions import NotFoundException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,6 +17,9 @@ def _to_response(s) -> SpeciesResponse:
         species_name=s.species_name,
         order_name=s.order_name,
         wiki_url=s.wiki_url,
+        palette=json.loads(s.palette) if s.palette else [],
+        silhouette=s.silhouette,
+        note=s.note,
     )
 
 
@@ -42,5 +47,8 @@ class SpeciesController(Controller):
             species_name=data.species_name,
             order_name=data.order_name,
             wiki_url=data.wiki_url,
+            palette=data.palette,
+            silhouette=data.silhouette,
+            note=data.note,
         )
         return _to_response(species)

@@ -875,3 +875,53 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); }
   --forest-deep: #8eb89a;
 }
 [data-theme="dusk"] body { background: var(--paper); }
+
+/* ---------- Login gate + boot/loading states ---------- */
+.login-bg {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--paper);
+}
+.login-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--paper-2);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  box-shadow: var(--shadow-modal);
+  padding: 34px 34px 30px;
+}
+.login-error {
+  background: rgba(184, 65, 44, 0.1);
+  border: 1px solid rgba(184, 65, 44, 0.35);
+  color: var(--cardinal);
+  font-size: 12.5px;
+  padding: 8px 12px;
+  border-radius: 4px;
+  margin-bottom: 16px;
+}
+.boot {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: var(--paper);
+  color: var(--ink-soft);
+}
+.boot-mark {
+  font-family: var(--display);
+  font-style: italic;
+  font-size: 22px;
+  color: var(--ink);
+}
+.boot-sub {
+  font-size: 13px;
+  color: var(--ink-mute);
+  max-width: 42ch;
+  text-align: center;
+}

@@ -10,6 +10,7 @@ from .operations import (
     delete_user,
     get_user_by_email,
     get_user_by_id,
+    list_users,
     update_user,
 )
 from .schemas import LoginRequest, RegisterUser, TokenResponse, UpdateUser, UserResponse
@@ -37,6 +38,10 @@ async def login(data: LoginRequest, db: AsyncSession) -> TokenResponse:
 
 class UserController(Controller):
     path = "/users"
+
+    @get("/", guards=[user_guard])
+    async def list_all(self, db: AsyncSession) -> list[UserResponse]:
+        return [_to_response(u) for u in await list_users(db)]
 
     @post("/", status_code=201)
     async def register(self, data: RegisterUser, db: AsyncSession) -> UserResponse:

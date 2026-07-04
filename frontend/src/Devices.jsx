@@ -1,7 +1,7 @@
 // Devices page — list of stations with full settings
 import React, { useState } from "react";
 import { Icon } from "./Icon.jsx";
-import { DEVICES, USERS } from "./data.js";
+import { useData } from "./DataContext.jsx";
 
 function StationFigure({ d }) {
   // Stylized "feeder station" diagram with battery, signal, sensor
@@ -106,6 +106,7 @@ function DeviceListCard({ d, onClick }) {
 }
 
 function DeviceDetail({ d, onClose }) {
+  const { USERS } = useData().data;
   const tierLabels = {
     local: { name: "Tier 1 — Local", desc: "On-device TFLite, no network needed" },
     gpu: { name: "Tier 2 — LAN GPU", desc: "Forwards to RTX 5080 inference server" },
@@ -178,6 +179,7 @@ function DeviceDetail({ d, onClose }) {
 }
 
 export function DevicesPage() {
+  const { DEVICES } = useData().data;
   const [open, setOpen] = useState(null);
   return (
     <>

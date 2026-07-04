@@ -20,6 +20,12 @@ class UpdateDevice:
 
 
 @dataclass
+class DeviceHeartbeat:
+    battery: float | None = None
+    signal: str | None = None
+
+
+@dataclass
 class AddDeviceUser:
     user_id: int
 
@@ -34,3 +40,10 @@ class DeviceResponse:
     classification_tier: str
     feed_type: str | None
     token: str
+    battery: float | None
+    signal: str | None
+    last_seen: str | None
+    status: str  # online|warn|offline — derived from last_seen/battery/signal
+    today_sightings: int
+    week_sightings: int
+    all_time_sightings: int

@@ -1,5 +1,5 @@
-// App — top-level routing + simulated live notifications
-import React, { useState, useEffect } from "react";
+// App — auth gate, data provider, top-level routing + simulated live alerts
+import React, { useState, useEffect, useCallback } from "react";
 import { Sidebar, Topbar, NAV } from "./Shell.jsx";
 import { BirdPlate } from "./BirdPlate.jsx";
 import { Icon } from "./Icon.jsx";
@@ -8,7 +8,9 @@ import { Sightings, SightingDetail } from "./Sightings.jsx";
 import { SpeciesPage } from "./Species.jsx";
 import { DevicesPage } from "./Devices.jsx";
 import { UsersPage, SettingsPage } from "./UsersSettings.jsx";
-import { SIGHTINGS } from "./data.js";
+import { Login } from "./Login.jsx";
+import { DataProvider, useData } from "./DataContext.jsx";
+import { getToken, clearToken } from "./api.js";
 
 // Appearance defaults carried over from the Claude Design prototype's Tweaks
 // panel. The panel itself was a design-canvas tool (it drives the editor over
@@ -22,12 +24,7 @@ const APPEARANCE = {
   fontScale: 1,
 };
 
-export default function App() {
-  const [route, setRoute] = useState("dashboard");
-  const [openSighting, setOpenSighting] = useState(null);
-  const [toast, setToast] = useState(null);
-
-  // Apply theme + accent + font as CSS variable overrides
+function useAppearance() {
   useEffect(() => {
     const t = APPEARANCE;
     document.documentElement.dataset.theme = t.theme;
@@ -50,21 +47,58 @@ export default function App() {
     document.documentElement.style.setProperty("--display", fonts[t.displayFont] || fonts.newsreader);
     document.documentElement.style.fontSize = `${14 * t.fontScale}px`;
   }, []);
+}
+
+export default function App() {
+  const [authed, setAuthed] = useState(() => !!getToken());
+  useAppearance();
+
+  const onAuthError = useCallback(() => setAuthed(false), []);
+
+  if (!authed) {
+    return <Login onSuccess={() => setAuthed(true)} />;
+  }
+
+  return (
+    <DataProvider onAuthError={onAuthError}>
+      <AppShell onLogout={() => { clearToken(); setAuthed(false); }} />
+    </DataProvider>
+  );
+}
+
+function AppShell({ onLogout }) {
+  const { data, loading, error, reload } = useData();
+  const [route, setRoute] = useState("dashboard");
+  const [openSighting, setOpenSighting] = useState(null);
+  const [toast, setToast] = useState(null);
 
   // Simulated live alert — a toast slides in shortly after each navigation.
   useEffect(() => {
-    if (!APPEARANCE.showLiveAlerts) return;
+    if (!APPEARANCE.showLiveAlerts || !data || data.SIGHTINGS.length === 0) return;
     const tid = window.setTimeout(() => {
-      const fresh = SIGHTINGS[0];
+      const fresh = data.SIGHTINGS[0];
       setToast({ ...fresh, key: Date.now() });
       window.setTimeout(() => setToast(null), 5400);
     }, 2200);
     return () => window.clearTimeout(tid);
-  }, [route]);
+  }, [route, data]);
+
+  if (loading && !data) {
+    return <div className="boot"><div className="boot-mark">Loading field station…</div></div>;
+  }
+  if (error) {
+    return (
+      <div className="boot">
+        <div className="boot-mark">Couldn't load data</div>
+        <div className="boot-sub">{error}</div>
+        <button className="btn primary sm" onClick={reload}>Retry</button>
+      </div>
+    );
+  }
 
   return (
     <div className="app">
-      <Sidebar route={route} setRoute={setRoute} />
+      <Sidebar route={route} setRoute={setRoute} onLogout={onLogout} />
       <main className="main">
         <Topbar route={route} />
         <div className="page" data-screen-label={NAV.find(n => n.id === route)?.label || route}>

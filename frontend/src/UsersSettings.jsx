@@ -1,9 +1,10 @@
 // Users page + Settings page
 import React, { useState } from "react";
 import { Icon } from "./Icon.jsx";
-import { USERS } from "./data.js";
+import { useData } from "./DataContext.jsx";
 
 export function UsersPage() {
+  const { USERS } = useData().data;
   return (
     <>
       <div className="page-header">

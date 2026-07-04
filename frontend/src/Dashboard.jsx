@@ -2,7 +2,8 @@
 import React from "react";
 import { BirdPlate } from "./BirdPlate.jsx";
 import { Icon } from "./Icon.jsx";
-import { SIGHTINGS, DEVICES, SPECIES_COUNTS, HEATMAP, fmtTime, fmtRelative } from "./data.js";
+import { useData } from "./DataContext.jsx";
+import { fmtTime, fmtRelative } from "./data.js";
 
 function Sparkline({ data, color = "var(--forest)" }) {
   const w = 88, h = 32;
@@ -114,6 +115,7 @@ function DeviceCard({ d }) {
 }
 
 function ActivityHeatmap() {
+  const { HEATMAP } = useData().data;
   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   return (
     <div>
@@ -151,7 +153,11 @@ function ActivityHeatmap() {
 }
 
 function TopVisitors() {
+  const { SPECIES_COUNTS } = useData().data;
   const top = SPECIES_COUNTS.slice(0, 5);
+  if (top.length === 0) {
+    return <div style={{ color: "var(--ink-mute)", fontSize: 13, padding: "8px 0" }}>No sightings yet.</div>;
+  }
   const max = top[0].count;
   return (
     <div>
@@ -180,37 +186,64 @@ function TopVisitors() {
   );
 }
 
+function greeting(now) {
+  const h = now.getHours();
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+function abbrevName(name) {
+  if (!name) return "—";
+  const parts = name.split(/\s+/);
+  return parts.length > 1 ? `${parts[0][0]}. ${parts.slice(1).join(" ")}` : name;
+}
+
 export function Dashboard({ openSighting }) {
-  const today = SIGHTINGS.filter(s => (new Date("2026-05-09T16:24:00") - s.datetime) / 3600000 < 12).length;
+  const { SIGHTINGS, DEVICES, DASHBOARD } = useData().data;
+  const now = new Date();
+  const d = DASHBOARD;
+  const sparkSightings = d.spark_sightings?.length ? d.spark_sightings : [0];
+  const sparkSpecies = d.spark_species?.length ? d.spark_species : [0];
+  const sparkConf = d.spark_confidence?.length ? d.spark_confidence.map(v => Math.round(v * 100)) : [0];
+  const sightingsTrend = sparkSightings.length > 1
+    ? sparkSightings[sparkSightings.length - 1] - sparkSightings[sparkSightings.length - 2] : 0;
   return (
     <>
       <div className="page-header">
         <div>
-          <div className="label" style={{ marginBottom: 6 }}>Saturday · May 09, 2026</div>
-          <h1 className="page-title">Good afternoon, <em>Dominic.</em></h1>
+          <div className="label" style={{ marginBottom: 6 }}>
+            {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "2-digit", year: "numeric" })}
+          </div>
+          <h1 className="page-title">{greeting(now)}, <em>Dominic.</em></h1>
           <div style={{ marginTop: 10, color: "var(--ink-soft)", maxWidth: "60ch" }}>
-            Three stations are listening. <strong style={{ color: "var(--ink)" }}>{today} birds</strong> stopped
-            by since dawn — including your first <em style={{ color: "var(--cardinal)" }}>White-breasted Nuthatch</em> in nine days.
+            {DEVICES.length} station{DEVICES.length === 1 ? " is" : "s are"} listening.{" "}
+            <strong style={{ color: "var(--ink)" }}>{d.today_sightings} bird{d.today_sightings === 1 ? "" : "s"}</strong> stopped
+            by today{d.most_frequent ? <> — your most frequent visitor is the{" "}
+            <em style={{ color: "var(--cardinal)" }}>{d.most_frequent}</em>.</> : "."}
           </div>
         </div>
         <div className="page-meta">
-          <div className="label">Weather</div>
+          <div className="label">Species this week</div>
           <div className="page-meta-row">
-            <span className="display-i" style={{ fontSize: 32 }}>62°</span>
-            <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-mute)" }}>PARTLY CLOUDY · WIND SW 8</span>
+            <span className="display-i" style={{ fontSize: 32 }}>{d.species_this_week}</span>
+            <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-mute)" }}>
+              OF {d.total_species} CATALOGUED
+            </span>
           </div>
         </div>
       </div>
 
       <div className="stats-grid">
-        <StatCard label="Today's sightings" value={24} accent="var(--cardinal)"
-          trend="+6 vs. yesterday" trendDir="up" spark={[8, 12, 9, 14, 18, 22, 24]} />
-        <StatCard label="Species this week" value={11} em accent="var(--forest)"
-          trend="2 new arrivals" trendDir="up" spark={[6, 7, 7, 8, 9, 10, 11]} />
-        <StatCard label="Most frequent" value="N. Cardinal" accent="var(--cardinal)" isText
-          trend="247 visits all-time" trendDir="" />
-        <StatCard label="Avg. confidence" value="91%" accent="var(--yolk-deep)"
-          trend="+3% vs. last week" trendDir="up" spark={[78, 82, 85, 88, 87, 90, 91]} />
+        <StatCard label="Today's sightings" value={d.today_sightings} accent="var(--cardinal)"
+          trend={sightingsTrend >= 0 ? `+${sightingsTrend} vs. yesterday` : `${sightingsTrend} vs. yesterday`}
+          trendDir={sightingsTrend > 0 ? "up" : sightingsTrend < 0 ? "down" : ""} spark={sparkSightings} />
+        <StatCard label="Species this week" value={d.species_this_week} em accent="var(--forest)"
+          trend={`${d.total_species} catalogued`} trendDir="" spark={sparkSpecies} />
+        <StatCard label="Most frequent" value={abbrevName(d.most_frequent)} accent="var(--cardinal)" isText
+          trend={`${d.most_frequent_count} visits all-time`} trendDir="" />
+        <StatCard label="Avg. confidence"
+          value={d.avg_confidence != null ? `${Math.round(d.avg_confidence * 100)}%` : "—"}
+          accent="var(--yolk-deep)" trend="last 7 days" trendDir="" spark={sparkConf} />
       </div>
 
       <div className="dash-grid">
@@ -218,7 +251,7 @@ export function Dashboard({ openSighting }) {
           <div className="section-head">
             <div>
               <div className="section-title">Recent visits</div>
-              <div className="section-sub">Last 12 hours · 3 stations</div>
+              <div className="section-sub">Most recent · {DEVICES.length} station{DEVICES.length === 1 ? "" : "s"}</div>
             </div>
             <div className="row">
               <button className="btn ghost sm">Today</button>

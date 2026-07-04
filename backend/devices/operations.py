@@ -1,9 +1,10 @@
 import secrets
+from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database.models import Device, DeviceUser, User
+from ..database.models import Device, DeviceUser, Sighting, User
 
 
 async def get_device(db: AsyncSession, device_id: int) -> Device | None:
@@ -64,6 +65,41 @@ async def update_device(
         device.classification_tier = classification_tier
     if feed_type is not None:
         device.feed_type = feed_type
+    await db.flush()
+    return device
+
+
+async def get_sighting_counts(db: AsyncSession, device_id: int) -> dict[str, int]:
+    """Today / last-7-days / all-time sighting counts for a device."""
+    now = datetime.now(timezone.utc)
+    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_start = now - timedelta(days=7)
+
+    def _count(*conditions):
+        return (
+            select(func.count())
+            .select_from(Sighting)
+            .where(Sighting.device_id == device_id, *conditions)
+        )
+
+    today = (await db.execute(_count(Sighting.datetime >= day_start))).scalar_one()
+    week = (await db.execute(_count(Sighting.datetime >= week_start))).scalar_one()
+    all_time = (await db.execute(_count())).scalar_one()
+    return {"today": today, "week": week, "all_time": all_time}
+
+
+async def update_device_telemetry(
+    db: AsyncSession,
+    device: Device,
+    *,
+    battery: float | None,
+    signal: str | None,
+) -> Device:
+    if battery is not None:
+        device.battery = battery
+    if signal is not None:
+        device.signal = signal
+    device.last_seen = datetime.now(timezone.utc)
     await db.flush()
     return device
 

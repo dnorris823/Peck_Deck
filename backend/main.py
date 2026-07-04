@@ -9,6 +9,7 @@ from .database.connection import create_tables, dispose_db, init_db, provide_db
 from .devices.controller import DeviceController
 from .sightings.controller import SightingController
 from .species.controller import SpeciesController
+from .stats.controller import StatsController
 from .users.controller import UserController, login
 
 
@@ -43,6 +44,7 @@ app = Litestar(
         DeviceController,
         SpeciesController,
         SightingController,
+        StatsController,
     ],
     dependencies={"db": Provide(provide_db)},
     on_startup=[on_startup],

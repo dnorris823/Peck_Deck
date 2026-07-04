@@ -1,14 +1,14 @@
 // Shell — sidebar nav + topbar + brand mark
 import React from "react";
 import { Icon } from "./Icon.jsx";
-import { SIGHTINGS, SPECIES, DEVICES, USERS } from "./data.js";
+import { useData } from "./DataContext.jsx";
 
 export const NAV = [
   { id: "dashboard", label: "Dashboard", icon: "home" },
-  { id: "sightings", label: "Sightings", icon: "feather", count: SIGHTINGS.length },
-  { id: "species", label: "Species Library", icon: "book", count: SPECIES.length },
-  { id: "devices", label: "Devices", icon: "device", count: DEVICES.length },
-  { id: "users", label: "Users", icon: "users", count: USERS.length },
+  { id: "sightings", label: "Sightings", icon: "feather", countKey: "SIGHTINGS" },
+  { id: "species", label: "Species Library", icon: "book", countKey: "SPECIES" },
+  { id: "devices", label: "Devices", icon: "device", countKey: "DEVICES" },
+  { id: "users", label: "Users", icon: "users", countKey: "USERS" },
   { id: "settings", label: "Settings", icon: "gear" },
 ];
 
@@ -31,42 +31,51 @@ function Brand() {
   );
 }
 
-export function Sidebar({ route, setRoute }) {
+function NavItem({ n, route, setRoute, count }) {
+  return (
+    <button className={`nav-item ${route === n.id ? "active" : ""}`}
+      onClick={() => setRoute(n.id)}>
+      <Icon name={n.icon} />
+      <span>{n.label}</span>
+      {count != null && <span className="nav-count tnum">{count}</span>}
+    </button>
+  );
+}
+
+export function Sidebar({ route, setRoute, onLogout }) {
+  const { data } = useData();
+  const countFor = n => (n.countKey ? data[n.countKey].length : null);
+  const deviceCount = data.DEVICES.length;
   return (
     <aside className="rail">
       <Brand />
       <nav className="nav">
         <div className="nav-section-label">Observatory</div>
         {NAV.slice(0, 4).map(n => (
-          <button key={n.id} className={`nav-item ${route === n.id ? "active" : ""}`}
-            onClick={() => setRoute(n.id)}>
-            <Icon name={n.icon} />
-            <span>{n.label}</span>
-            {n.count != null && <span className="nav-count tnum">{n.count}</span>}
-          </button>
+          <NavItem key={n.id} n={n} route={route} setRoute={setRoute} count={countFor(n)} />
         ))}
         <div className="nav-section-label">Station</div>
         {NAV.slice(4).map(n => (
-          <button key={n.id} className={`nav-item ${route === n.id ? "active" : ""}`}
-            onClick={() => setRoute(n.id)}>
-            <Icon name={n.icon} />
-            <span>{n.label}</span>
-            {n.count != null && <span className="nav-count tnum">{n.count}</span>}
-          </button>
+          <NavItem key={n.id} n={n} route={route} setRoute={setRoute} count={countFor(n)} />
         ))}
       </nav>
       <div className="rail-foot">
         <div className="avatar">DN</div>
-        <div>
+        <div style={{ flex: 1 }}>
           <div className="foot-name">Dominic Norris</div>
-          <div className="foot-role">OWNER · 3 DEVICES</div>
+          <div className="foot-role">OWNER · {deviceCount} DEVICE{deviceCount === 1 ? "" : "S"}</div>
         </div>
+        <button className="icon-btn" title="Sign out" onClick={onLogout}>
+          <Icon name="x" className="" />
+        </button>
       </div>
     </aside>
   );
 }
 
 export function Topbar({ route }) {
+  const { data } = useData();
+  const stations = data.DEVICES.length;
   const labels = {
     dashboard: ["Observatory", "Dashboard"],
     sightings: ["Observatory", "Sightings"],
@@ -85,7 +94,7 @@ export function Topbar({ route }) {
           <span style={{ color: "var(--ink)" }}>{b}</span>
         </div>
         <span className="live-pill">
-          <span className="live-dot" /> Live · 3 stations
+          <span className="live-dot" /> Live · {stations} station{stations === 1 ? "" : "s"}
         </span>
       </div>
       <div className="top-actions">

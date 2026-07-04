@@ -2,7 +2,8 @@
 import React, { useState, useMemo } from "react";
 import { BirdPlate } from "./BirdPlate.jsx";
 import { Icon } from "./Icon.jsx";
-import { SIGHTINGS, SPECIES, SPECIES_COUNTS, DEVICES, fmtTime, fmtDateLabel } from "./data.js";
+import { useData } from "./DataContext.jsx";
+import { fmtTime, fmtDateLabel } from "./data.js";
 
 function SightingTile({ s, onClick }) {
   const conf = s.confidence;
@@ -35,10 +36,11 @@ function SightingTile({ s, onClick }) {
 }
 
 export function SightingDetail({ s, onClose }) {
+  const { data } = useData();
   if (!s) return null;
   const conf = s.confidence;
   const cls = conf >= 0.9 ? "conf-high" : conf >= 0.78 ? "conf-mid" : "conf-low";
-  const speciesCount = SPECIES_COUNTS.find(x => x.id === s.species.id)?.count || 1;
+  const speciesCount = data.SPECIES_COUNTS.find(x => x.id === s.species.id)?.count || 1;
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
@@ -104,6 +106,8 @@ export function SightingDetail({ s, onClose }) {
 }
 
 export function Sightings({ openSighting }) {
+  const { data } = useData();
+  const { SIGHTINGS, SPECIES, DEVICES } = data;
   const [device, setDevice] = useState("all");
   const [species, setSpecies] = useState("all");
   const [range, setRange] = useState("week");

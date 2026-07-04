@@ -2,7 +2,7 @@
 import React, { useState } from "react";
 import { BirdPlate } from "./BirdPlate.jsx";
 import { Icon } from "./Icon.jsx";
-import { SPECIES, SPECIES_COUNTS } from "./data.js";
+import { useData } from "./DataContext.jsx";
 
 function Specimen({ s, idx, onClick }) {
   return (
@@ -80,6 +80,7 @@ function SpeciesDetail({ s, onClose }) {
 }
 
 export function SpeciesPage() {
+  const { SPECIES, SPECIES_COUNTS } = useData().data;
   const [order, setOrder] = useState("count");
   const [openSp, setOpenSp] = useState(null);
 
