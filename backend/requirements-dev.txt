@@ -1,0 +1,6 @@
+# Test/dev-only dependencies (the app itself is in requirements.txt).
+# aiosqlite lets the suite run against a throwaway SQLite DB (no Postgres needed).
+-r requirements.txt
+pytest>=8.0
+httpx>=0.27
+aiosqlite>=0.19
