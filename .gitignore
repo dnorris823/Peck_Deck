@@ -1,0 +1,13 @@
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+
+# Local dev database (SQLite)
+*.db
+*.sqlite3
+
+# OS
+.DS_Store

@@ -177,7 +177,7 @@ async def seed() -> None:
 
             # ── Sightings across the last 7 days ─────────────────────────────
             # Cardinal/chickadee weighted heaviest so "most frequent" is stable.
-            species_weights = [8, 6, 5, 4, 4, 3, 3, 3, 2, 2, 2]
+            species_weights = [8, 6, 5, 4, 4, 3, 3, 3, 2, 2, 2, 2]
             device_weights = [d["weight"] for d in DEVICES]
             tiers = ["gpu", "local", "cloud"]
             tier_weights = [5, 4, 1]
