@@ -37,6 +37,33 @@ class User(Base):
     )
 
 
+class UserPreferences(Base):
+    """Per-user notification + classification preferences.
+
+    One row per user (user_id is the PK). Rows are created lazily the first
+    time a user reads or writes their preferences — see
+    users.operations.get_or_create_preferences.
+    """
+
+    __tablename__ = "user_preferences"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), primary_key=True
+    )
+    # Minimum seconds between notifications per device (anti-spam).
+    quiet_interval_seconds: Mapped[int] = mapped_column(Integer, default=60)
+    # Only alert the first time a species is seen.
+    notify_new_species_only: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Default tier for new stations: local|gpu|cloud|auto.
+    default_tier: Mapped[str] = mapped_column(String, default="auto")
+    # In Auto mode, escalate below this confidence (percent, 40–95).
+    escalation_threshold: Mapped[int] = mapped_column(Integer, default=70)
+    # Skip duplicate captures within this window of a confirmed sighting.
+    debounce_seconds: Mapped[int] = mapped_column(Integer, default=30)
+
+    user: Mapped["User"] = relationship("User")
+
+
 class Device(Base):
     __tablename__ = "devices"
 

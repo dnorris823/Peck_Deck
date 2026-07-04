@@ -30,6 +30,24 @@ class UserResponse:
 
 
 @dataclass
+class PreferencesResponse:
+    quiet_interval_seconds: int
+    notify_new_species_only: bool
+    default_tier: str
+    escalation_threshold: int
+    debounce_seconds: int
+
+
+@dataclass
+class UpdatePreferences:
+    quiet_interval_seconds: int | None = None
+    notify_new_species_only: bool | None = None
+    default_tier: str | None = None
+    escalation_threshold: int | None = None
+    debounce_seconds: int | None = None
+
+
+@dataclass
 class LoginRequest:
     email: str
     password: str

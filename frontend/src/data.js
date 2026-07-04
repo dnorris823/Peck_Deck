@@ -3,7 +3,7 @@
 // (the same shapes the original design fixtures used, so pages barely changed).
 // `loadAll()` fetches everything in parallel; DataContext calls it after login.
 
-import { apiGet } from "./api.js";
+import { apiGet, apiSend } from "./api.js";
 
 // ── Fallbacks for presentation-only fields ────────────────────────────────
 // The backend now carries palette/silhouette/note (see seed.py), but a species
@@ -87,9 +87,23 @@ function mapSighting(s, speciesById, devicesById) {
   };
 }
 
+// The authenticated user, kept close to its raw backend shape (snake_case)
+// since Settings persists directly against these fields.
+function mapMe(u) {
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    role: u.role,
+    phone: u.phone || "",
+    notify_email: u.notify_email,
+    notify_sms: u.notify_sms,
+  };
+}
+
 // ── Loader ────────────────────────────────────────────────────────────────
 export async function loadAll() {
-  const [species, counts, devices, users, sightings, heatmap, dashboard] =
+  const [species, counts, devices, users, sightings, heatmap, dashboard, me, prefs] =
     await Promise.all([
       apiGet("/species"),
       apiGet("/stats/species-counts"),
@@ -98,6 +112,8 @@ export async function loadAll() {
       apiGet("/sightings?limit=100"),
       apiGet("/stats/heatmap"),
       apiGet("/stats/dashboard"),
+      apiGet("/users/me"),
+      apiGet("/users/me/preferences"),
     ]);
 
   const SPECIES = species.map(mapSpecies);
@@ -114,7 +130,23 @@ export async function loadAll() {
   // Backend returns raw hourly counts; the heatmap CSS defines heat-0..heat-4.
   const HEATMAP = heatmap.map(row => row.map(v => Math.min(4, v)));
 
-  return { SPECIES, SPECIES_COUNTS, DEVICES, USERS, SIGHTINGS, HEATMAP, DASHBOARD: dashboard };
+  return {
+    SPECIES, SPECIES_COUNTS, DEVICES, USERS, SIGHTINGS, HEATMAP,
+    DASHBOARD: dashboard, ME: mapMe(me), PREFERENCES: prefs,
+  };
+}
+
+// ── Settings mutations ────────────────────────────────────────────────────
+// Persist account/notification fields on the current user. Accepts any subset
+// of {name, phone, notify_email, notify_sms}; returns the updated (mapped) user.
+export async function saveMe(userId, patch) {
+  const updated = await apiSend(`/users/${userId}`, "PUT", patch);
+  return mapMe(updated);
+}
+
+// Persist a subset of the user's preferences; returns the full updated set.
+export async function savePreferences(patch) {
+  return apiSend("/users/me/preferences", "PUT", patch);
 }
 
 // ── Date/time formatting helpers (unchanged API; now use real "now") ──────

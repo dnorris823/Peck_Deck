@@ -4,9 +4,10 @@ from typing import Annotated
 
 from litestar import Controller, Request, get, post
 from litestar.datastructures import UploadFile
+from litestar.di import NamedDependency
 from litestar.enums import RequestEncodingType
 from litestar.exceptions import HTTPException, NotFoundException
-from litestar.params import Body
+from litestar.params import Body, FromPath, FromQuery
 from litestar.response import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -53,13 +54,13 @@ class SightingController(Controller):
     async def list_sightings(
         self,
         request: Request,
-        db: AsyncSession,
-        device_id: int | None = None,
-        species_id: int | None = None,
-        from_date: str | None = None,
-        to_date: str | None = None,
-        limit: int = 50,
-        offset: int = 0,
+        db: NamedDependency[AsyncSession],
+        device_id: FromQuery[int | None] = None,
+        species_id: FromQuery[int | None] = None,
+        from_date: FromQuery[str | None] = None,
+        to_date: FromQuery[str | None] = None,
+        limit: FromQuery[int] = 50,
+        offset: FromQuery[int] = 0,
     ) -> list[SightingResponse]:
         from_dt = datetime.fromisoformat(from_date) if from_date else None
         to_dt = datetime.fromisoformat(to_date) if to_date else None
@@ -80,7 +81,7 @@ class SightingController(Controller):
         self,
         data: Annotated[SightingUploadForm, Body(media_type=RequestEncodingType.MULTI_PART)],
         request: Request,
-        db: AsyncSession,
+        db: NamedDependency[AsyncSession],
     ) -> SightingResponse:
         image_bytes = await data.image.read()
         sighting = await create_sighting(
@@ -112,14 +113,14 @@ class SightingController(Controller):
         return _to_response(sighting)
 
     @get("/{sighting_id:int}", guards=[user_guard])
-    async def get_one(self, sighting_id: int, db: AsyncSession) -> SightingResponse:
+    async def get_one(self, sighting_id: FromPath[int], db: NamedDependency[AsyncSession]) -> SightingResponse:
         sighting = await get_sighting(db, sighting_id)
         if sighting is None:
             raise NotFoundException()
         return _to_response(sighting)
 
     @get("/{sighting_id:int}/image", guards=[user_guard])
-    async def get_image(self, sighting_id: int, db: AsyncSession) -> Response[bytes]:
+    async def get_image(self, sighting_id: FromPath[int], db: NamedDependency[AsyncSession]) -> Response[bytes]:
         sighting = await get_sighting(db, sighting_id)
         if sighting is None or sighting.image_data is None:
             raise NotFoundException()

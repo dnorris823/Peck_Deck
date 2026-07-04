@@ -10,49 +10,19 @@ import { DevicesPage } from "./Devices.jsx";
 import { UsersPage, SettingsPage } from "./UsersSettings.jsx";
 import { Login } from "./Login.jsx";
 import { DataProvider, useData } from "./DataContext.jsx";
+import { AppearanceProvider, useAppearance } from "./Appearance.jsx";
 import { getToken, clearToken } from "./api.js";
 
-// Appearance defaults carried over from the Claude Design prototype's Tweaks
-// panel. The panel itself was a design-canvas tool (it drives the editor over
-// postMessage) and is intentionally not shipped; these values are applied
-// directly so theming still works. Wire these to Settings > Appearance later.
-const APPEARANCE = {
-  theme: "day",
-  accent: "cardinal",
-  displayFont: "newsreader",
-  showLiveAlerts: true,
-  fontScale: 1,
-};
-
-function useAppearance() {
-  useEffect(() => {
-    const t = APPEARANCE;
-    document.documentElement.dataset.theme = t.theme;
-    const accents = {
-      cardinal: { primary: "#b8412c", deep: "#8a2f1e" },
-      forest: { primary: "#2d4a36", deep: "#1d3225" },
-      yolk: { primary: "#d4a23a", deep: "#a37a1f" },
-      plum: { primary: "#6b4570", deep: "#4a2f51" },
-    };
-    const a = accents[t.accent] || accents.cardinal;
-    document.documentElement.style.setProperty("--cardinal", a.primary);
-    document.documentElement.style.setProperty("--cardinal-deep", a.deep);
-
-    const fonts = {
-      newsreader: '"Newsreader", "Times New Roman", serif',
-      instrument: '"Instrument Serif", "Times New Roman", serif',
-      playfair: '"Playfair Display", "Times New Roman", serif',
-      eb: '"EB Garamond", "Times New Roman", serif',
-    };
-    document.documentElement.style.setProperty("--display", fonts[t.displayFont] || fonts.newsreader);
-    document.documentElement.style.fontSize = `${14 * t.fontScale}px`;
-  }, []);
+export default function App() {
+  return (
+    <AppearanceProvider>
+      <AppRoot />
+    </AppearanceProvider>
+  );
 }
 
-export default function App() {
+function AppRoot() {
   const [authed, setAuthed] = useState(() => !!getToken());
-  useAppearance();
-
   const onAuthError = useCallback(() => setAuthed(false), []);
 
   if (!authed) {
@@ -68,20 +38,21 @@ export default function App() {
 
 function AppShell({ onLogout }) {
   const { data, loading, error, reload } = useData();
+  const { appearance } = useAppearance();
   const [route, setRoute] = useState("dashboard");
   const [openSighting, setOpenSighting] = useState(null);
   const [toast, setToast] = useState(null);
 
   // Simulated live alert — a toast slides in shortly after each navigation.
   useEffect(() => {
-    if (!APPEARANCE.showLiveAlerts || !data || data.SIGHTINGS.length === 0) return;
+    if (!appearance.showLiveAlerts || !data || data.SIGHTINGS.length === 0) return;
     const tid = window.setTimeout(() => {
       const fresh = data.SIGHTINGS[0];
       setToast({ ...fresh, key: Date.now() });
       window.setTimeout(() => setToast(null), 5400);
     }, 2200);
     return () => window.clearTimeout(tid);
-  }, [route, data]);
+  }, [route, data, appearance.showLiveAlerts]);
 
   if (loading && !data) {
     return <div className="boot"><div className="boot-mark">Loading field station…</div></div>;

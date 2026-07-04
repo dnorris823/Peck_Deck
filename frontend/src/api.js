@@ -58,3 +58,28 @@ export async function apiGet(path) {
   if (!res.ok) throw new Error(`Request to ${path} failed (${res.status}).`);
   return res.json();
 }
+
+// Mutating request (PUT/POST) with a JSON body. Returns the parsed response,
+// or null for a 204 No Content.
+export async function apiSend(path, method, body) {
+  const token = getToken();
+  let res;
+  try {
+    res = await fetch(`/api${path}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new Error("Can't reach the server. Is the backend running?");
+  }
+  if (res.status === 401) {
+    clearToken();
+    throw new AuthError("Your session has expired. Please sign in again.");
+  }
+  if (!res.ok) throw new Error(`Request to ${path} failed (${res.status}).`);
+  return res.status === 204 ? null : res.json();
+}

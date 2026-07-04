@@ -2,7 +2,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.jwt_utils import hash_password, verify_password
-from ..database.models import User
+from ..database.models import User, UserPreferences
 
 
 async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
@@ -67,6 +67,43 @@ async def update_user(
 async def delete_user(db: AsyncSession, user: User) -> None:
     await db.delete(user)
     await db.flush()
+
+
+async def get_or_create_preferences(db: AsyncSession, user_id: int) -> UserPreferences:
+    """Return the user's preferences row, creating one with defaults if absent."""
+    result = await db.execute(
+        select(UserPreferences).where(UserPreferences.user_id == user_id)
+    )
+    prefs = result.scalar_one_or_none()
+    if prefs is None:
+        prefs = UserPreferences(user_id=user_id)
+        db.add(prefs)
+        await db.flush()
+    return prefs
+
+
+async def update_preferences(
+    db: AsyncSession,
+    prefs: UserPreferences,
+    *,
+    quiet_interval_seconds: int | None,
+    notify_new_species_only: bool | None,
+    default_tier: str | None,
+    escalation_threshold: int | None,
+    debounce_seconds: int | None,
+) -> UserPreferences:
+    if quiet_interval_seconds is not None:
+        prefs.quiet_interval_seconds = quiet_interval_seconds
+    if notify_new_species_only is not None:
+        prefs.notify_new_species_only = notify_new_species_only
+    if default_tier is not None:
+        prefs.default_tier = default_tier
+    if escalation_threshold is not None:
+        prefs.escalation_threshold = escalation_threshold
+    if debounce_seconds is not None:
+        prefs.debounce_seconds = debounce_seconds
+    await db.flush()
+    return prefs
 
 
 async def authenticate(db: AsyncSession, email: str, password: str) -> User | None:

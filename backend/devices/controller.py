@@ -2,6 +2,8 @@ from datetime import datetime, timedelta, timezone
 
 from litestar import Controller, Request, delete, get, post, put
 from litestar.exceptions import HTTPException, NotFoundException
+from litestar.di import NamedDependency
+from litestar.params import FromPath
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import device_guard, user_guard
@@ -75,13 +77,13 @@ class DeviceController(Controller):
     # device_guard without also running user_guard — Litestar stacks the two.
 
     @get("/", guards=[user_guard])
-    async def list_devices(self, request: Request, db: AsyncSession) -> list[DeviceResponse]:
+    async def list_devices(self, request: Request, db: NamedDependency[AsyncSession]) -> list[DeviceResponse]:
         devices = await get_devices_for_user(db, request.state.user_id)
         return [await _to_response(db, d) for d in devices]
 
     @post("/", guards=[user_guard], status_code=201)
     async def register(
-        self, data: RegisterDevice, request: Request, db: AsyncSession
+        self, data: RegisterDevice, request: Request, db: NamedDependency[AsyncSession]
     ) -> DeviceResponse:
         device = await create_device(
             db,
@@ -96,7 +98,7 @@ class DeviceController(Controller):
 
     @put("/{device_id:int}", guards=[user_guard])
     async def update(
-        self, device_id: int, data: UpdateDevice, request: Request, db: AsyncSession
+        self, device_id: FromPath[int], data: UpdateDevice, request: Request, db: NamedDependency[AsyncSession]
     ) -> DeviceResponse:
         device = await get_device(db, device_id)
         if device is None:
@@ -115,7 +117,7 @@ class DeviceController(Controller):
 
     @post("/{device_id:int}/heartbeat", guards=[device_guard], status_code=200)
     async def heartbeat(
-        self, device_id: int, data: DeviceHeartbeat, request: Request, db: AsyncSession
+        self, device_id: FromPath[int], data: DeviceHeartbeat, request: Request, db: NamedDependency[AsyncSession]
     ) -> DeviceResponse:
         # The Pi authenticates with its device token; it may only report for itself.
         if request.state.device_id != device_id:
@@ -130,7 +132,7 @@ class DeviceController(Controller):
 
     @post("/{device_id:int}/users", guards=[user_guard], status_code=204)
     async def add_user(
-        self, device_id: int, data: AddDeviceUser, request: Request, db: AsyncSession
+        self, device_id: FromPath[int], data: AddDeviceUser, request: Request, db: NamedDependency[AsyncSession]
     ) -> None:
         device = await get_device(db, device_id)
         if device is None:
@@ -140,7 +142,7 @@ class DeviceController(Controller):
 
     @delete("/{device_id:int}/users/{uid:int}", guards=[user_guard], status_code=204)
     async def remove_user(
-        self, device_id: int, uid: int, request: Request, db: AsyncSession
+        self, device_id: FromPath[int], uid: FromPath[int], request: Request, db: NamedDependency[AsyncSession]
     ) -> None:
         device = await get_device(db, device_id)
         if device is None:

@@ -46,6 +46,9 @@ export function Sidebar({ route, setRoute, onLogout }) {
   const { data } = useData();
   const countFor = n => (n.countKey ? data[n.countKey].length : null);
   const deviceCount = data.DEVICES.length;
+  const me = data.ME;
+  const initials = (me.name || "").trim().split(/\s+/).filter(Boolean)
+    .slice(0, 2).map(p => p[0]).join("").toUpperCase() || "?";
   return (
     <aside className="rail">
       <Brand />
@@ -60,10 +63,10 @@ export function Sidebar({ route, setRoute, onLogout }) {
         ))}
       </nav>
       <div className="rail-foot">
-        <div className="avatar">DN</div>
+        <div className="avatar">{initials}</div>
         <div style={{ flex: 1 }}>
-          <div className="foot-name">Dominic Norris</div>
-          <div className="foot-role">OWNER · {deviceCount} DEVICE{deviceCount === 1 ? "" : "S"}</div>
+          <div className="foot-name">{me.name}</div>
+          <div className="foot-role">{me.role.toUpperCase()} · {deviceCount} DEVICE{deviceCount === 1 ? "" : "S"}</div>
         </div>
         <button className="icon-btn" title="Sign out" onClick={onLogout}>
           <Icon name="x" className="" />

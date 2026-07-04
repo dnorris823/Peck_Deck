@@ -29,8 +29,14 @@ export function DataProvider({ children, onAuthError }) {
 
   useEffect(() => { reload(); }, [reload]);
 
+  // Shallow-merge fields into the loaded dataset (e.g. after Settings saves the
+  // current user), so dependent UI like the sidebar updates without a refetch.
+  const patch = useCallback((partial) => {
+    setData((d) => (d ? { ...d, ...partial } : d));
+  }, []);
+
   return (
-    <Ctx.Provider value={{ data, loading, error, reload }}>
+    <Ctx.Provider value={{ data, loading, error, reload, patch }}>
       {children}
     </Ctx.Provider>
   );

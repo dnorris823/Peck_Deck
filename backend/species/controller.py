@@ -1,7 +1,9 @@
 import json
 
 from litestar import Controller, get, post
+from litestar.di import NamedDependency
 from litestar.exceptions import NotFoundException
+from litestar.params import FromPath
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import user_guard
@@ -28,18 +30,18 @@ class SpeciesController(Controller):
     guards = [user_guard]
 
     @get("/")
-    async def list_all(self, db: AsyncSession) -> list[SpeciesResponse]:
+    async def list_all(self, db: NamedDependency[AsyncSession]) -> list[SpeciesResponse]:
         return [_to_response(s) for s in await list_species(db)]
 
     @get("/{species_id:int}")
-    async def get_one(self, species_id: int, db: AsyncSession) -> SpeciesResponse:
+    async def get_one(self, species_id: FromPath[int], db: NamedDependency[AsyncSession]) -> SpeciesResponse:
         species = await get_species(db, species_id)
         if species is None:
             raise NotFoundException()
         return _to_response(species)
 
     @post("/", status_code=201)
-    async def create(self, data: CreateSpecies, db: AsyncSession) -> SpeciesResponse:
+    async def create(self, data: CreateSpecies, db: NamedDependency[AsyncSession]) -> SpeciesResponse:
         species = await create_species(
             db,
             common_name=data.common_name,

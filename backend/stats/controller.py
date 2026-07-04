@@ -1,6 +1,7 @@
 import json
 
 from litestar import Controller, Request, get
+from litestar.di import NamedDependency
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import user_guard
@@ -30,17 +31,17 @@ class StatsController(Controller):
     guards = [user_guard]
 
     @get("/dashboard")
-    async def dashboard(self, request: Request, db: AsyncSession) -> DashboardResponse:
+    async def dashboard(self, request: Request, db: NamedDependency[AsyncSession]) -> DashboardResponse:
         data = await operations.dashboard(db, request.state.user_id)
         return DashboardResponse(**data)
 
     @get("/species-counts")
     async def species_counts(
-        self, request: Request, db: AsyncSession
+        self, request: Request, db: NamedDependency[AsyncSession]
     ) -> list[SpeciesCountResponse]:
         rows = await operations.species_counts(db, request.state.user_id)
         return [_species_count_response(r) for r in rows]
 
     @get("/heatmap")
-    async def heatmap(self, request: Request, db: AsyncSession) -> list[list[int]]:
+    async def heatmap(self, request: Request, db: NamedDependency[AsyncSession]) -> list[list[int]]:
         return await operations.heatmap(db, request.state.user_id)
