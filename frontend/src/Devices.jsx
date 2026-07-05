@@ -2,6 +2,76 @@
 import React, { useState } from "react";
 import { Icon } from "./Icon.jsx";
 import { useData } from "./DataContext.jsx";
+import { Modal, TextInput, SelectInput, FormNote } from "./Modal.jsx";
+import { createDevice } from "./data.js";
+
+const TIER_OPTIONS = [
+  ["", "Inherit my default"],
+  ["auto", "Auto"],
+  ["local", "Tier 1 — Local"],
+  ["gpu", "Tier 2 — LAN GPU"],
+  ["cloud", "Tier 3 — Cloud"],
+];
+
+function RegisterDeviceModal({ onClose, onDone }) {
+  const [form, setForm] = useState({ name: "", city: "", state: "", feed_type: "", classification_tier: "" });
+  const [token, setToken] = useState(null); // device token, shown once after create
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const set = k => v => setForm(f => ({ ...f, [k]: v }));
+
+  async function submit() {
+    if (!form.name) { setError("A station name is required."); return; }
+    setBusy(true);
+    setError(null);
+    try {
+      const body = { name: form.name, city: form.city || null, state: form.state || null, feed_type: form.feed_type || null };
+      if (form.classification_tier) body.classification_tier = form.classification_tier;
+      const device = await createDevice(body);
+      setToken(device.token); // reveal once; the Pi needs it to authenticate
+      await onDone();
+    } catch (e) {
+      setError(e.message);
+      setBusy(false);
+    }
+  }
+
+  if (token) {
+    return (
+      <Modal
+        title="Station registered"
+        subtitle="Copy this device token now — it's shown only once and is needed to provision the Pi."
+        onClose={onClose}
+        footer={<button className="btn primary" onClick={onClose}>Done</button>}
+      >
+        <div className="card" style={{ padding: "12px 16px", fontFamily: "var(--mono)", fontSize: 12, wordBreak: "break-all" }}>
+          {token}
+        </div>
+        <button className="btn" onClick={() => navigator.clipboard?.writeText(token)}>Copy token</button>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal
+      title="Register a station"
+      subtitle="Add a new feeder. You'll get a device token to provision the Pi."
+      onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>Cancel</button>
+        <button className="btn primary" onClick={submit} disabled={busy}>{busy ? "Registering…" : "Register"}</button>
+      </>}
+    >
+      <TextInput label="Name" value={form.name} onChange={set("name")} />
+      <TextInput label="City" value={form.city} onChange={set("city")} />
+      <TextInput label="State" value={form.state} onChange={set("state")} />
+      <TextInput label="Bait / feed type" help="Optional." value={form.feed_type} onChange={set("feed_type")} />
+      <SelectInput label="Classifier tier" value={form.classification_tier} onChange={set("classification_tier")}
+        options={TIER_OPTIONS} />
+      <FormNote error={error} />
+    </Modal>
+  );
+}
 
 function StationFigure({ d }) {
   // Stylized "feeder station" diagram with battery, signal, sensor
@@ -179,8 +249,10 @@ function DeviceDetail({ d, onClose }) {
 }
 
 export function DevicesPage() {
-  const { DEVICES } = useData().data;
+  const { data, reload } = useData();
+  const DEVICES = data.DEVICES;
   const [open, setOpen] = useState(null);
+  const [registering, setRegistering] = useState(false);
   return (
     <>
       <div className="page-header">
@@ -188,7 +260,9 @@ export function DevicesPage() {
           <div className="label" style={{ marginBottom: 6 }}>Field stations</div>
           <h1 className="page-title">Your <em>feeders</em></h1>
         </div>
-        <button className="btn primary"><Icon name="plus" className="" /> Register station</button>
+        <button className="btn primary" onClick={() => setRegistering(true)}>
+          <Icon name="plus" className="" /> Register station
+        </button>
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 18 }}>
@@ -196,6 +270,7 @@ export function DevicesPage() {
       </div>
 
       {open && <DeviceDetail d={open} onClose={() => setOpen(null)} />}
+      {registering && <RegisterDeviceModal onClose={() => setRegistering(false)} onDone={reload} />}
     </>
   );
 }

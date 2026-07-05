@@ -149,6 +149,33 @@ export async function savePreferences(patch) {
   return apiSend("/users/me/preferences", "PUT", patch);
 }
 
+// ── CRUD mutations (Users / Devices / Species) ────────────────────────────
+// Register a new user (public endpoint — needs name+email+password, optional role/phone).
+export async function createUser(body) {
+  return apiSend("/users", "POST", body);
+}
+
+// Update an existing user's editable fields (name/phone/notify/email).
+export async function updateUser(userId, patch) {
+  return apiSend(`/users/${userId}`, "PUT", patch);
+}
+
+// Change a user's password. Self-change needs current_password; owner reset omits it.
+export async function changePassword(userId, body) {
+  return apiSend(`/users/${userId}/password`, "POST", body);
+}
+
+// Register a device — the backend returns the full device INCLUDING its token,
+// which is shown once so the Pi can be provisioned.
+export async function createDevice(body) {
+  return apiSend("/devices", "POST", body);
+}
+
+// Add a species to the library.
+export async function createSpecies(body) {
+  return apiSend("/species", "POST", body);
+}
+
 // ── Date/time formatting helpers (unchanged API; now use real "now") ──────
 export function fmtTime(d) {
   return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });

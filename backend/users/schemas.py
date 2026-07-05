@@ -16,6 +16,15 @@ class UpdateUser:
     phone: str | None = None
     notify_email: bool | None = None
     notify_sms: bool | None = None
+    email: str | None = None
+
+
+@dataclass
+class UpdatePassword:
+    new_password: str
+    # Required when changing your own password; ignored on an owner-initiated
+    # reset of another user (see controller).
+    current_password: str | None = None
 
 
 @dataclass

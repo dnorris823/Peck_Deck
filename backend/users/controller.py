@@ -5,7 +5,7 @@ from litestar.params import FromPath
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import user_guard
-from ..auth.jwt_utils import create_user_token
+from ..auth.jwt_utils import create_user_token, verify_password
 from .operations import (
     authenticate,
     create_user,
@@ -14,6 +14,7 @@ from .operations import (
     get_user_by_email,
     get_user_by_id,
     list_users,
+    set_password,
     update_preferences,
     update_user,
 )
@@ -22,6 +23,7 @@ from .schemas import (
     PreferencesResponse,
     RegisterUser,
     TokenResponse,
+    UpdatePassword,
     UpdatePreferences,
     UpdateUser,
     UserResponse,
@@ -148,6 +150,11 @@ class UserController(Controller):
         user = await get_user_by_id(db, user_id)
         if user is None:
             raise NotFoundException()
+        # Email is the login identity and is UNIQUE — reject a collision with 409.
+        if data.email is not None and data.email != user.email:
+            existing = await get_user_by_email(db, data.email)
+            if existing is not None and existing.id != user_id:
+                raise HTTPException(status_code=409, detail="Email already registered")
         user = await update_user(
             db,
             user,
@@ -155,8 +162,31 @@ class UserController(Controller):
             phone=data.phone,
             notify_email=data.notify_email,
             notify_sms=data.notify_sms,
+            email=data.email,
         )
         return _to_response(user)
+
+    @post("/{user_id:int}/password", guards=[user_guard], status_code=204)
+    async def change_password(
+        self, user_id: FromPath[int], data: UpdatePassword, request: Request, db: NamedDependency[AsyncSession]
+    ) -> None:
+        is_self = request.state.user_id == user_id
+        is_owner = request.state.role == "owner"
+        if not is_self and not is_owner:
+            raise HTTPException(status_code=403, detail="Forbidden")
+        user = await get_user_by_id(db, user_id)
+        if user is None:
+            raise NotFoundException()
+        # Self change requires the current password; an owner resetting someone
+        # else's password does not (standard admin-reset behavior).
+        if is_self:
+            if not data.current_password or not verify_password(
+                data.current_password, user.password_hash
+            ):
+                raise HTTPException(status_code=400, detail="Current password is incorrect")
+        if not data.new_password:
+            raise HTTPException(status_code=400, detail="New password is required")
+        await set_password(db, user, data.new_password)
 
     @delete("/{user_id:int}", guards=[user_guard], status_code=204)
     async def remove(self, user_id: FromPath[int], request: Request, db: NamedDependency[AsyncSession]) -> None:

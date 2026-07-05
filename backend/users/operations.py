@@ -51,6 +51,7 @@ async def update_user(
     phone: str | None,
     notify_email: bool | None,
     notify_sms: bool | None,
+    email: str | None = None,
 ) -> User:
     if name is not None:
         user.name = name
@@ -60,6 +61,14 @@ async def update_user(
         user.notify_email = notify_email
     if notify_sms is not None:
         user.notify_sms = notify_sms
+    if email is not None:
+        user.email = email
+    await db.flush()
+    return user
+
+
+async def set_password(db: AsyncSession, user: User, new_password: str) -> User:
+    user.password_hash = hash_password(new_password)
     await db.flush()
     return user
 

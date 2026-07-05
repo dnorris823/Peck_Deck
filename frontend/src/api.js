@@ -80,6 +80,18 @@ export async function apiSend(path, method, body) {
     clearToken();
     throw new AuthError("Your session has expired. Please sign in again.");
   }
-  if (!res.ok) throw new Error(`Request to ${path} failed (${res.status}).`);
+  if (!res.ok) {
+    // Surface the backend's `detail` (Litestar error body) plus the status code
+    // so forms can show meaningful messages (409 duplicate, 400 bad password).
+    let detail = null;
+    try {
+      detail = (await res.json())?.detail;
+    } catch {
+      /* non-JSON error body — fall back to a generic message */
+    }
+    const err = new Error(detail || `Request to ${path} failed (${res.status}).`);
+    err.status = res.status;
+    throw err;
+  }
   return res.status === 204 ? null : res.json();
 }

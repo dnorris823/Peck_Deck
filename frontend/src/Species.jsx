@@ -3,6 +3,53 @@ import React, { useState } from "react";
 import { BirdPlate } from "./BirdPlate.jsx";
 import { Icon } from "./Icon.jsx";
 import { useData } from "./DataContext.jsx";
+import { Modal, TextInput, FormNote } from "./Modal.jsx";
+import { createSpecies } from "./data.js";
+
+function AddSpeciesModal({ onClose, onDone }) {
+  const [form, setForm] = useState({ common_name: "", genus: "", species_name: "", order_name: "" });
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const set = k => v => setForm(f => ({ ...f, [k]: v }));
+
+  async function submit() {
+    if (!form.common_name || !form.genus || !form.species_name) {
+      setError("Common name, genus, and species are required.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await createSpecies({
+        common_name: form.common_name, genus: form.genus,
+        species_name: form.species_name, order_name: form.order_name || null,
+      });
+      await onDone();
+      onClose();
+    } catch (e) {
+      setError(e.status === 409 ? "That species is already catalogued." : e.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      title="Add a species"
+      subtitle="Catalogue a bird by hand. Field-guide art is generated from defaults."
+      onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>Cancel</button>
+        <button className="btn primary" onClick={submit} disabled={busy}>{busy ? "Adding…" : "Add species"}</button>
+      </>}
+    >
+      <TextInput label="Common name" value={form.common_name} onChange={set("common_name")} />
+      <TextInput label="Genus" value={form.genus} onChange={set("genus")} />
+      <TextInput label="Species" value={form.species_name} onChange={set("species_name")} />
+      <TextInput label="Order" help="Optional (e.g. Passeriformes)." value={form.order_name} onChange={set("order_name")} />
+      <FormNote error={error} />
+    </Modal>
+  );
+}
 
 function Specimen({ s, idx, onClick }) {
   return (
@@ -80,9 +127,11 @@ function SpeciesDetail({ s, onClose }) {
 }
 
 export function SpeciesPage() {
-  const { SPECIES, SPECIES_COUNTS } = useData().data;
+  const { data, reload } = useData();
+  const { SPECIES, SPECIES_COUNTS } = data;
   const [order, setOrder] = useState("count");
   const [openSp, setOpenSp] = useState(null);
+  const [adding, setAdding] = useState(false);
 
   const sorted = [...SPECIES_COUNTS].sort((a, b) => {
     if (order === "count") return b.count - a.count;
@@ -114,9 +163,9 @@ export function SpeciesPage() {
         <button className={`chip ${order === "count" ? "active" : ""}`} onClick={() => setOrder("count")}>Most frequent</button>
         <button className={`chip ${order === "name" ? "active" : ""}`} onClick={() => setOrder("name")}>A → Z</button>
         <button className={`chip ${order === "recent" ? "active" : ""}`} onClick={() => setOrder("recent")}>Recently added</button>
-        <span style={{ marginLeft: "auto", fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-mute)" }}>
-          ORDER · PASSERIFORMES (10) · PICIFORMES (2) · COLUMBIFORMES (1)
-        </span>
+        <button className="btn primary sm" style={{ marginLeft: "auto" }} onClick={() => setAdding(true)}>
+          <Icon name="plus" className="" /> Add species
+        </button>
       </div>
 
       <div className="species-grid">
@@ -124,6 +173,7 @@ export function SpeciesPage() {
       </div>
 
       {openSp && <SpeciesDetail s={openSp} onClose={() => setOpenSp(null)} />}
+      {adding && <AddSpeciesModal onClose={() => setAdding(false)} onDone={reload} />}
     </>
   );
 }

@@ -7,7 +7,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.connection import get_session_factory
-from ..database.models import Device, DeviceUser, Sighting, Species, User
+from ..database.models import Device, DeviceUser, Sighting, Species, User, UserPreferences
 from .email_sender import send_email
 from .sms_sender import send_sms
 
@@ -16,22 +16,31 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class NotificationService:
+    """Dispatches sighting notifications, honoring each recipient's preferences.
+
+    Throttling is per (recipient, device) using each user's
+    ``quiet_interval_seconds`` preference (falling back to
+    ``min_interval_seconds`` when a user has no preferences row). The throttle
+    map is **in-memory**, so it resets when the API process restarts — a fresh
+    burst of notifications can slip through right after a restart. That's an
+    acceptable trade-off for anti-spam (we never over-suppress); persisting it
+    would need a table and a write on every send.
+    """
+
     min_interval_seconds: int = 60
-    _last_notified: dict[int, float] = field(default_factory=dict)
+    # Keyed by (user_id, device_id) — throttle each recipient independently
+    # rather than muting an entire feeder after one recipient is notified.
+    _last_notified: dict[tuple[int, int], float] = field(default_factory=dict)
 
-    def _can_notify(self, device_id: int) -> bool:
-        last = self._last_notified.get(device_id, 0.0)
-        return time.monotonic() - last >= self.min_interval_seconds
+    def _can_notify(self, user_id: int, device_id: int, interval: int) -> bool:
+        last = self._last_notified.get((user_id, device_id), 0.0)
+        return time.monotonic() - last >= interval
 
-    def _mark_notified(self, device_id: int) -> None:
-        self._last_notified[device_id] = time.monotonic()
+    def _mark_notified(self, user_id: int, device_id: int) -> None:
+        self._last_notified[(user_id, device_id)] = time.monotonic()
 
     async def dispatch(self, sighting_id: int, device_id: int) -> None:
         """Fire-and-forget entry point — open our own session so the request session lifecycle is irrelevant."""
-        if not self._can_notify(device_id):
-            logger.debug("Notification throttled for device %d", device_id)
-            return
-
         try:
             async with get_session_factory()() as db:
                 async with db.begin():
@@ -88,21 +97,47 @@ class NotificationService:
         if not users:
             return
 
-        self._mark_notified(device_id)
+        # Load each recipient's preferences in one query (missing rows → defaults).
+        prefs_rows = (
+            await db.execute(
+                select(UserPreferences).where(UserPreferences.user_id.in_(seen_ids))
+            )
+        ).scalars().all()
+        prefs_by_user = {p.user_id: p for p in prefs_rows}
 
         location = " — ".join(filter(None, [device.city, device.state])) or "Unknown location"
         delayed_note = " (delayed sync)" if sighting.delayed else ""
 
         tasks = []
         for user in users:
+            prefs = prefs_by_user.get(user.id)
+            # notify_new_species_only: only alert the first time this species is
+            # seen at this device (sighting_count includes the current sighting).
+            if prefs is not None and prefs.notify_new_species_only and sighting_count > 1:
+                logger.debug(
+                    "Skipping user %d — new-species-only and count=%d",
+                    user.id, sighting_count,
+                )
+                continue
+
+            # Per-recipient throttle using this user's quiet interval.
+            interval = prefs.quiet_interval_seconds if prefs is not None else self.min_interval_seconds
+            if not self._can_notify(user.id, device_id, interval):
+                logger.debug("Notification throttled for user %d on device %d", user.id, device_id)
+                continue
+
+            channels = []
             if user.notify_email and user.email:
-                tasks.append(
+                channels.append(
                     self._email(user, sighting, species, device, sighting_count, location, delayed_note)
                 )
             if user.notify_sms and user.phone:
-                tasks.append(
+                channels.append(
                     self._sms(user, sighting, species, device, sighting_count, delayed_note)
                 )
+            if channels:
+                self._mark_notified(user.id, device_id)
+                tasks.extend(channels)
 
         if tasks:
             results = await asyncio.gather(*tasks, return_exceptions=True)

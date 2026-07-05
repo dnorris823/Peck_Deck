@@ -1,4 +1,20 @@
+from backend.auth.jwt_utils import create_user_token
 from backend.tests.conftest import IDS
+
+
+def _fresh_owner(client):
+    """Register a throwaway owner and return their auth headers.
+
+    Device-creating tests use this so they don't pollute the seeded owner's
+    device counts (asserted exactly by the stats tests).
+    """
+    import secrets
+    email = f"devtest_{secrets.token_hex(4)}@test.dev"
+    res = client.post("/users", json={
+        "name": "Dev Test Owner", "email": email, "password": "pw", "role": "owner",
+    })
+    uid = res.json()["id"]
+    return {"Authorization": f"Bearer {create_user_token(uid, 'owner')}"}
 
 
 def test_owner_sees_all_devices_with_status(client, owner_headers):
@@ -54,3 +70,24 @@ def test_update_device_requires_owner(client, viewer_headers):
     res = client.put("/devices/%d" % IDS["dev1_id"],
                      json={"feed_type": "hacked"}, headers=viewer_headers)
     assert res.status_code == 403
+
+
+def test_register_device_inherits_default_tier(client):
+    headers = _fresh_owner(client)
+    # Set the user's default_tier preference…
+    client.put("/users/me/preferences", headers=headers, json={"default_tier": "cloud"})
+    # …then register a device without a tier — it should inherit "cloud".
+    res = client.post("/devices", headers=headers, json={"name": "Inherit Dev"})
+    assert res.status_code == 201
+    assert res.json()["classification_tier"] == "cloud"
+
+
+def test_register_device_explicit_tier_wins(client):
+    headers = _fresh_owner(client)
+    client.put("/users/me/preferences", headers=headers, json={"default_tier": "cloud"})
+    res = client.post(
+        "/devices", headers=headers,
+        json={"name": "Explicit Dev", "classification_tier": "gpu"},
+    )
+    assert res.status_code == 201
+    assert res.json()["classification_tier"] == "gpu"

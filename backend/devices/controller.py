@@ -7,6 +7,7 @@ from litestar.params import FromPath
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import device_guard, user_guard
+from ..users.operations import get_or_create_preferences
 from .operations import (
     add_device_user,
     create_device,
@@ -85,13 +86,18 @@ class DeviceController(Controller):
     async def register(
         self, data: RegisterDevice, request: Request, db: NamedDependency[AsyncSession]
     ) -> DeviceResponse:
+        # When the request omits a tier, inherit the owner's default_tier pref.
+        tier = data.classification_tier
+        if tier is None:
+            prefs = await get_or_create_preferences(db, request.state.user_id)
+            tier = prefs.default_tier
         device = await create_device(
             db,
             name=data.name,
             city=data.city,
             state=data.state,
             owner_id=request.state.user_id,
-            classification_tier=data.classification_tier,
+            classification_tier=tier,
             feed_type=data.feed_type,
         )
         return await _to_response(db, device)

@@ -35,5 +35,9 @@ class Settings:
         os.getenv("NOTIFICATION_MIN_INTERVAL_SECONDS", "60")
     )
 
+    # ── Cloud classification (Tier 3 — Claude API, M6) ────────────────────────
+    ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+    ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-8")
+
 
 settings = Settings()

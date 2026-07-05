@@ -3,10 +3,121 @@ import React, { useState } from "react";
 import { Icon } from "./Icon.jsx";
 import { useData } from "./DataContext.jsx";
 import { useAppearance } from "./Appearance.jsx";
-import { saveMe, savePreferences } from "./data.js";
+import { Modal, TextInput, SelectInput, FormNote } from "./Modal.jsx";
+import {
+  saveMe, savePreferences, createUser, updateUser, changePassword,
+} from "./data.js";
+
+// Admin-creates-with-temp-password: there's no SendGrid email-invite flow yet,
+// so the owner sets a temporary password and shares it out of band.
+function InviteUserModal({ onClose, onDone }) {
+  const [form, setForm] = useState({ name: "", email: "", password: "", role: "viewer", phone: "" });
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const set = k => v => setForm(f => ({ ...f, [k]: v }));
+
+  async function submit() {
+    if (!form.name || !form.email || !form.password) {
+      setError("Name, email, and a temporary password are required.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      await createUser({
+        name: form.name, email: form.email, password: form.password,
+        role: form.role, phone: form.phone || null,
+      });
+      await onDone();
+      onClose();
+    } catch (e) {
+      setError(e.status === 409 ? "That email is already registered." : e.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      title="Invite a user"
+      subtitle="Set a temporary password and share it with them — they can change it in Settings."
+      onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>Cancel</button>
+        <button className="btn primary" onClick={submit} disabled={busy}>{busy ? "Adding…" : "Add user"}</button>
+      </>}
+    >
+      <TextInput label="Name" value={form.name} onChange={set("name")} />
+      <TextInput label="Email" type="email" value={form.email} onChange={set("email")} />
+      <TextInput label="Temporary password" type="password" value={form.password} onChange={set("password")} />
+      <TextInput label="Phone" help="Optional. E.164 format for SMS." value={form.phone} onChange={set("phone")} />
+      <SelectInput label="Role" value={form.role} onChange={set("role")}
+        options={[["viewer", "Viewer"], ["owner", "Owner"]]} />
+      <FormNote error={error} />
+    </Modal>
+  );
+}
+
+// Edit is limited to the fields UpdateUser accepts (name/phone/notify/email).
+// Role changes need a dedicated route and stay read-only here.
+function EditUserModal({ user, onClose, onDone }) {
+  const [form, setForm] = useState({
+    name: user.name, phone: user.phone === "—" ? "" : user.phone, email: user.email,
+    notify_email: user.notify_email, notify_sms: user.notify_sms,
+  });
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const set = k => v => setForm(f => ({ ...f, [k]: v }));
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    try {
+      await updateUser(user.id, {
+        name: form.name, phone: form.phone || null, email: form.email,
+        notify_email: form.notify_email, notify_sms: form.notify_sms,
+      });
+      await onDone();
+      onClose();
+    } catch (e) {
+      setError(e.status === 409 ? "That email is already registered." : e.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      title={`Edit ${user.name}`}
+      onClose={onClose}
+      footer={<>
+        <button className="btn" onClick={onClose}>Cancel</button>
+        <button className="btn primary" onClick={submit} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
+      </>}
+    >
+      <TextInput label="Name" value={form.name} onChange={set("name")} />
+      <TextInput label="Email" type="email" value={form.email} onChange={set("email")} />
+      <TextInput label="Phone" value={form.phone} onChange={set("phone")} />
+      <SelectInput label="Role" value={user.role} onChange={() => {}}
+        options={[["viewer", "Viewer"], ["owner", "Owner"]]} />
+      <div className="field-help" style={{ marginTop: -6 }}>Role changes aren't supported here yet.</div>
+      <label className="row" style={{ gap: 8, alignItems: "center" }}>
+        <input type="checkbox" checked={form.notify_email} onChange={e => set("notify_email")(e.target.checked)} />
+        <span>Email notifications</span>
+      </label>
+      <label className="row" style={{ gap: 8, alignItems: "center" }}>
+        <input type="checkbox" checked={form.notify_sms} onChange={e => set("notify_sms")(e.target.checked)} />
+        <span>SMS notifications</span>
+      </label>
+      <FormNote error={error} />
+    </Modal>
+  );
+}
 
 export function UsersPage() {
-  const { USERS } = useData().data;
+  const { data, reload } = useData();
+  const USERS = data.USERS;
+  const [inviting, setInviting] = useState(false);
+  const [editing, setEditing] = useState(null);
+
   return (
     <>
       <div className="page-header">
@@ -14,7 +125,9 @@ export function UsersPage() {
           <div className="label" style={{ marginBottom: 6 }}>People who watch your feeders</div>
           <h1 className="page-title">Users &amp; <em>roles</em></h1>
         </div>
-        <button className="btn primary"><Icon name="plus" className="" /> Invite user</button>
+        <button className="btn primary" onClick={() => setInviting(true)}>
+          <Icon name="plus" className="" /> Invite user
+        </button>
       </div>
 
       <div className="card">
@@ -40,10 +153,13 @@ export function UsersPage() {
                 ✆ {u.notify_sms ? "ON" : "OFF"}
               </span>
             </span>
-            <button className="btn ghost sm">Edit</button>
+            <button className="btn ghost sm" onClick={() => setEditing(u)}>Edit</button>
           </div>
         ))}
       </div>
+
+      {inviting && <InviteUserModal onClose={() => setInviting(false)} onDone={reload} />}
+      {editing && <EditUserModal user={editing} onClose={() => setEditing(null)} onDone={reload} />}
     </>
   );
 }
@@ -88,21 +204,51 @@ function SaveStatus({ status }) {
   );
 }
 
-// A note for controls the backend can't persist yet.
-function TodoNote({ children }) {
-  return (
-    <div className="field-help" style={{ marginTop: 8, opacity: 0.8, fontStyle: "italic" }}>
-      TODO — {children}
-    </div>
-  );
-}
-
 const TIERS = [
   ["local", "Tier 1 — Local", "iNatVision TFLite on the Pi. Offline-friendly.", "PI ONLY"],
   ["gpu", "Tier 2 — LAN GPU", "Forwarded to RTX 5080. Higher accuracy.", "WIFI"],
   ["cloud", "Tier 3 — Cloud", "Anthropic Claude multimodal. Hard cases.", "INTERNET"],
   ["auto", "Auto", "Try local first. Escalate when confidence falls below threshold.", "RECOMMENDED"],
 ];
+
+// Self password change — current password is required (verified server-side).
+function ChangePasswordModal({ userId, onClose }) {
+  const [cur, setCur] = useState("");
+  const [next, setNext] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    if (!cur || !next) { setError("Enter your current and new password."); return; }
+    if (next !== confirm) { setError("New passwords don't match."); return; }
+    setBusy(true);
+    setError(null);
+    try {
+      await changePassword(userId, { current_password: cur, new_password: next });
+      onClose(true);
+    } catch (e) {
+      setError(e.status === 400 ? "Your current password is incorrect." : e.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      title="Change password"
+      onClose={() => onClose(false)}
+      footer={<>
+        <button className="btn" onClick={() => onClose(false)}>Cancel</button>
+        <button className="btn primary" onClick={submit} disabled={busy}>{busy ? "Saving…" : "Update password"}</button>
+      </>}
+    >
+      <TextInput label="Current password" type="password" value={cur} onChange={setCur} />
+      <TextInput label="New password" type="password" value={next} onChange={setNext} />
+      <TextInput label="Confirm new password" type="password" value={confirm} onChange={setConfirm} />
+      <FormNote error={error} />
+    </Modal>
+  );
+}
 
 export function SettingsPage() {
   const { data, patch } = useData();
@@ -112,10 +258,12 @@ export function SettingsPage() {
 
   const [section, setSection] = useState("account");
   const [status, setStatus] = useState(null);
+  const [changingPassword, setChangingPassword] = useState(false);
 
   // Account text fields buffer locally and persist on blur.
   const [name, setName] = useState(me.name);
   const [phone, setPhone] = useState(me.phone);
+  const [email, setEmail] = useState(me.email);
 
   // Sliders buffer locally for smooth dragging, then commit on release.
   const [quiet, setQuiet] = useState(prefs.quiet_interval_seconds);
@@ -175,8 +323,9 @@ export function SettingsPage() {
                   onBlur={() => name !== me.name && saveUser({ name })} />
               </Field>
               <Field label="Email" help="Used for login and email notifications.">
-                <input type="email" value={me.email} readOnly />
-                <TodoNote>changing your email needs a new backend endpoint.</TodoNote>
+                <input type="email" value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  onBlur={() => email !== me.email && saveUser({ email })} />
               </Field>
               <Field label="Phone" help="E.164 format. Required for SMS.">
                 <input type="text" value={phone}
@@ -184,8 +333,7 @@ export function SettingsPage() {
                   onBlur={() => phone !== me.phone && saveUser({ phone })} />
               </Field>
               <Field label="Password">
-                <button className="btn" disabled>Change password…</button>
-                <TodoNote>password changes need a POST /users/&#123;id&#125;/password route.</TodoNote>
+                <button className="btn" onClick={() => setChangingPassword(true)}>Change password…</button>
               </Field>
             </div>
           )}
@@ -359,6 +507,16 @@ export function SettingsPage() {
           )}
         </div>
       </div>
+
+      {changingPassword && (
+        <ChangePasswordModal
+          userId={me.id}
+          onClose={(saved) => {
+            setChangingPassword(false);
+            if (saved) setStatus({ kind: "saved" });
+          }}
+        />
+      )}
     </>
   );
 }
