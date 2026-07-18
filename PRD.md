@@ -39,7 +39,7 @@ Peck Deck is a smart bird feeder system that automatically detects bird visits, 
 │         Feeder Unit            │ ─────────────────▶ │       Home Gaming PC             │
 │                                │                    │                                  │
 │  Trigger Peripheral            │                    │  FastAPI / Litestar Backend       │
-│  ↓                             │                    │  SQLite Database                 │
+│  ↓                             │                    │  PostgreSQL Database             │
 │  Raspberry Pi 5                │ ◀─ Classification ─│  GPU Inference Server (RTX 5080) │
 │  ↓                             │                    │  React Web App                   │
 │  Camera Module                 │                    │  Notification Service            │
@@ -62,7 +62,7 @@ Peck Deck is a smart bird feeder system that automatically detects bird visits, 
 | Camera Module | Feeder hardware | Captures still images and short video clips |
 | Battery Pack | Feeder hardware | Powers the entire feeder unit off-grid |
 | Backend API | Gaming PC | REST API, business logic, auth |
-| SQLite Database | Gaming PC | Persists users, devices, species, sightings |
+| PostgreSQL Database | Gaming PC | Persists users, devices, species, sightings |
 | Inference Server | Gaming PC | GPU-accelerated classification (RTX 5080) |
 | React Web App | Gaming PC | User-facing UI served from backend |
 | Notification Service | Gaming PC | Sends email (SMTP/SendGrid) and SMS (Twilio) |
@@ -125,8 +125,9 @@ The Pi attempts classification in order. If a tier fails or is disabled, it fall
 
 ## 6. Backend API
 
-**Framework:** Python — Litestar (preferred) or FastAPI  
-**Database:** SQLite (async, via aiosqlite + SQLAlchemy)  
+**Framework:** Python — Litestar  
+**Database:** PostgreSQL (async, via asyncpg + SQLAlchemy 2.0). Runs in Docker
+alongside the API; the test suite uses SQLite (aiosqlite) as a throwaway backend.  
 **Auth:** JWT — login returns a token; all non-public endpoints require a valid token
 
 ### 6.1 Data Models
@@ -322,8 +323,11 @@ The resolved URL and a short description (from the API when available) are store
 
 ## 11. Open Questions
 
-1. **Trigger peripheral model** — What specific peripheral is being used? This affects debounce timing and Pi GPIO integration details.
-2. **Feeder solar charging** — Is solar charging planned for the battery, or strict finite battery life between charges?
+> These remain open pending hardware decisions by the maintainer. They are
+> resolved during the hardware bring-up pass (FLEDGE_ROADMAP.md → Phase 4).
+
+1. **Trigger peripheral model** — What specific peripheral is being used? This affects debounce timing and Pi GPIO integration details. *(Open — confirm at hardware bring-up.)*
+2. **Feeder solar charging** — Is solar charging planned for the battery, or strict finite battery life between charges? *(Open — confirm at hardware bring-up.)*
 
 ---
 

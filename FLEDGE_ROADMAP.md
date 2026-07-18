@@ -28,19 +28,18 @@ stale.
 
 *Lock down the ground the rest of the work stands on. Highest leverage, lowest effort.*
 
-- [ ] **Continuous Integration** — `.github/workflows/ci.yml`
-  - Backend job: install `backend/requirements-dev.txt`, run `pytest` (SQLite-backed, no Postgres service needed).
+- [x] **Continuous Integration** — `.github/workflows/ci.yml`
+  - Backend job: install `backend/requirements-dev.txt`, run `pytest` (SQLite-backed, no Postgres service needed). Matrix: Python 3.11 + 3.12.
   - Frontend job: `npm ci` + `npm run build` in `frontend/`.
   - Trigger on push + PR to `main`.
-- [ ] **Doc refresh**
-  - `CLAUDE.md`: mark frontend (M5) and Tier 3 (M6) as **built**; fix stale "SQLite" mentions to **PostgreSQL**.
-  - `PRD.md`: resolve/annotate the two open questions (trigger peripheral, solar charging).
-  - Verify `SETUP.md` + `.env.example` match the current stack.
-- [ ] **Repo hygiene**
-  - Recommend branch protection on `main` (require CI green before merge).
-  - Add a short `CONTRIBUTING.md` describing the branch/PR flow.
+- [x] **Doc refresh**
+  - `CLAUDE.md`: frontend (M5) and Tier 3 (M6) marked **built**; build-status section updated to July 2026.
+  - `PRD.md`: stale SQLite references corrected to **PostgreSQL**; the two open questions annotated (resolved at hardware bring-up).
+- [x] **Repo hygiene**
+  - Added `CONTRIBUTING.md` describing the branch/PR flow and local test commands.
+  - Branch protection on `main` documented as a recommended manual repo setting (requires admin in GitHub Settings).
 
-**Exit criteria:** every push runs CI; a new contributor can go from clone → green tests using only the docs.
+**Exit criteria:** every push runs CI; a new contributor can go from clone → green tests using only the docs. ✅ *(Branch protection is a one-time manual toggle in repo Settings — see CONTRIBUTING.md.)*
 
 ---
 
