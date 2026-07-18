@@ -1,0 +1,15 @@
+aiohttp>=3.9
+numpy>=1.24
+Pillow>=10.0
+python-dotenv>=1.0
+
+# ── Pi-only (install separately on the device) ──────────────────────────────
+# RPi.GPIO>=0.7
+#   pip install RPi.GPIO
+#
+# picamera2>=0.3
+#   sudo apt install -y python3-picamera2
+#
+# tflite-runtime>=2.14
+#   pip install tflite-runtime
+#   (or: pip install tensorflow if full TF is preferred)
