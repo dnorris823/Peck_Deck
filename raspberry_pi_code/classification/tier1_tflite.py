@@ -110,6 +110,13 @@ class TFLiteClassifier(ClassifierBase):
         self._interp.invoke()
         scores = self._interp.get_tensor(out["index"])[0]
 
+        # Dequantize integer outputs to real probabilities. A quantized (e.g. 8-bit)
+        # model returns raw ints; without this, `confidence` would be a 0-255 value
+        # rather than a 0-1 probability, making the confidence threshold meaningless.
+        scale, zero_point = out.get("quantization", (0.0, 0))
+        if scale:
+            scores = (scores.astype(np.float32) - zero_point) * scale
+
         top = int(np.argmax(scores))
         confidence = float(scores[top])
 

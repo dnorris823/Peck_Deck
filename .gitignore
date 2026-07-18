@@ -11,3 +11,7 @@ __pycache__/
 
 # OS
 .DS_Store
+
+# Hardware-test stand-in ML assets (not the real model)
+machine_learning/stand_in_smoketest_224_uint8.tflite
+smoke_capture.jpg
