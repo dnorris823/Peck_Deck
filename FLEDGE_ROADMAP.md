@@ -8,6 +8,11 @@ RTX 5080 gaming PC in hand — so real progress ships from anywhere, including a
 phone — then land the remaining hardware bring-up in one focused pass once you're
 back at the bench.
 
+Phases 0–3 are complete. Phase 4 (hardware) is parked until the bench is
+available; **Phases 5–8 are all cloud/mobile** and keep the app moving in the
+meantime — a live device simulator, deeper analytics, a mobile PWA, and
+production hardening.
+
 ---
 
 ## Legend
@@ -148,14 +153,130 @@ stale.
 
 ---
 
+> ## 🪺 The nest below is still building
+>
+> **Phase 4 is parked** until the Pi and RTX 5080 are on the bench. Everything
+> from **Phase 5 on is ☁️ cloud/mobile work** — no hardware required — so the
+> app keeps maturing while the feeder roosts. Phase 4 keeps its number (it's
+> still *the* hardware pass, whenever it lands); the phases below can all ship
+> before it.
+
+---
+
+## Phase 5 — 🦜 Decoy  ·  Device Simulator & Demo Mode  ☁️
+
+*Stand in for the Pi. A fake feeder that drives the whole pipeline so every
+screen, notification, and stat can be seen and verified — from a phone.*
+
+The static `backend/seed.py` gives a snapshot; this gives a **living** feed. It
+turns "I can't test the app without hardware" into "the app is always
+demonstrable."
+
+- [ ] **Virtual device / sighting generator** — a script (`backend/simulator.py`
+  or `scripts/simulate.py`) that authenticates as a device token and posts
+  realistic sightings to `POST /sightings` on an interval: rotating species from
+  `taxonomy.csv`, plausible confidence per tier, day/night visit weighting, and a
+  small bank of placeholder bird images.
+- [ ] **Continuous vs. burst modes** — one-shot backfill (N sightings over the
+  last M days) for populating history, and a live drip (one every few seconds)
+  to watch the dashboard, notifications, and "online" device status update in
+  real time.
+- [ ] **Demo Mode toggle** — an env-gated, read-only demo seed + a banner in the
+  frontend so a fresh clone (or a reviewer on their phone) lands on a populated,
+  clickable app with zero setup.
+- [ ] Contract-align the simulator with the real Pi client so it exercises the
+  exact `POST /sightings` multipart shape the hardware will use (reuse the
+  Phase 3 seam).
+
+**Exit criteria:** `python -m backend.simulator` populates a running stack and
+you can watch a sighting flow end-to-end — capture → classify → gallery →
+notification — on a phone, with no Pi in the loop.
+
+---
+
+## Phase 6 — 📊 Census  ·  Analytics, Insights & Export  ☁️
+
+*Turn the sightings table into something worth checking daily. Pure
+data/backend + charts — all cloud.*
+
+- [ ] **Richer dashboard analytics** — extend `backend/stats/` beyond the current
+  dashboard/species-count/heatmap: visits-per-day trend, busiest hours, species
+  diversity over time, first-seen / new-species-this-week, longest streaks.
+- [ ] **Frontend charts** — wire the new aggregates into the Dashboard with
+  accessible, theme-aware visualizations (see the `dataviz` skill), including a
+  time-range selector and per-device breakdown.
+- [ ] **Data export** — `GET /sightings/export` (CSV/JSON, auth-scoped) and a
+  frontend "Export" action; optional per-species report.
+- [ ] **Species enrichment** — go past the Wikipedia URL: cache a short
+  description, taxonomy order/family, and (where a free API allows) conservation
+  status, so the Species Library reads like a field guide.
+
+**Exit criteria:** the Dashboard answers "what's been happening at the feeder?"
+at a glance, and a user can export their sighting history in one click. Covered
+by unit tests over the new aggregate queries + export serialization.
+
+---
+
+## Phase 7 — 📱 Perch  ·  PWA & Mobile Experience  ☁️
+
+*A native app is a v1 non-goal (PRD §3) — a PWA closes most of that gap and is
+exactly what pays off "while on mobile."*
+
+- [ ] **Installable PWA** — web app manifest (icons, name, theme color), a
+  service worker for offline shell caching, and "Add to Home Screen" support.
+- [ ] **Offline-tolerant reads** — cache the last-loaded sightings/species so the
+  app opens to content on a flaky connection (write paths stay online-only).
+- [ ] **Web push notifications** — opt-in browser push for new sightings as a
+  fourth delivery channel alongside email/SMS, wired into the existing
+  fire-and-forget notification service (mockable in CI).
+- [ ] **Mobile-first polish** — build on the Phase 2 off-canvas nav: touch-target
+  sizing, pull-to-refresh on the feed, image lazy-loading, and lighthouse/PWA
+  audit fixes.
+
+**Exit criteria:** Peck Deck installs to a phone home screen, opens offline to
+cached content, and can push a new-sighting alert — verifiable against the
+Phase 5 simulator with no hardware.
+
+---
+
+## Phase 8 — 🛡️ Roost  ·  Production Readiness & Security  ☁️
+
+*Make it safe to actually run. All static-analysis / config / test work — cloud.*
+
+- [ ] **Security pass** — run `/security-review` and close findings: auth rate
+  limiting / lockout on `/login`, CORS policy, JWT expiry + rotation, device-token
+  handling, request-size limits on image upload, and a dependency audit
+  (`pip-audit` / `npm audit`) wired into CI.
+- [ ] **Database migrations** — introduce Alembic so schema changes are
+  versioned instead of `create_tables()` at boot; add an initial baseline
+  migration and a `scripts/migrate` entrypoint.
+- [ ] **Health & readiness** — extend `/health` into a real readiness probe
+  (DB connectivity, migration state) for container orchestration; document the
+  compose healthchecks.
+- [ ] **Backup & restore** — a documented `pg_dump`/restore flow for the
+  `bytea`-backed media + records, with a smoke test.
+- [ ] **API docs** — publish Litestar's generated OpenAPI schema and link it from
+  the docs so the Pi/frontend contract is self-describing.
+
+**Exit criteria:** a clean security review, versioned migrations, a readiness
+probe orchestration can trust, and a documented backup path — the stack is
+deployable, not just runnable.
+
+---
+
 ## Suggested order
 
-`Phase 0` → `Phase 1` ↔ `Phase 2` (parallelizable) → `Phase 3` → `Phase 4`.
+`Phase 0` → `Phase 1` ↔ `Phase 2` (parallelizable) → `Phase 3` →
+**`Phase 5` ↔ `Phase 6` ↔ `Phase 7` ↔ `Phase 8`** (all ☁️, do from mobile) →
+`Phase 4` (🔌 hardware, whenever the bench is ready).
 
 Phase 0 first: CI + accurate docs make every later phase safer and faster. Phases 1
 and 2 are independent and can leapfrog based on what you feel like building. Phase 3
-ties them together. Phase 4 waits for the hardware — by then, everything feeding into
-it is already proven.
+ties them together. **Phase 5 is the unlock for the rest** — a simulator means
+Phases 6–8 (and even a dry-run of Phase 4's flow) are all visually verifiable from
+a phone. Phases 6, 7, and 8 are independent of each other; pick by mood. Phase 4
+still waits for the hardware — by then everything feeding into it is proven twice
+over: once by the tests, once by the simulator.
 
 ---
 
