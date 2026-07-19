@@ -18,7 +18,7 @@ Peck_Deck/
 ├── backend/                   # Python REST API (Litestar)
 │   └── notifications/         # Email (SendGrid) + SMS (Twilio) + Wikipedia lookup
 ├── inference_server/          # GPU inference server (RTX 5080, gaming PC)
-├── frontend/                  # React web app (M5, not yet built)
+├── frontend/                  # React web app (M5, built)
 └── requirements.txt
 ```
 
@@ -66,10 +66,15 @@ docker compose up --build
 # Also: pip install torch --index-url https://download.pytorch.org/whl/cu124
 python -m inference_server
 
-# Start the React frontend (from frontend/) — M5, not built yet
+# Start the React frontend (from frontend/)
 npm run dev
 ```
 
-## What's Not Built Yet (as of May 2026)
-- React frontend — M5
-- Claude API Tier 3 integration — backend `POST /classify` returns 501 until M6
+## Build Status (as of July 2026)
+Milestones M1–M6 are merged to `main`:
+- **M5 — React frontend** — built (dashboard, gallery, species library, devices, settings).
+- **M6 — Claude API Tier 3** — built; `POST /classify` relays to the Claude multimodal API.
+- Wikipedia URL lookup (PRD §9.1) — built.
+
+Remaining work is tracked in `FLEDGE_ROADMAP.md`. **M7 (polish/hardening)** and the
+physical hardware bring-up (Pi camera/trigger, GPU inference server) are still open.
