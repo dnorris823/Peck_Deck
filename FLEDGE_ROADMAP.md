@@ -47,16 +47,24 @@ stale.
 
 *Smooth out the API's rough edges. All independently testable with mocks.*
 
-- [ ] Expand test coverage on the untested paths:
+- [x] Expand test coverage on the untested paths:
   - Auth failures (bad token, expired JWT, wrong role, device-token vs user-JWT).
   - Offline-sync / delayed-sighting flow logic.
   - Wikipedia lookup fallback chain (API → search → scrape → null).
   - Notification min-interval throttle + fire-and-forget failure isolation.
-- [ ] Consistent error envelopes and input validation across controllers.
-- [ ] Structured logging (request IDs, tier-used, notification outcomes).
-- [ ] **Tier 3 tuning** — refine the Claude prompt + structured-output schema; add tests that exercise the real Claude API and assert the JSON contract.
+- [x] Consistent error envelopes and input validation across controllers.
+  - All failures serialize to `{status_code, type, detail, request_id, extra?}`
+    via `backend/errors.py` (`detail` kept for frontend compatibility).
+- [x] Structured logging (request IDs, tier-used, notification outcomes).
+  - `backend/observability.py`: request-id middleware + a request-id-aware
+    root formatter; tier-used logged on sighting create + Tier 3 classify.
+- [x] **Tier 3 tuning** — refine the Claude prompt + structured-output schema; add tests that exercise the real Claude API and assert the JSON contract.
+  - Schema bounds `confidence` to `[0, 1]`; `normalize_prediction()` is the
+    single contract choke point (strips names, clamps/coerces confidence).
+  - Contract tests plus an **opt-in** live test (`RUN_LIVE_CLAUDE=1` +
+    `ANTHROPIC_API_KEY`), skipped in CI.
 
-**Exit criteria:** coverage meaningfully up from the current 50 tests; error responses are uniform; Tier 3 returns a validated `{common_name, scientific_name, confidence}` every time.
+**Exit criteria:** coverage meaningfully up from the current 50 tests; error responses are uniform; Tier 3 returns a validated `{common_name, scientific_name, confidence}` every time. ✅ *(50 → 87 passing tests; uniform envelope in place; Tier 3 contract enforced by `normalize_prediction`.)*
 
 ---
 
