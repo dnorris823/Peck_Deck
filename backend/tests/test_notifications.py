@@ -156,3 +156,90 @@ def test_throttle_is_independent_per_recipient(client, monkeypatch):
 
     asyncio.run(NotificationService().dispatch(sid, did))
     assert set(emails) == {a_email, b_email}
+
+
+# ---------------------------------------------------------------------------
+# Fire-and-forget failure isolation
+# ---------------------------------------------------------------------------
+def test_email_failure_does_not_block_sms(client, monkeypatch):
+    """A raising email channel must not prevent the SMS channel from sending."""
+    smses: list[str] = []
+
+    async def boom_email(**_):
+        raise RuntimeError("SendGrid exploded")
+
+    async def fake_sms(*, to_number, **_):
+        smses.append(to_number)
+        return True
+
+    monkeypatch.setattr(notif_module, "send_email", boom_email)
+    monkeypatch.setattr(notif_module, "send_sms", fake_sms)
+
+    uid, did, _ = asyncio.run(
+        _mk_user_device(notify_email=True, notify_sms=True, phone="+15550000")
+    )
+    spid = asyncio.run(_mk_species())
+    sid = asyncio.run(_insert_sighting(spid, did))
+
+    # gather(return_exceptions=True) isolates the failure; SMS still lands.
+    asyncio.run(NotificationService().dispatch(sid, did))
+    assert smses == ["+15550000"]
+
+
+def test_dispatch_swallows_send_failure(client, monkeypatch):
+    """dispatch() is fire-and-forget: a channel error never propagates out."""
+    async def boom_email(**_):
+        raise RuntimeError("kaboom")
+
+    async def fake_sms(**_):
+        return True
+
+    monkeypatch.setattr(notif_module, "send_email", boom_email)
+    monkeypatch.setattr(notif_module, "send_sms", fake_sms)
+
+    uid, did, _ = asyncio.run(_mk_user_device(notify_email=True))
+    spid = asyncio.run(_mk_species())
+    sid = asyncio.run(_insert_sighting(spid, did))
+
+    # Must complete without raising.
+    asyncio.run(NotificationService().dispatch(sid, did))
+
+
+def test_dispatch_missing_sighting_is_noop(client, monkeypatch):
+    """A dispatch for a non-existent sighting id returns cleanly (no send)."""
+    emails, _ = _patch_senders(monkeypatch)
+    uid, did, _ = asyncio.run(_mk_user_device())
+
+    asyncio.run(NotificationService().dispatch(9_999_999, did))
+    assert emails == []
+
+
+def test_throttle_is_independent_per_device(client, monkeypatch):
+    """One recipient throttled on device A can still be notified on device B."""
+    emails, _ = _patch_senders(monkeypatch)
+
+    async def _two_devices_one_owner():
+        async with get_session_factory()() as db:
+            async with db.begin():
+                u = User(name="Multi", email=f"m_{secrets.token_hex(4)}@t.dev",
+                         password_hash="x", role="owner", notify_email=True)
+                db.add(u)
+                await db.flush()
+                d1 = Device(name="D1", owner_id=u.id, classification_tier="auto",
+                            token=secrets.token_urlsafe(12))
+                d2 = Device(name="D2", owner_id=u.id, classification_tier="auto",
+                            token=secrets.token_urlsafe(12))
+                db.add_all([d1, d2])
+                await db.flush()
+                return u.email, d1.id, d2.id
+
+    email, d1, d2 = asyncio.run(_two_devices_one_owner())
+    spid = asyncio.run(_mk_species())
+    s1 = asyncio.run(_insert_sighting(spid, d1))
+    s2 = asyncio.run(_insert_sighting(spid, d2))
+
+    svc = NotificationService()  # one instance → shared throttle map
+    asyncio.run(svc.dispatch(s1, d1))  # notified on device 1
+    asyncio.run(svc.dispatch(s2, d2))  # different device → not throttled
+
+    assert emails == [email, email]
