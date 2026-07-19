@@ -31,6 +31,14 @@ async def create_tables() -> None:
         await conn.run_sync(Base.metadata.create_all)
 
 
+async def drop_tables() -> None:
+    """Drop all tables. Used by the integration suite to reset a real
+    Postgres database to a clean, deterministic state before seeding."""
+    assert _engine is not None
+    async with _engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+
 async def dispose_db() -> None:
     if _engine is not None:
         await _engine.dispose()

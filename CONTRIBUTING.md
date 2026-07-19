@@ -17,6 +17,17 @@ pip install -r backend/requirements-dev.txt
 pytest -q
 ```
 
+**Integration + contract tests** (real `postgres:16`, live in-process servers,
+GPU mocked — one command brings up the DB, runs, and tears down):
+
+```bash
+pip install -r integration_tests/requirements.txt
+bash scripts/run_integration.sh
+```
+
+Already have a Postgres you want to reuse? Export `PECK_TEST_DATABASE_URL`
+(an asyncpg URL) and the script runs against it without touching docker.
+
 **Backend + database** (full stack, from project root):
 
 ```bash
@@ -36,7 +47,7 @@ npm run dev        # local dev server
 Enable branch protection on `main` (repo **Settings → Branches → Add rule**):
 
 - Require a pull request before merging.
-- Require the **CI** status checks (`Backend tests`, `Frontend build`) to pass.
+- Require the **CI** status checks (`Backend tests`, `Integration + contract tests`, `Frontend build`) to pass.
 - Optionally require branches to be up to date before merging.
 
 This keeps the freshly-promoted `main` from regressing.
