@@ -1,9 +1,24 @@
 // Sightings gallery — filters + tile grid + detail modal
-import React, { useState, useMemo } from "react";
+import React, { useRef, useState, useMemo } from "react";
 import { BirdPlate } from "./BirdPlate.jsx";
 import { Icon } from "./Icon.jsx";
+import { Empty } from "./Empty.jsx";
+import { useDialog } from "./Modal.jsx";
 import { useData } from "./DataContext.jsx";
 import { fmtTime, fmtDateLabel } from "./data.js";
+
+// Inclusive lower bound (ms since epoch) for a named range, or 0 for "all time".
+export function rangeCutoff(range, now = Date.now()) {
+  const DAY = 24 * 60 * 60 * 1000;
+  if (range === "today") {
+    const start = new Date(now);
+    start.setHours(0, 0, 0, 0);
+    return start.getTime();
+  }
+  if (range === "week") return now - 7 * DAY;
+  if (range === "month") return now - 30 * DAY;
+  return 0; // all
+}
 
 function SightingTile({ s, onClick }) {
   const conf = s.confidence;
@@ -37,14 +52,17 @@ function SightingTile({ s, onClick }) {
 
 export function SightingDetail({ s, onClose }) {
   const { data } = useData();
+  const panelRef = useRef(null);
+  useDialog(onClose, panelRef);
   if (!s) return null;
   const conf = s.confidence;
   const cls = conf >= 0.9 ? "conf-high" : conf >= 0.78 ? "conf-mid" : "conf-low";
   const speciesCount = data.SPECIES_COUNTS.find(x => x.id === s.species.id)?.count || 1;
   return (
     <div className="modal-bg" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}><Icon name="x" className="" /></button>
+      <div className="modal" onClick={e => e.stopPropagation()}
+        ref={panelRef} role="dialog" aria-modal="true" aria-label={`${s.species.common} sighting`} tabIndex={-1}>
+        <button className="modal-close" onClick={onClose} aria-label="Close dialog"><Icon name="x" className="" /></button>
         <div className="modal-grid">
           <div className="modal-img">
             <BirdPlate species={s.species} showLabel={false} large />
@@ -113,11 +131,15 @@ export function Sightings({ openSighting }) {
   const [range, setRange] = useState("week");
 
   const filtered = useMemo(() => {
+    const cutoff = rangeCutoff(range);
     return SIGHTINGS.filter(s =>
       (device === "all" || s.device.id === device) &&
-      (species === "all" || s.species.id === species)
+      (species === "all" || s.species.id === species) &&
+      s.datetime.getTime() >= cutoff
     );
-  }, [device, species]);
+  }, [SIGHTINGS, device, species, range]);
+
+  const hasAny = SIGHTINGS.length > 0;
 
   return (
     <>
@@ -164,9 +186,22 @@ export function Sightings({ openSighting }) {
         </span>
       </div>
 
-      <div className="gallery">
-        {filtered.map(s => <SightingTile key={s.id} s={s} onClick={openSighting} />)}
-      </div>
+      {filtered.length > 0 ? (
+        <div className="gallery">
+          {filtered.map(s => <SightingTile key={s.id} s={s} onClick={openSighting} />)}
+        </div>
+      ) : hasAny ? (
+        <Empty
+          icon="🔍"
+          title="No sightings match these filters"
+          hint="Try a wider time range or a different station or species."
+        />
+      ) : (
+        <Empty
+          title="No sightings yet"
+          hint="Once a station spots a bird, its plate will appear here."
+        />
+      )}
     </>
   );
 }

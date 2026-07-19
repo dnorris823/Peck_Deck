@@ -8,7 +8,7 @@ vi.mock("./api.js", () => ({
 
 import { apiGet, apiSend } from "./api.js";
 import {
-  loadAll, saveMe, savePreferences,
+  loadAll, saveMe, savePreferences, updateDevice,
   fmtRelative, fmtTime, fmtDateFull,
 } from "./data.js";
 
@@ -116,6 +116,12 @@ describe("settings mutations", () => {
     const prefs = await savePreferences({ default_tier: "cloud" });
     expect(apiSend).toHaveBeenCalledWith("/users/me/preferences", "PUT", { default_tier: "cloud" });
     expect(prefs.default_tier).toBe("cloud");
+  });
+
+  it("updateDevice PUTs the patch to the device endpoint", async () => {
+    apiSend.mockResolvedValue({ id: 10, classification_tier: "gpu" });
+    await updateDevice(10, { classification_tier: "gpu" });
+    expect(apiSend).toHaveBeenCalledWith("/devices/10", "PUT", { classification_tier: "gpu" });
   });
 });
 

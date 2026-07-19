@@ -27,6 +27,22 @@ describe("Login", () => {
     expect(login).toHaveBeenCalledWith("dom@peck.deck", "hunter2");
   });
 
+  it("blocks submit and shows a validation error for a malformed email", async () => {
+    const user = userEvent.setup();
+    const onSuccess = vi.fn();
+    render(<Login onSuccess={onSuccess} />);
+
+    // "dom@peck" passes the browser's native type=email check (no dot required)
+    // but fails the app's stricter checkEmail, so the app-level guard is exercised.
+    await user.type(screen.getByLabelText("Email"), "dom@peck");
+    await user.type(screen.getByLabelText("Password"), "hunter2");
+    await user.click(screen.getByRole("button", { name: /sign in/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(/valid email/i);
+    expect(login).not.toHaveBeenCalled();
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
+
   it("shows the error message and does not call onSuccess on failure", async () => {
     const user = userEvent.setup();
     login.mockRejectedValue(new Error("Invalid email or password."));

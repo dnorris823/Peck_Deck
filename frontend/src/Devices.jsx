@@ -1,9 +1,10 @@
 // Devices page — list of stations with full settings
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Icon } from "./Icon.jsx";
 import { useData } from "./DataContext.jsx";
-import { Modal, TextInput, SelectInput, FormNote } from "./Modal.jsx";
-import { createDevice } from "./data.js";
+import { Modal, TextInput, SelectInput, FormNote, useDialog } from "./Modal.jsx";
+import { Empty } from "./Empty.jsx";
+import { createDevice, updateDevice } from "./data.js";
 
 const TIER_OPTIONS = [
   ["", "Inherit my default"],
@@ -176,7 +177,8 @@ function DeviceListCard({ d, onClick }) {
 }
 
 function DeviceDetail({ d, onClose }) {
-  const { USERS } = useData().data;
+  const { data, reload } = useData();
+  const USERS = data.USERS;
   const tierLabels = {
     local: { name: "Tier 1 — Local", desc: "On-device TFLite, no network needed" },
     gpu: { name: "Tier 2 — LAN GPU", desc: "Forwards to RTX 5080 inference server" },
@@ -184,11 +186,36 @@ function DeviceDetail({ d, onClose }) {
     auto: { name: "Auto", desc: "Local first, escalate when confidence < 70%" },
   };
   const [tier, setTier] = useState(d.tier);
-  const allowedUsers = USERS.slice(0, 3);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const panelRef = useRef(null);
+  useDialog(onClose, panelRef);
+
+  const dirty = tier !== d.tier;
+  // Recipients are configured per-user (notify_email/notify_sms in Users), so we
+  // show the owners/viewers who currently receive alerts — read-only until the
+  // per-device recipient endpoint lands (there's no GET for it yet).
+  const recipients = USERS.filter(u => u.notify_email || u.notify_sms);
+
+  async function save() {
+    if (!dirty) { onClose(); return; }
+    setBusy(true);
+    setError(null);
+    try {
+      await updateDevice(d.id, { classification_tier: tier });
+      await reload();
+      onClose();
+    } catch (e) {
+      setError(e.message);
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="modal-bg" onClick={onClose}>
-      <div className="modal" style={{ maxWidth: 720 }} onClick={e => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}><Icon name="x" className="" /></button>
+      <div className="modal" style={{ maxWidth: 720 }} onClick={e => e.stopPropagation()}
+        ref={panelRef} role="dialog" aria-modal="true" aria-label={`${d.name} settings`} tabIndex={-1}>
+        <button className="modal-close" onClick={onClose} aria-label="Close dialog"><Icon name="x" className="" /></button>
         <div style={{ padding: "28px 32px" }}>
           <div className="label" style={{ marginBottom: 8 }}>Station settings</div>
           <h2 className="display" style={{ fontSize: 38, lineHeight: 1, margin: 0 }}>{d.name}</h2>
@@ -200,7 +227,10 @@ function DeviceDetail({ d, onClose }) {
             <div className="label" style={{ marginBottom: 12 }}>Classification preference</div>
             <div className="tier-stack">
               {Object.entries(tierLabels).map(([key, t], i) => (
-                <div key={key} className={`tier-card ${tier === key ? "selected" : ""}`} onClick={() => setTier(key)}>
+                <div key={key} className={`tier-card ${tier === key ? "selected" : ""}`}
+                  role="radio" aria-checked={tier === key} tabIndex={0}
+                  onClick={() => setTier(key)}
+                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setTier(key); } }}>
                   <div className="tier-num">{i + 1}</div>
                   <div>
                     <div className="tier-name">{t.name}</div>
@@ -213,34 +243,37 @@ function DeviceDetail({ d, onClose }) {
           </div>
 
           <div className="settings-section">
-            <div className="between" style={{ marginBottom: 12 }}>
-              <div className="label">Notification recipients</div>
-              <button className="btn ghost sm"><Icon name="plus" className="" /> Invite</button>
-            </div>
-            <div className="card">
-              {allowedUsers.map(u => (
-                <div className="user-row" key={u.id}>
-                  <div className="av-lg" style={{ background: u.avBg }}>{u.av}</div>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 500 }}>{u.name}</div>
-                    <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>{u.email}</div>
+            <div className="label" style={{ marginBottom: 12 }}>Notification recipients</div>
+            {recipients.length > 0 ? (
+              <div className="card">
+                {recipients.map(u => (
+                  <div className="user-row" key={u.id}>
+                    <div className="av-lg" style={{ background: u.avBg }}>{u.av}</div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 500 }}>{u.name}</div>
+                      <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>{u.email}</div>
+                    </div>
+                    <span className={`role-badge role-${u.role}`}>{u.role}</span>
+                    <span className="label" style={{ fontSize: 10 }}>
+                      {u.notify_email && "✉"} {u.notify_sms && "✆"}
+                    </span>
                   </div>
-                  <span className={`role-badge role-${u.role}`}>{u.role}</span>
-                  <span className="label" style={{ fontSize: 10 }}>
-                    {u.notify_email && "✉"} {u.notify_sms && "✆"}
-                  </span>
-                  <button className="btn ghost sm">Remove</button>
-                </div>
-              ))}
+                ))}
+              </div>
+            ) : (
+              <div className="field-help">No users have notifications enabled. Turn them on per user under Users.</div>
+            )}
+            <div className="field-help" style={{ marginTop: 8 }}>
+              Recipients follow each user's notification settings. Per-station recipient lists are coming soon.
             </div>
           </div>
 
-          <div className="between" style={{ marginTop: 28 }}>
-            <button className="btn ghost" style={{ color: "var(--cardinal)" }}>Decommission station</button>
-            <div className="row">
-              <button className="btn" onClick={onClose}>Cancel</button>
-              <button className="btn primary" onClick={onClose}>Save</button>
-            </div>
+          {error && <FormNote error={error} />}
+          <div className="row" style={{ marginTop: 28, justifyContent: "flex-end" }}>
+            <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
+            <button className="btn primary" onClick={save} disabled={busy}>
+              {busy ? "Saving…" : dirty ? "Save changes" : "Done"}
+            </button>
           </div>
         </div>
       </div>
@@ -265,9 +298,20 @@ export function DevicesPage() {
         </button>
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 18 }}>
-        {DEVICES.map(d => <DeviceListCard key={d.id} d={d} onClick={setOpen} />)}
-      </div>
+      {DEVICES.length > 0 ? (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 18 }}>
+          {DEVICES.map(d => <DeviceListCard key={d.id} d={d} onClick={setOpen} />)}
+        </div>
+      ) : (
+        <Empty
+          icon="📡"
+          title="No stations registered"
+          hint="Register a feeder to get a device token and start receiving sightings."
+          action={<button className="btn primary sm" onClick={() => setRegistering(true)}>
+            <Icon name="plus" className="" /> Register station
+          </button>}
+        />
+      )}
 
       {open && <DeviceDetail d={open} onClose={() => setOpen(null)} />}
       {registering && <RegisterDeviceModal onClose={() => setRegistering(false)} onDone={reload} />}

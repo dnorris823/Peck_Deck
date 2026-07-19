@@ -1,6 +1,7 @@
 // Login gate — minimal sign-in form that exchanges credentials for a JWT.
 import React, { useState } from "react";
 import { login } from "./api.js";
+import { checkEmail } from "./validate.js";
 
 export function Login({ onSuccess }) {
   const [email, setEmail] = useState("");
@@ -10,6 +11,9 @@ export function Login({ onSuccess }) {
 
   async function submit(e) {
     e.preventDefault();
+    const emailErr = checkEmail(email);
+    if (emailErr) { setError(emailErr); return; }
+    if (!password) { setError("Enter your password."); return; }
     setBusy(true);
     setError(null);
     try {

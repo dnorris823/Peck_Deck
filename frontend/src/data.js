@@ -171,6 +171,11 @@ export async function createDevice(body) {
   return apiSend("/devices", "POST", body);
 }
 
+// Update an existing device's editable fields (name/city/state/tier/feed_type).
+export async function updateDevice(deviceId, patch) {
+  return apiSend(`/devices/${deviceId}`, "PUT", patch);
+}
+
 // Add a species to the library.
 export async function createSpecies(body) {
   return apiSend("/species", "POST", body);

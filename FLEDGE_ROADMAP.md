@@ -72,17 +72,36 @@ stale.
 
 *Make the web app feel finished. Node-only; runs in the cloud box.*
 
-- [ ] Loading / error / empty states across Dashboard, Sightings, Species, Devices.
-- [ ] Form validation (login, user/device settings, API-key management).
+- [x] Loading / error / empty states across Dashboard, Sightings, Species, Devices.
+  - Global loading/error gate already lived in `App.jsx` (boot screen + retry);
+    added a shared `Empty` component (`src/Empty.jsx` + `.empty` styles) wired
+    into the Sightings gallery (no-results vs. never-any), Species grid, Devices
+    grid, and the Dashboard recent-visits feed.
+- [x] Form validation (login, user/device settings).
+  - `src/validate.js` — email/phone(E.164)/password rules in one testable place;
+    inline per-field errors in Login, Invite/Edit user, Change-password, the
+    Settings account fields (validate-on-blur), with `aria-invalid` + error text.
+    (API-key management is display-only/read-only, so nothing to validate there.)
 - [x] **Frontend test setup** — Vitest + React Testing Library + jsdom wired in
-  (`frontend/vite.config.js` `test` block, `src/test/setup.js`). 27 tests cover
-  `api.js` (token/login/error handling), `data.js` (`loadAll` mapping + formatters),
-  `DataContext` (loading/data/error/auth branches), and the `Login` component.
+  (`frontend/vite.config.js` `test` block, `src/test/setup.js`). 42 tests cover
+  `api.js` (token/login/error handling), `data.js` (`loadAll` mapping + formatters
+  + device update), `DataContext` (loading/data/error/auth branches), `validate.js`,
+  the Sightings range filter, and the `Login` component.
   Runs in CI ahead of the build (`npm test` step in `ci.yml`).
-- [ ] Accessibility pass (labels, focus, keyboard nav) and responsive/mobile layout.
-- [ ] Wire remaining screens to live backend endpoints; confirm the Dusk dark theme end-to-end.
+- [x] Accessibility pass (labels, focus, keyboard nav) and responsive/mobile layout.
+  - Dialogs get `role="dialog"`/`aria-modal`, Escape-to-close, focus-in-on-open +
+    focus-restore-on-close (`useDialog` in `Modal.jsx`); icon-only buttons and the
+    search input get `aria-label`s; nav items get `aria-current`; a global
+    `:focus-visible` ring. Layout: off-canvas sidebar with a hamburger + backdrop
+    on phones, and stacking breakpoints for the stat/dash/settings grids and modals.
+- [x] Wire remaining screens to live backend endpoints; confirm the Dusk dark theme end-to-end.
+  - Sightings time-range chips now actually filter (`rangeCutoff` + fixed `useMemo`
+    deps); DeviceDetail's tier change persists via `PUT /devices/{id}`
+    (`updateDevice`) and reloads. Inert placeholders (fake recipient list,
+    decommission) replaced with honest read-only states. Dusk theme verified via
+    the existing `[data-theme="dusk"]` token remap + Appearance toggle.
 
-**Exit criteria:** no dead/placeholder states; frontend tests run in CI; app is usable on a phone-sized viewport.
+**Exit criteria:** no dead/placeholder states; frontend tests run in CI; app is usable on a phone-sized viewport. ✅ *(42 frontend tests — up from zero — green in CI; empty/error/loading states everywhere; off-canvas mobile nav + stacking layout down to 390px.)*
 
 ---
 
