@@ -109,12 +109,28 @@ stale.
 
 *Prove the pieces work together — with real Postgres, mocked hardware.*
 
-- [ ] Integration tests via `docker compose` against the real `postgres:16` service (not just SQLite).
-- [ ] Contract tests for the seams: Pi client ↔ backend (`POST /sightings` multipart), backend ↔ inference server (`POST /classify`, mocked GPU).
-- [ ] Seed/demo dataset + reusable fixtures for local and CI runs.
-- [ ] Add the compose-based integration job to CI (Postgres service container).
+- [x] Integration tests against the real `postgres:16` service (not just SQLite).
+  - `integration_tests/` runs the full Litestar app on PostgreSQL: real bcrypt
+    login, device-scoped reads, `bytea` image round-trip, and dashboard/heatmap
+    aggregates. Gated on `PECK_TEST_DATABASE_URL` so the default `pytest -q`
+    (SQLite) is untouched.
+- [x] Contract tests for the seams: Pi client ↔ backend (`POST /sightings`
+  multipart), Pi ↔ inference server (`POST /classify`, mocked GPU).
+  - The **real** Pi `aiohttp` clients (`api_client.BackendClient`,
+    `GPUServerClassifier`) are driven against **live** in-process uvicorn servers
+    — nothing mocked on the wire. The GPU classifier is stubbed (no torch/CUDA)
+    so the inference contract runs anywhere. Covers happy path, offline-sync
+    `delayed=True`, bad device token, and the 503 model-unavailable fallthrough.
+- [x] Seed/demo dataset + reusable fixtures for local and CI runs.
+  - The deterministic dataset now lives in `backend/fixtures.py`
+    (`seed_reference_data`), shared by the SQLite unit conftest and the Postgres
+    integration conftest — one source of truth for both.
+- [x] Add the integration job to CI (Postgres service container).
+  - `ci.yml` `integration` job runs against a `postgres:16` service container;
+    `docker-compose.test.yml` + `scripts/run_integration.sh` give the same run
+    as a single local command.
 
-**Exit criteria:** a single command spins the stack and runs green end-to-end without any physical device.
+**Exit criteria:** a single command spins the stack and runs green end-to-end without any physical device. ✅ *(`scripts/run_integration.sh` brings up Postgres and runs 11 integration + contract tests green; CI runs the same suite on every push/PR.)*
 
 ---
 

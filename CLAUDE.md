@@ -70,11 +70,31 @@ python -m inference_server
 npm run dev
 ```
 
+## Testing
+```powershell
+# Backend unit suite — throwaway SQLite, no services needed
+pytest -q
+
+# Integration + contract suite — real postgres:16, live in-process servers.
+# Spins up Postgres via docker compose, runs, and tears down in one command:
+bash scripts/run_integration.sh
+```
+- **Unit tests** (`backend/tests/`) run against SQLite (`aiosqlite`) for speed.
+- **Integration + contract tests** (`integration_tests/`) run against real
+  PostgreSQL and drive the real Pi `aiohttp` clients against live uvicorn
+  servers (GPU mocked). They are gated on `PECK_TEST_DATABASE_URL`, so the
+  default `pytest -q` never touches them.
+- The deterministic demo dataset is shared by both suites via
+  `backend/fixtures.py` (`seed_reference_data`).
+
 ## Build Status (as of July 2026)
 Milestones M1–M6 are merged to `main`:
 - **M5 — React frontend** — built (dashboard, gallery, species library, devices, settings).
 - **M6 — Claude API Tier 3** — built; `POST /classify` relays to the Claude multimodal API.
 - Wikipedia URL lookup (PRD §9.1) — built.
 
-Remaining work is tracked in `FLEDGE_ROADMAP.md`. **M7 (polish/hardening)** and the
-physical hardware bring-up (Pi camera/trigger, GPU inference server) are still open.
+FLEDGE roadmap Phases 0–3 are complete: CI + docs, backend hardening, frontend
+polish, and the integration/contract suite (real Postgres + live-server seam
+tests). Remaining work is tracked in `FLEDGE_ROADMAP.md`. **Phase 4 — physical
+hardware bring-up** (Pi camera/trigger, GPU inference server on the RTX 5080) is
+still open.

@@ -1,0 +1,9 @@
+# Dependencies for the Phase 3 integration + contract suite.
+#
+# Pulls in the backend (Litestar app, asyncpg, aiohttp, uvicorn) and its test
+# tooling, then adds the FastAPI stack so the inference-server contract test can
+# stand up inference_server/main.py in-process with a mocked GPU classifier.
+# torch/timm are intentionally NOT installed — the GPU is mocked.
+-r ../backend/requirements-dev.txt
+fastapi>=0.111
+python-multipart>=0.0.9

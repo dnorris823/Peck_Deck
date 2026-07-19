@@ -1,0 +1,20 @@
+# Postgres-only stack for the Phase 3 integration + contract suite.
+#
+# Brought up by `scripts/run_integration.sh` so a single command spins the
+# database and runs the suite green end-to-end — no Raspberry Pi, no GPU.
+# (The backend and inference servers are started in-process by the tests via
+# uvicorn, so only Postgres needs a container here.)
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: peck_deck
+      POSTGRES_USER: peck_deck
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U peck_deck -d peck_deck"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
