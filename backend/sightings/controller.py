@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime
 from typing import Annotated
 
@@ -17,6 +18,8 @@ from ..notifications.wikipedia import update_species_wiki_url
 from ..species.operations import get_species
 from .operations import create_sighting, get_sighting, list_sightings
 from .schemas import SightingResponse
+
+logger = logging.getLogger("peckdeck.sightings")
 
 
 def _to_response(s) -> SightingResponse:
@@ -62,8 +65,14 @@ class SightingController(Controller):
         limit: FromQuery[int] = 50,
         offset: FromQuery[int] = 0,
     ) -> list[SightingResponse]:
-        from_dt = datetime.fromisoformat(from_date) if from_date else None
-        to_dt = datetime.fromisoformat(to_date) if to_date else None
+        try:
+            from_dt = datetime.fromisoformat(from_date) if from_date else None
+            to_dt = datetime.fromisoformat(to_date) if to_date else None
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="from_date/to_date must be ISO-8601 (e.g. 2026-07-19 or 2026-07-19T10:00:00)",
+            )
         sightings = await list_sightings(
             db,
             request.state.user_id,
@@ -94,6 +103,12 @@ class SightingController(Controller):
             classification_tier_used=data.classification_tier_used,
             image_data=image_bytes if image_bytes else None,
             delayed=data.delayed.lower() == "true",
+        )
+
+        logger.info(
+            "sighting %d created on device %d (tier=%s, confidence=%.2f, delayed=%s)",
+            sighting.id, sighting.device_id, sighting.classification_tier_used,
+            sighting.confidence_score, sighting.delayed,
         )
 
         # Load species to check wiki_url while the session is still open

@@ -14,11 +14,14 @@ from .classification.claude import get_classifier
 from .config import settings
 from .database.connection import create_tables, dispose_db, init_db, provide_db
 from .devices.controller import DeviceController
+from .errors import http_exception_handler, unhandled_exception_handler
+from .observability import RequestContextMiddleware, configure_logging
 from .sightings.controller import SightingController
 from .species.controller import SpeciesController
 from .stats.controller import StatsController
 from .users.controller import UserController, login
 
+configure_logging()
 logger = logging.getLogger(__name__)
 
 
@@ -49,7 +52,13 @@ async def classify(
         )
 
     try:
-        return await classifier.classify(image_bytes)
+        result = await classifier.classify(image_bytes)
+        logger.info(
+            "tier3 classify -> %s (%.2f)",
+            result.get("common_name"),
+            result.get("confidence", 0.0),
+        )
+        return result
     except Exception:
         logger.exception("Cloud classification failed")
         raise HTTPException(status_code=502, detail="Cloud classification failed")
@@ -76,6 +85,11 @@ app = Litestar(
         StatsController,
     ],
     dependencies={"db": Provide(provide_db)},
+    middleware=[RequestContextMiddleware],
+    exception_handlers={
+        HTTPException: http_exception_handler,
+        Exception: unhandled_exception_handler,
+    },
     on_startup=[on_startup],
     on_shutdown=[on_shutdown],
 )

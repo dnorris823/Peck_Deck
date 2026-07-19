@@ -20,13 +20,25 @@ from ..config import settings
 logger = logging.getLogger(__name__)
 
 # Structured-output schema — guarantees Claude's first text block is JSON with
-# exactly these keys, so parsing is deterministic.
+# exactly these keys, so parsing is deterministic. ``confidence`` is bounded to
+# [0, 1] at the schema level; we also clamp defensively in code.
 _CLASSIFY_SCHEMA = {
     "type": "object",
     "properties": {
-        "common_name": {"type": "string"},
-        "scientific_name": {"type": "string"},
-        "confidence": {"type": "number"},
+        "common_name": {
+            "type": "string",
+            "description": "English common name, e.g. 'Northern Cardinal'. Use 'Unknown' if no bird is clearly identifiable.",
+        },
+        "scientific_name": {
+            "type": "string",
+            "description": "Binomial 'Genus species', e.g. 'Cardinalis cardinalis'. Empty string when unknown.",
+        },
+        "confidence": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "Certainty of the identification, 0.0–1.0.",
+        },
     },
     "required": ["common_name", "scientific_name", "confidence"],
     "additionalProperties": False,
@@ -34,11 +46,39 @@ _CLASSIFY_SCHEMA = {
 
 _PROMPT = (
     "You are an expert ornithologist identifying a bird from a backyard feeder "
-    "camera image. Identify the single most prominent bird. Provide its common "
-    "name, its scientific name (Genus species), and your confidence from 0.0 to "
-    "1.0. If no bird is clearly visible, use common_name \"Unknown\", "
-    "scientific_name \"\", and a low confidence."
+    "camera image, likely a North American feeder species. Identify only the "
+    "single most prominent bird in the frame.\n"
+    "- common_name: the standard English common name (e.g. 'Northern Cardinal').\n"
+    "- scientific_name: the binomial 'Genus species' (e.g. 'Cardinalis cardinalis').\n"
+    "- confidence: your certainty from 0.0 to 1.0, reflecting image clarity and "
+    "how distinctive the visible field marks are.\n"
+    "If no bird is clearly visible or you cannot identify it, return common_name "
+    "'Unknown', scientific_name '', and a low confidence. Do not guess a specific "
+    "species when the image is ambiguous. Respond with the JSON object only — no "
+    "commentary."
 )
+
+
+def normalize_prediction(data: dict) -> dict:
+    """Coerce a raw model dict into the strict 3-field contract.
+
+    Guarantees ``common_name``/``scientific_name`` are stripped strings (with
+    ``common_name`` defaulting to ``"Unknown"`` when blank) and ``confidence`` is
+    a float clamped to ``[0.0, 1.0]``. This is the single place the Pi-facing
+    contract is enforced, so both the live client and tests share it.
+    """
+    common = str(data.get("common_name", "")).strip() or "Unknown"
+    scientific = str(data.get("scientific_name", "")).strip()
+    try:
+        confidence = float(data.get("confidence", 0.0))
+    except (TypeError, ValueError):
+        confidence = 0.0
+    confidence = max(0.0, min(1.0, confidence))
+    return {
+        "common_name": common,
+        "scientific_name": scientific,
+        "confidence": confidence,
+    }
 
 
 class Classifier(Protocol):
@@ -75,13 +115,13 @@ class ClaudeClassifier:
             ],
             output_config={"format": {"type": "json_schema", "schema": _CLASSIFY_SCHEMA}},
         )
-        text = next(block.text for block in response.content if block.type == "text")
-        data = json.loads(text)
-        return {
-            "common_name": str(data["common_name"]),
-            "scientific_name": str(data["scientific_name"]),
-            "confidence": float(data["confidence"]),
-        }
+        text = next(
+            (block.text for block in response.content if getattr(block, "type", None) == "text"),
+            None,
+        )
+        if text is None:
+            raise ValueError("Claude response contained no text block")
+        return normalize_prediction(json.loads(text))
 
 
 def build_classifier() -> Classifier | None:
