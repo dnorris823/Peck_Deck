@@ -74,7 +74,11 @@ stale.
 
 - [ ] Loading / error / empty states across Dashboard, Sightings, Species, Devices.
 - [ ] Form validation (login, user/device settings, API-key management).
-- [ ] **Frontend test setup** — add Vitest + React Testing Library (currently no test tooling) and cover `DataContext`, `api.js`, and key components.
+- [x] **Frontend test setup** — Vitest + React Testing Library + jsdom wired in
+  (`frontend/vite.config.js` `test` block, `src/test/setup.js`). 27 tests cover
+  `api.js` (token/login/error handling), `data.js` (`loadAll` mapping + formatters),
+  `DataContext` (loading/data/error/auth branches), and the `Login` component.
+  Runs in CI ahead of the build (`npm test` step in `ci.yml`).
 - [ ] Accessibility pass (labels, focus, keyboard nav) and responsive/mobile layout.
 - [ ] Wire remaining screens to live backend endpoints; confirm the Dusk dark theme end-to-end.
 
