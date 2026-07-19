@@ -7,26 +7,38 @@ import { Modal, TextInput, SelectInput, FormNote } from "./Modal.jsx";
 import {
   saveMe, savePreferences, createUser, updateUser, changePassword,
 } from "./data.js";
+import {
+  checkRequired, checkEmail, checkPhone, checkPassword, collect, hasErrors,
+} from "./validate.js";
 
 // Admin-creates-with-temp-password: there's no SendGrid email-invite flow yet,
 // so the owner sets a temporary password and shares it out of band.
 function InviteUserModal({ onClose, onDone }) {
   const [form, setForm] = useState({ name: "", email: "", password: "", role: "viewer", phone: "" });
   const [error, setError] = useState(null);
+  const [fieldErr, setFieldErr] = useState({});
   const [busy, setBusy] = useState(false);
   const set = k => v => setForm(f => ({ ...f, [k]: v }));
 
+  function validate() {
+    return collect({
+      name: checkRequired(form.name, "Name"),
+      email: checkEmail(form.email),
+      password: checkPassword(form.password, { label: "Temporary password" }),
+      phone: checkPhone(form.phone),
+    });
+  }
+
   async function submit() {
-    if (!form.name || !form.email || !form.password) {
-      setError("Name, email, and a temporary password are required.");
-      return;
-    }
+    const errs = validate();
+    setFieldErr(errs);
+    if (hasErrors(errs)) { setError(null); return; }
     setBusy(true);
     setError(null);
     try {
       await createUser({
-        name: form.name, email: form.email, password: form.password,
-        role: form.role, phone: form.phone || null,
+        name: form.name.trim(), email: form.email.trim(), password: form.password,
+        role: form.role, phone: form.phone.trim() || null,
       });
       await onDone();
       onClose();
@@ -46,10 +58,12 @@ function InviteUserModal({ onClose, onDone }) {
         <button className="btn primary" onClick={submit} disabled={busy}>{busy ? "Adding…" : "Add user"}</button>
       </>}
     >
-      <TextInput label="Name" value={form.name} onChange={set("name")} />
-      <TextInput label="Email" type="email" value={form.email} onChange={set("email")} />
-      <TextInput label="Temporary password" type="password" value={form.password} onChange={set("password")} />
-      <TextInput label="Phone" help="Optional. E.164 format for SMS." value={form.phone} onChange={set("phone")} />
+      <TextInput label="Name" value={form.name} onChange={set("name")} error={fieldErr.name} />
+      <TextInput label="Email" type="email" value={form.email} onChange={set("email")} error={fieldErr.email} />
+      <TextInput label="Temporary password" type="password" value={form.password} onChange={set("password")}
+        help="At least 8 characters." error={fieldErr.password} />
+      <TextInput label="Phone" help="Optional. E.164 format for SMS." value={form.phone} onChange={set("phone")}
+        error={fieldErr.phone} />
       <SelectInput label="Role" value={form.role} onChange={set("role")}
         options={[["viewer", "Viewer"], ["owner", "Owner"]]} />
       <FormNote error={error} />
@@ -65,15 +79,23 @@ function EditUserModal({ user, onClose, onDone }) {
     notify_email: user.notify_email, notify_sms: user.notify_sms,
   });
   const [error, setError] = useState(null);
+  const [fieldErr, setFieldErr] = useState({});
   const [busy, setBusy] = useState(false);
   const set = k => v => setForm(f => ({ ...f, [k]: v }));
 
   async function submit() {
+    const errs = collect({
+      name: checkRequired(form.name, "Name"),
+      email: checkEmail(form.email),
+      phone: checkPhone(form.phone),
+    });
+    setFieldErr(errs);
+    if (hasErrors(errs)) { setError(null); return; }
     setBusy(true);
     setError(null);
     try {
       await updateUser(user.id, {
-        name: form.name, phone: form.phone || null, email: form.email,
+        name: form.name.trim(), phone: form.phone.trim() || null, email: form.email.trim(),
         notify_email: form.notify_email, notify_sms: form.notify_sms,
       });
       await onDone();
@@ -93,9 +115,9 @@ function EditUserModal({ user, onClose, onDone }) {
         <button className="btn primary" onClick={submit} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
       </>}
     >
-      <TextInput label="Name" value={form.name} onChange={set("name")} />
-      <TextInput label="Email" type="email" value={form.email} onChange={set("email")} />
-      <TextInput label="Phone" value={form.phone} onChange={set("phone")} />
+      <TextInput label="Name" value={form.name} onChange={set("name")} error={fieldErr.name} />
+      <TextInput label="Email" type="email" value={form.email} onChange={set("email")} error={fieldErr.email} />
+      <TextInput label="Phone" help="E.164 format for SMS." value={form.phone} onChange={set("phone")} error={fieldErr.phone} />
       <SelectInput label="Role" value={user.role} onChange={() => {}}
         options={[["viewer", "Viewer"], ["owner", "Owner"]]} />
       <div className="field-help" style={{ marginTop: -6 }}>Role changes aren't supported here yet.</div>
@@ -220,7 +242,9 @@ function ChangePasswordModal({ userId, onClose }) {
   const [busy, setBusy] = useState(false);
 
   async function submit() {
-    if (!cur || !next) { setError("Enter your current and new password."); return; }
+    if (!cur) { setError("Enter your current password."); return; }
+    const pwErr = checkPassword(next, { label: "New password" });
+    if (pwErr) { setError(pwErr); return; }
     if (next !== confirm) { setError("New passwords don't match."); return; }
     setBusy(true);
     setError(null);
@@ -264,6 +288,17 @@ export function SettingsPage() {
   const [name, setName] = useState(me.name);
   const [phone, setPhone] = useState(me.phone);
   const [email, setEmail] = useState(me.email);
+  const [acctErr, setAcctErr] = useState({});
+
+  // Validate a field on blur; only persist when it's valid + actually changed.
+  function commitField(key, value, current, errMsg) {
+    if (errMsg) {
+      setAcctErr(e => ({ ...e, [key]: errMsg }));
+      return;
+    }
+    setAcctErr(e => ({ ...e, [key]: null }));
+    if (value.trim() !== current) saveUser({ [key]: value.trim() });
+  }
 
   // Sliders buffer locally for smooth dragging, then commit on release.
   const [quiet, setQuiet] = useState(prefs.quiet_interval_seconds);
@@ -318,19 +353,25 @@ export function SettingsPage() {
               </div>
               <p className="lead">How you appear to other users and how the app reaches you.</p>
               <Field label="Name">
-                <input type="text" value={name}
+                <input type="text" value={name} aria-label="Name"
+                  aria-invalid={acctErr.name ? "true" : undefined}
                   onChange={e => setName(e.target.value)}
-                  onBlur={() => name !== me.name && saveUser({ name })} />
+                  onBlur={() => commitField("name", name, me.name, checkRequired(name, "Name"))} />
+                {acctErr.name && <div className="field-help" style={{ color: "var(--cardinal)" }}>{acctErr.name}</div>}
               </Field>
               <Field label="Email" help="Used for login and email notifications.">
-                <input type="email" value={email}
+                <input type="email" value={email} aria-label="Email"
+                  aria-invalid={acctErr.email ? "true" : undefined}
                   onChange={e => setEmail(e.target.value)}
-                  onBlur={() => email !== me.email && saveUser({ email })} />
+                  onBlur={() => commitField("email", email, me.email, checkEmail(email))} />
+                {acctErr.email && <div className="field-help" style={{ color: "var(--cardinal)" }}>{acctErr.email}</div>}
               </Field>
               <Field label="Phone" help="E.164 format. Required for SMS.">
-                <input type="text" value={phone}
+                <input type="text" value={phone} aria-label="Phone"
+                  aria-invalid={acctErr.phone ? "true" : undefined}
                   onChange={e => setPhone(e.target.value)}
-                  onBlur={() => phone !== me.phone && saveUser({ phone })} />
+                  onBlur={() => commitField("phone", phone, me.phone, checkPhone(phone))} />
+                {acctErr.phone && <div className="field-help" style={{ color: "var(--cardinal)" }}>{acctErr.phone}</div>}
               </Field>
               <Field label="Password">
                 <button className="btn" onClick={() => setChangingPassword(true)}>Change password…</button>

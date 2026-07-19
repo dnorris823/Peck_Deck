@@ -42,6 +42,10 @@ function AppShell({ onLogout }) {
   const [route, setRoute] = useState("dashboard");
   const [openSighting, setOpenSighting] = useState(null);
   const [toast, setToast] = useState(null);
+  const [navOpen, setNavOpen] = useState(false); // mobile off-canvas sidebar
+
+  // Navigating always closes the mobile drawer.
+  const go = useCallback((r) => { setRoute(r); setNavOpen(false); }, []);
 
   // Simulated live alert — a toast slides in shortly after each navigation.
   useEffect(() => {
@@ -69,9 +73,10 @@ function AppShell({ onLogout }) {
 
   return (
     <div className="app">
-      <Sidebar route={route} setRoute={setRoute} onLogout={onLogout} />
+      {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />}
+      <Sidebar route={route} setRoute={go} onLogout={onLogout} open={navOpen} onClose={() => setNavOpen(false)} />
       <main className="main">
-        <Topbar route={route} />
+        <Topbar route={route} onOpenNav={() => setNavOpen(true)} />
         <div className="page" data-screen-label={NAV.find(n => n.id === route)?.label || route}>
           {route === "dashboard" && <Dashboard openSighting={setOpenSighting} />}
           {route === "sightings" && <Sightings openSighting={setOpenSighting} />}
@@ -85,13 +90,13 @@ function AppShell({ onLogout }) {
       {openSighting && <SightingDetail s={openSighting} onClose={() => setOpenSighting(null)} />}
 
       {toast && (
-        <div className="toast" key={toast.key} onClick={() => { setOpenSighting(toast); setToast(null); }}>
+        <div className="toast" key={toast.key} role="status" onClick={() => { setOpenSighting(toast); setToast(null); }}>
           <div className="toast-thumb"><BirdPlate species={toast.species} showLabel={false} /></div>
           <div>
             <div className="toast-name">{toast.species.common}</div>
             <div className="toast-sub">SPOTTED · {toast.device.name.toUpperCase()} · {Math.round(toast.confidence * 100)}% CONFIDENT</div>
           </div>
-          <button className="icon-btn" style={{ color: "var(--paper)" }} onClick={(e) => { e.stopPropagation(); setToast(null); }}>
+          <button className="icon-btn" aria-label="Dismiss alert" style={{ color: "var(--paper)" }} onClick={(e) => { e.stopPropagation(); setToast(null); }}>
             <Icon name="x" className="" />
           </button>
         </div>

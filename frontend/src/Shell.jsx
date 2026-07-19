@@ -34,6 +34,7 @@ function Brand() {
 function NavItem({ n, route, setRoute, count }) {
   return (
     <button className={`nav-item ${route === n.id ? "active" : ""}`}
+      aria-current={route === n.id ? "page" : undefined}
       onClick={() => setRoute(n.id)}>
       <Icon name={n.icon} />
       <span>{n.label}</span>
@@ -42,7 +43,7 @@ function NavItem({ n, route, setRoute, count }) {
   );
 }
 
-export function Sidebar({ route, setRoute, onLogout }) {
+export function Sidebar({ route, setRoute, onLogout, open = false, onClose }) {
   const { data } = useData();
   const countFor = n => (n.countKey ? data[n.countKey].length : null);
   const deviceCount = data.DEVICES.length;
@@ -50,8 +51,13 @@ export function Sidebar({ route, setRoute, onLogout }) {
   const initials = (me.name || "").trim().split(/\s+/).filter(Boolean)
     .slice(0, 2).map(p => p[0]).join("").toUpperCase() || "?";
   return (
-    <aside className="rail">
-      <Brand />
+    <aside className={`rail ${open ? "open" : ""}`} aria-label="Primary">
+      <div className="rail-top">
+        <Brand />
+        <button className="icon-btn rail-close" aria-label="Close menu" onClick={onClose}>
+          <Icon name="x" className="" />
+        </button>
+      </div>
       <nav className="nav">
         <div className="nav-section-label">Observatory</div>
         {NAV.slice(0, 4).map(n => (
@@ -68,7 +74,7 @@ export function Sidebar({ route, setRoute, onLogout }) {
           <div className="foot-name">{me.name}</div>
           <div className="foot-role">{me.role.toUpperCase()} · {deviceCount} DEVICE{deviceCount === 1 ? "" : "S"}</div>
         </div>
-        <button className="icon-btn" title="Sign out" onClick={onLogout}>
+        <button className="icon-btn" title="Sign out" aria-label="Sign out" onClick={onLogout}>
           <Icon name="x" className="" />
         </button>
       </div>
@@ -76,7 +82,7 @@ export function Sidebar({ route, setRoute, onLogout }) {
   );
 }
 
-export function Topbar({ route }) {
+export function Topbar({ route, onOpenNav }) {
   const { data } = useData();
   const stations = data.DEVICES.length;
   const labels = {
@@ -91,6 +97,9 @@ export function Topbar({ route }) {
   return (
     <header className="topbar">
       <div className="row" style={{ gap: 16 }}>
+        <button className="icon-btn nav-toggle" aria-label="Open menu" onClick={onOpenNav}>
+          <Icon name="menu" className="" />
+        </button>
         <div className="crumbs">
           <span>{a}</span>
           <span className="crumb-sep">/</span>
@@ -103,10 +112,10 @@ export function Topbar({ route }) {
       <div className="top-actions">
         <div className="search">
           <Icon name="search" className="" />
-          <input placeholder="Search species, sightings…" />
+          <input placeholder="Search species, sightings…" aria-label="Search species and sightings" />
           <span className="kbd">⌘K</span>
         </div>
-        <button className="icon-btn" title="Notifications">
+        <button className="icon-btn" title="Notifications" aria-label="Notifications">
           <Icon name="bell" className="" />
         </button>
         <button className="btn primary sm">

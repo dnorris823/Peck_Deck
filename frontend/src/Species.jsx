@@ -1,9 +1,10 @@
 // Species library — gridded specimen plates with counts
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { BirdPlate } from "./BirdPlate.jsx";
 import { Icon } from "./Icon.jsx";
 import { useData } from "./DataContext.jsx";
-import { Modal, TextInput, FormNote } from "./Modal.jsx";
+import { Modal, TextInput, FormNote, useDialog } from "./Modal.jsx";
+import { Empty } from "./Empty.jsx";
 import { createSpecies } from "./data.js";
 
 function AddSpeciesModal({ onClose, onDone }) {
@@ -77,10 +78,13 @@ function Specimen({ s, idx, onClick }) {
 }
 
 function SpeciesDetail({ s, onClose }) {
+  const panelRef = useRef(null);
+  useDialog(onClose, panelRef);
   return (
     <div className="modal-bg" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}>
-        <button className="modal-close" onClick={onClose}><Icon name="x" className="" /></button>
+      <div className="modal" onClick={e => e.stopPropagation()}
+        ref={panelRef} role="dialog" aria-modal="true" aria-label={`${s.common} details`} tabIndex={-1}>
+        <button className="modal-close" onClick={onClose} aria-label="Close dialog"><Icon name="x" className="" /></button>
         <div className="modal-grid">
           <div className="modal-img">
             <BirdPlate species={s} showLabel={false} large />
@@ -168,9 +172,20 @@ export function SpeciesPage() {
         </button>
       </div>
 
-      <div className="species-grid">
-        {sorted.map((s, i) => <Specimen key={s.id} s={s} idx={i} onClick={setOpenSp} />)}
-      </div>
+      {sorted.length > 0 ? (
+        <div className="species-grid">
+          {sorted.map((s, i) => <Specimen key={s.id} s={s} idx={i} onClick={setOpenSp} />)}
+        </div>
+      ) : (
+        <Empty
+          icon="📖"
+          title="No species catalogued yet"
+          hint="Species appear here as your stations identify them — or add one by hand."
+          action={<button className="btn primary sm" onClick={() => setAdding(true)}>
+            <Icon name="plus" className="" /> Add species
+          </button>}
+        />
+      )}
 
       {openSp && <SpeciesDetail s={openSp} onClose={() => setOpenSp(null)} />}
       {adding && <AddSpeciesModal onClose={() => setAdding(false)} onDone={reload} />}

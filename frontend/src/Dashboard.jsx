@@ -2,6 +2,7 @@
 import React from "react";
 import { BirdPlate } from "./BirdPlate.jsx";
 import { Icon } from "./Icon.jsx";
+import { Empty } from "./Empty.jsx";
 import { useData } from "./DataContext.jsx";
 import { fmtTime, fmtRelative } from "./data.js";
 
@@ -259,12 +260,19 @@ export function Dashboard({ openSighting }) {
               <button className="btn sm">All</button>
             </div>
           </div>
-          <div className="card" style={{ padding: "0 18px" }}>
-            <div className="feed">
-              {SIGHTINGS.slice(0, 6).map(s => (
-                <FeedItem key={s.id} s={s} onClick={openSighting} />
-              ))}
-            </div>
+          <div className="card" style={{ padding: SIGHTINGS.length ? "0 18px" : 0 }}>
+            {SIGHTINGS.length > 0 ? (
+              <div className="feed">
+                {SIGHTINGS.slice(0, 6).map(s => (
+                  <FeedItem key={s.id} s={s} onClick={openSighting} />
+                ))}
+              </div>
+            ) : (
+              <Empty
+                title="No visits yet"
+                hint="Your stations are listening — the first bird will show up here."
+              />
+            )}
           </div>
         </div>
 
