@@ -166,8 +166,13 @@ stale.
   generated `stand_in_smoketest_224_uint8.tflite`; Tier 2: `tf_efficientnet_b4`
   with a randomly-initialised 20-class head). Every label produced so far is
   meaningless by construction. This is now the single biggest gap.
-- [ ] Backend + Postgres running on the gaming PC, with a real device token, so
-  sightings actually upload (Tier 3 and `POST /sightings` are untested on hardware).
+- [x] **Backend + Postgres on the gaming PC** — `docker compose up` (after
+  fixing the container, which had never been able to boot). Real multipart
+  `POST /sightings` from the Pi lands a 300 KB camera JPEG in Postgres as
+  `bytea`; `GET /sightings/{id}/image` returns it byte-identical under a user
+  JWT and 401s without one.
+- [ ] **Tier 3 on hardware** — reached the backend and got a clean 503 because
+  `CLAUDE_API_KEY` is unset. Set the key to actually exercise the Claude relay.
 - [ ] Full field test: live bird → capture → classify → sighting → notification.
 
 **Exit criteria:** a real visit at the feeder produces a correct, notified sighting in the web app.

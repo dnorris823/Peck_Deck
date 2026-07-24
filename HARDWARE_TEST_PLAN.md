@@ -208,8 +208,9 @@ First session with the Pi *and* the RTX 5080 both live on the LAN
 | E2/E3 Tier 1 inference | ✅ load 6 ms, inference **38.7 ms avg** (37.1–41.1, n=10). Stand-in model. |
 | F1 WiFi | ✅ 1.9–5.0 ms RTT to the PC. |
 | F2 Tier 2 reachability | ✅ `/health` → `{"status":"ok","model_ready":true}`. No firewall rule was needed. |
-| F3 Backend upload | ⛔ not run — backend/Postgres not up on the PC. |
-| G1 Tier chain dry run | ✅ capture → Tier 1 (0.05) → Tier 2 (0.27) → Tier 3 (timeout) → best-effort. |
+| F3 Backend upload | ✅ real multipart `POST /sightings` from the Pi → row 135 in Postgres, **300,518-byte** camera JPEG stored as `bytea`, `delayed=false`, offline queue empty. |
+| G1 Tier chain dry run | ✅ capture → Tier 1 (0.05) → Tier 2 (0.25) → Tier 3 (503, no API key) → best-effort → upload. |
+| Image round trip | ✅ `GET /sightings/135/image` with a user JWT returns the same 300,518 bytes (`FF D8 FF E0`); unauthenticated request correctly 401s. |
 
 **GPU host:** torch 2.11.0+cu128, CUDA 12.8, RTX 5080, capability **(12, 0)**,
 arch list includes `sm_120`. Model loads on `cuda` with the 20-entry taxonomy.
@@ -231,6 +232,14 @@ arch list includes `sm_120`. Model loads on `cuda` with the 20-entry taxonomy.
     routine offline case. ✅ **FIXED** — `tier3_request_timeout` (25 s default)
     plumbed through from config; `asyncio.TimeoutError` handled like Tier 2.
     Verified on hardware: 60.9 s → 25.3 s.
+13. **The API container could never start.** `backend/Dockerfile` flattened
+    `backend/` into `/app` and ran `uvicorn main:app`, but `main.py` imports its
+    siblings relatively (`from .auth.guards import ...`), so it crashed on boot
+    with *"attempted relative import with no known parent package"*. Both test
+    suites import `backend.main` from the repo root, so neither ever exercised
+    the container — `docker compose up`, the documented way to run the stack,
+    was broken. ✅ **FIXED** — copies into `/app/backend` and runs
+    `uvicorn backend.main:app`.
 
 ### Environment notes
 
