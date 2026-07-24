@@ -74,6 +74,26 @@ python -m inference_server
 npm run dev
 ```
 
+## Backup & Restore
+Sighting images live in the database as `bytea`, so the database dump *is* the
+media backup — there is no separate image directory to copy.
+
+```bash
+bash scripts/backup.sh                      # -> backups/peck_deck_<UTC>.dump
+bash scripts/restore.sh <dump>              # DESTRUCTIVE; prompts for confirmation
+bash scripts/restore.sh <dump> scratch_db   # restore elsewhere (no prompt)
+bash scripts/backup_smoke_test.sh           # prove a dump actually restores
+```
+
+- Uses `pg_dump -Fc` (custom format): compressed, and required by `pg_restore`.
+  Plain SQL balloons on `bytea` because images get hex-escaped.
+- Runs inside the `db` container, so no local postgres client is needed.
+- `backup_smoke_test.sh` restores into a throwaway database and compares row
+  counts **and a SHA-256 of the concatenated image bytes**. That digest is the
+  point: a backup that restored rows but truncated `bytea` would lose every
+  photo, and a row count alone would never catch it.
+- `backups/` and `*.dump` are gitignored — they hold real user records and photos.
+
 ## Health & Readiness
 | Endpoint | Purpose | Checks |
 |---|---|---|
