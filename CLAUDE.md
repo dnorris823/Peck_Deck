@@ -53,6 +53,8 @@ The Pi falls back from Tier 1 → 2 → 3 based on availability and confidence t
 - **Pi sighting upload is a single multipart POST** — Pi sends image bytes + metadata together to `POST /sightings`.
 - **Notifications are fire-and-forget** — `asyncio.create_task()` in the sighting controller; notification service opens its own DB session.
 - **Secrets in env vars** — API keys (Claude, SendGrid, Twilio) go in `.env` files, never committed.
+- **Schema is owned by Alembic** — never `create_all()` in app code. Change a
+  model → generate a migration. The container applies migrations on start.
 - **Run via Docker** — `docker compose up` from project root starts both `api` and `db` containers.
 - **Inference server runs bare-metal** — it needs direct GPU access; no Docker for the inference server.
 
@@ -71,6 +73,26 @@ python -m inference_server
 # Start the React frontend (from frontend/)
 npm run dev
 ```
+
+## Database Migrations
+Schema is versioned with Alembic (`backend/migrations/`). The API container runs
+`alembic upgrade head` before uvicorn starts, so `docker compose up` is always
+migrated. For manual runs:
+
+```bash
+bash scripts/migrate.sh                 # upgrade to head
+bash scripts/migrate.sh current         # what revision is this DB on?
+bash scripts/migrate.sh check           # fail if models drifted from migrations
+bash scripts/migrate.sh revision --autogenerate -m "add foo"
+```
+
+- **After changing a model, generate a migration** — `integration_tests/test_migrations.py`
+  fails CI if the two drift apart.
+- The test suites still build their schema with `create_all()` for speed; that
+  drift test is what keeps it honest.
+- **Upgrading an existing database that predates Alembic:** stamp it rather than
+  upgrading, so the baseline isn't replayed over live tables —
+  `bash scripts/migrate.sh stamp head`.
 
 ## Testing
 ```powershell

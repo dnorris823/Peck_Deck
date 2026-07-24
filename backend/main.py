@@ -12,7 +12,7 @@ from litestar.params import Body
 from .auth.guards import device_guard
 from .classification.claude import get_classifier
 from .config import settings
-from .database.connection import create_tables, dispose_db, init_db, provide_db
+from .database.connection import dispose_db, init_db, provide_db
 from .devices.controller import DeviceController
 from .errors import http_exception_handler, unhandled_exception_handler
 from .observability import RequestContextMiddleware, configure_logging
@@ -65,8 +65,12 @@ async def classify(
 
 
 async def on_startup(app: Litestar) -> None:
+    # Schema is owned by Alembic, not by the app. `create_all()` used to run
+    # here, but it only ever creates *missing* tables — it silently ignores
+    # changes to existing ones, so any model change after the first deploy
+    # would never actually reach the database. Migrations run before the app
+    # starts (see backend/entrypoint.sh and scripts/migrate.sh).
     init_db(settings.DATABASE_URL)
-    await create_tables()
 
 
 async def on_shutdown(app: Litestar) -> None:
