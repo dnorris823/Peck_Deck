@@ -188,5 +188,69 @@ peripheral-dependent. Prefer running from `raspberry_pi_code/` where noted so im
   already set at idle**, which suggests cooling should be validated before load testing.
 
 ---
-*Notes captured from live probing of this device on 2026-07-17. Update the blocker list in
-§2 as libraries/models/sensors are added.*
+
+## 6. Bring-up run — 2026-07-24 (branch `phase-4-hardware-bringup`)
+
+First session with the Pi *and* the RTX 5080 both live on the LAN
+(Pi `192.168.4.104` wlan0 ↔ PC `192.168.4.28` eth0, same /22).
+
+### Results
+
+| Suite | Result |
+|---|---|
+| A1/A4 Board + thermal | ✅ Pi 5 Model B, 8 GB. Idle **59.3 °C**, **64.2 °C** under capture+inference — much cooler than the 80–82 °C seen on 2026-07-17. |
+| B1 Camera enumeration | ✅ `imx708_wide`, modes to 4608×2592. |
+| B3 Capture via project code | ✅ Real sensor image, ~300 KB @1920×1080 in **~1.0 s** (not the dummy fallback). |
+| C0 GPIO backend | ✅ `rpi-lgpio` shim; `RPI_INFO` reports Pi 5 / BCM2712 / 8GB. |
+| C1 Output toggle (BCM17) | ✅ drive high → reads `hi`; drive low → reads `lo`. Pin restored to `ip pn`. |
+| C2 Internal pulls (BCM17) | ✅ pull-up → `hi`, pull-down → `lo`. |
+| C3/C4 Trigger | ⛔ still blocked — nothing wired to the header. |
+| E2/E3 Tier 1 inference | ✅ load 6 ms, inference **38.7 ms avg** (37.1–41.1, n=10). Stand-in model. |
+| F1 WiFi | ✅ 1.9–5.0 ms RTT to the PC. |
+| F2 Tier 2 reachability | ✅ `/health` → `{"status":"ok","model_ready":true}`. No firewall rule was needed. |
+| F3 Backend upload | ⛔ not run — backend/Postgres not up on the PC. |
+| G1 Tier chain dry run | ✅ capture → Tier 1 (0.05) → Tier 2 (0.27) → Tier 3 (timeout) → best-effort. |
+
+**GPU host:** torch 2.11.0+cu128, CUDA 12.8, RTX 5080, capability **(12, 0)**,
+arch list includes `sm_120`. Model loads on `cuda` with the 20-entry taxonomy.
+
+### ⚠️ Defects found and fixed this session
+
+9. **Tier fallback ignored confidence entirely.** `Pipeline._classify` advanced
+   only when a tier returned `None`, so a 0.05-confidence Tier 1 answer won
+   outright and Tier 2/3 were never consulted. `config.confidence_threshold`
+   was read by no code at all. ✅ **FIXED** — falls through on low confidence,
+   retaining the best sub-threshold result as a fallback.
+10. **`python -m inference_server` did not work** — the command the docs give.
+    No `__main__.py` existed. ✅ **FIXED.**
+11. **`TAXONOMY_PATH` default resolved outside the repo** — it was CWD-relative
+    (`../machine_learning/...`) but the package must run from the repo root.
+    ✅ **FIXED** — anchored to the repo root.
+12. **Tier 3 stalled the pipeline for 60 s when the backend was down**, longer
+    than the 30 s trigger debounce, and logged a full stack trace for the
+    routine offline case. ✅ **FIXED** — `tier3_request_timeout` (25 s default)
+    plumbed through from config; `asyncio.TimeoutError` handled like Tier 2.
+    Verified on hardware: 60.9 s → 25.3 s.
+
+### Environment notes
+
+- Two checkouts exist on the Pi. **`~/coding/Peck_Deck` is the live one**
+  (has the Python 3.11 `.venv` with `tflite-runtime`); `~/peck_deck/Peck_Deck`
+  is an abandoned copy stuck at an early commit — don't work in it.
+- `aiohttp` was missing from the Pi venv and had to be installed; it is required
+  for both Tier 2 and the backend client. numpy stayed at the system 1.24.2.
+- On the PC, `uv` manages a Python 3.12 venv at `.venv`. The system Python is
+  3.14, which torch has no wheels for.
+
+### Still blocking a real field test
+
+1. **Real model weights** — both tiers are stand-ins; every label so far is
+   meaningless by construction. Biggest remaining gap.
+2. **A physical trigger sensor** (or a jumper for the C3 loopback test).
+3. **Backend + Postgres on the PC** with a real device token, so `POST /sightings`
+   and Tier 3 can be exercised at all.
+
+---
+*Notes captured from live probing of this device on 2026-07-17, updated with the
+2026-07-24 bring-up run. Update the blocker list in §2 as libraries/models/sensors
+are added.*

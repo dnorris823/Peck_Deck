@@ -61,9 +61,11 @@ The Pi falls back from Tier 1 → 2 → 3 based on availability and confidence t
 # Start backend + database (from project root)
 docker compose up --build
 
-# Start the GPU inference server (from inference_server/)
+# Start the GPU inference server (run from the PROJECT ROOT, not inference_server/)
 # Install deps first: pip install -r inference_server/requirements.txt
-# Also: pip install torch --index-url https://download.pytorch.org/whl/cu124
+# The RTX 5080 is Blackwell (sm_120) — it needs the cu128 wheels. The cu124
+# build has no sm_120 kernels and will fail on this card:
+#   pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
 python -m inference_server
 
 # Start the React frontend (from frontend/)
