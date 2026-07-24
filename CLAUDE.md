@@ -74,6 +74,21 @@ python -m inference_server
 npm run dev
 ```
 
+## Security Model
+| Control | Behaviour |
+|---|---|
+| `POST /users` (invite) | **Owner only.** Was unauthenticated with a client-settable `role` — anyone could mint an owner account. |
+| `POST /login` | Throttled per account **and** per client IP: 5 failures / 5 min, then 429 + `Retry-After`. |
+| Auth failures | Identical response for unknown-email and wrong-password, so accounts can't be enumerated. |
+| CORS | Explicit origin allowlist (`CORS_ALLOW_ORIGINS`); `*` is rejected because credentials are allowed. |
+| Upload size | Bodies capped at `MAX_UPLOAD_BYTES` (15 MB default) — images are buffered into `bytea`. |
+| Production boot | With `ENVIRONMENT=production` the app refuses to start on a default/short `JWT_SECRET` or wildcard CORS. |
+| Device vs user tokens | Separate guards; a device token is not accepted on user routes. |
+
+Dependency audits (`pip-audit`, `npm audit`) run in CI on every push. They report
+without failing the build — a transitive CVE with no fix shouldn't block
+unrelated work — so **read the audit job output** rather than trusting a green tick.
+
 ## Backup & Restore
 Sighting images live in the database as `bytea`, so the database dump *is* the
 media backup — there is no separate image directory to copy.

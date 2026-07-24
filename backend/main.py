@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from typing import Annotated
 
 from litestar import Litestar, Response, get, post
+from litestar.config.cors import CORSConfig
 from litestar.datastructures import UploadFile
 from litestar.di import Provide
 from litestar.enums import RequestEncodingType
@@ -85,7 +86,36 @@ async def classify(
         raise HTTPException(status_code=502, detail="Cloud classification failed")
 
 
+_INSECURE_JWT_DEFAULT = "change_this_in_production"
+
+
+def _check_production_config() -> None:
+    """Refuse to start a production process on insecure defaults.
+
+    The JWT secret is what every user token is signed with — running production
+    on the shipped default means anyone who has read the repo can forge an owner
+    token. Failing loudly at boot is far better than discovering it later.
+    """
+    if settings.ENVIRONMENT.lower() != "production":
+        return
+
+    problems = []
+    if settings.JWT_SECRET == _INSECURE_JWT_DEFAULT:
+        problems.append("JWT_SECRET is still the shipped default")
+    if len(settings.JWT_SECRET) < 32:
+        problems.append("JWT_SECRET is shorter than 32 characters")
+    if "*" in settings.CORS_ALLOW_ORIGINS:
+        problems.append("CORS_ALLOW_ORIGINS must not contain '*' when credentials are allowed")
+
+    if problems:
+        raise RuntimeError(
+            "Refusing to start in production with insecure configuration: "
+            + "; ".join(problems)
+        )
+
+
 async def on_startup(app: Litestar) -> None:
+    _check_production_config()
     # Schema is owned by Alembic, not by the app. `create_all()` used to run
     # here, but it only ever creates *missing* tables — it silently ignores
     # changes to existing ones, so any model change after the first deploy
@@ -118,4 +148,13 @@ app = Litestar(
     },
     on_startup=[on_startup],
     on_shutdown=[on_shutdown],
+    cors_config=CORSConfig(
+        allow_origins=[o.strip() for o in settings.CORS_ALLOW_ORIGINS.split(",") if o.strip()],
+        allow_credentials=True,
+        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=["Authorization", "Content-Type"],
+    ),
+    # Cap request bodies so an oversized upload can't exhaust memory — sighting
+    # images are buffered and stored as bytea.
+    request_max_body_size=settings.MAX_UPLOAD_BYTES,
 )

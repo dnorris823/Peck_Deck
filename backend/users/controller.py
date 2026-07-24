@@ -4,8 +4,9 @@ from litestar.exceptions import HTTPException, NotFoundException
 from litestar.params import FromPath
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth.guards import user_guard
+from ..auth.guards import owner_guard, user_guard
 from ..auth.jwt_utils import create_user_token, verify_password
+from ..auth.rate_limit import login_rate_limiter
 from .operations import (
     authenticate,
     create_user,
@@ -30,6 +31,9 @@ from .schemas import (
 )
 
 _ALLOWED_TIERS = {"local", "gpu", "cloud", "auto"}
+# Roles a client may ask for. Anything else is rejected rather than silently
+# stored — role is what the guards key off, so an unexpected value is a bug.
+_ALLOWED_ROLES = {"owner", "viewer"}
 
 
 def _prefs_response(prefs) -> PreferencesResponse:
@@ -55,10 +59,38 @@ def _to_response(user) -> UserResponse:
 
 
 @post("/login")
-async def login(data: LoginRequest, db: NamedDependency[AsyncSession]) -> TokenResponse:
+async def login(
+    data: LoginRequest, request: Request, db: NamedDependency[AsyncSession]
+) -> TokenResponse:
+    """Authenticate and issue a JWT.
+
+    Throttled per account *and* per client IP — this is the only unauthenticated
+    endpoint that checks a secret, and bcrypt verification is expensive enough
+    that unlimited attempts are a denial-of-service as well as a brute-force
+    risk.
+    """
+    account_key = f"account:{data.email.lower()}"
+    client_ip = request.client.host if request.client else "unknown"
+    ip_key = f"ip:{client_ip}"
+
+    for key in (account_key, ip_key):
+        if login_rate_limiter.is_locked(key):
+            raise HTTPException(
+                status_code=429,
+                detail="Too many failed login attempts. Try again later.",
+                headers={"Retry-After": str(login_rate_limiter.retry_after(key))},
+            )
+
     user = await authenticate(db, data.email, data.password)
     if user is None:
+        login_rate_limiter.record_failure(account_key)
+        login_rate_limiter.record_failure(ip_key)
+        # Deliberately identical for unknown-email and wrong-password so the
+        # response can't be used to enumerate which accounts exist.
         raise HTTPException(status_code=401, detail="Invalid email or password")
+
+    login_rate_limiter.reset(account_key)
+    login_rate_limiter.reset(ip_key)
     return TokenResponse(access_token=create_user_token(user.id, user.role))
 
 
@@ -69,8 +101,21 @@ class UserController(Controller):
     async def list_all(self, db: NamedDependency[AsyncSession]) -> list[UserResponse]:
         return [_to_response(u) for u in await list_users(db)]
 
-    @post("/", status_code=201)
+    @post("/", status_code=201, guards=[owner_guard])
     async def register(self, data: RegisterUser, db: NamedDependency[AsyncSession]) -> UserResponse:
+        """Invite a new user. **Owner only.**
+
+        This was unauthenticated, and `RegisterUser.role` is client-supplied —
+        so anyone who could reach the API could POST role="owner" and mint
+        themselves a full-privilege account, then enumerate every user's email
+        and phone number. It is an invite flow driven from the settings screen
+        (frontend `UsersSettings.jsx`), so it requires an owner.
+        """
+        if data.role not in _ALLOWED_ROLES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"role must be one of {sorted(_ALLOWED_ROLES)}",
+            )
         existing = await get_user_by_email(db, data.email)
         if existing is not None:
             raise HTTPException(status_code=409, detail="Email already registered")
