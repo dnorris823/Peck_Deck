@@ -74,6 +74,16 @@ python -m inference_server
 npm run dev
 ```
 
+## Health & Readiness
+| Endpoint | Purpose | Checks |
+|---|---|---|
+| `GET /health` | Liveness — is the process up? | Nothing. Deliberately dependency-free, so a DB blip never restarts a healthy container. |
+| `GET /ready` | Readiness — can it serve? | DB reachable **and** schema migrated to a revision this build knows. 503 when not. |
+
+The compose healthcheck targets `/ready`, so `docker compose ps` only reports
+`healthy` once the container can actually serve. Use `/health` for liveness
+probes and `/ready` for load-balancer membership.
+
 ## Database Migrations
 Schema is versioned with Alembic (`backend/migrations/`). The API container runs
 `alembic upgrade head` before uvicorn starts, so `docker compose up` is always

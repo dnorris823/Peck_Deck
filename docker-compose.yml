@@ -27,6 +27,15 @@ services:
       db:
         condition: service_healthy
     restart: unless-stopped
+    # /ready (not /health) — it confirms the database is reachable AND the
+    # schema is migrated, so the container is only reported healthy once it can
+    # actually serve. start_period covers the migration run in entrypoint.sh.
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/ready', timeout=4).status==200 else 1)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
 volumes:
   pg_data:

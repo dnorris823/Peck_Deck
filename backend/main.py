@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass
 from typing import Annotated
 
-from litestar import Litestar, get, post
+from litestar import Litestar, Response, get, post
 from litestar.datastructures import UploadFile
 from litestar.di import Provide
 from litestar.enums import RequestEncodingType
@@ -16,6 +16,7 @@ from .database.connection import dispose_db, init_db, provide_db
 from .devices.controller import DeviceController
 from .errors import http_exception_handler, unhandled_exception_handler
 from .observability import RequestContextMiddleware, configure_logging
+from .readiness import check_readiness
 from .sightings.controller import SightingController
 from .species.controller import SpeciesController
 from .stats.controller import StatsController
@@ -27,7 +28,27 @@ logger = logging.getLogger(__name__)
 
 @get("/health", sync_to_thread=False)
 def health() -> dict:
+    """Liveness: is the process up? Deliberately cheap and dependency-free.
+
+    Must not touch the database — a liveness probe that fails on a transient DB
+    blip would have the orchestrator restart a perfectly healthy container.
+    """
     return {"status": "ok"}
+
+
+@get("/ready", status_code=200)
+async def ready() -> Response[dict]:
+    """Readiness: can this process serve traffic?
+
+    Checks database connectivity and that the schema is migrated to a revision
+    this build knows about. Returns 503 when not ready, so orchestration keeps
+    the container out of the load balancer instead of restarting it.
+    """
+    ok, detail = await check_readiness()
+    return Response(
+        content={"status": "ready" if ok else "not_ready", **detail},
+        status_code=200 if ok else 503,
+    )
 
 
 @dataclass
@@ -80,6 +101,7 @@ async def on_shutdown(app: Litestar) -> None:
 app = Litestar(
     route_handlers=[
         health,
+        ready,
         login,
         classify,
         UserController,
