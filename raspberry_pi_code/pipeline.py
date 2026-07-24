@@ -29,7 +29,9 @@ class Pipeline:
         )
         self._tier1 = TFLiteClassifier(config.model_path, config.taxonomy_path)
         self._tier2 = GPUServerClassifier(config.inference_server_url, config.tier2_request_timeout)
-        self._tier3 = CloudClassifier(config.backend_url, config.device_token)
+        self._tier3 = CloudClassifier(
+            config.backend_url, config.device_token, config.tier3_request_timeout
+        )
 
         self._last_capture: float = 0.0
         self._capture_lock = asyncio.Lock()
