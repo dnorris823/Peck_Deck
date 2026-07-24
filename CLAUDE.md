@@ -16,7 +16,9 @@ Peck_Deck/
 │   ├── taxonomy.csv           # Maps model output indices → species names
 │   └── yolo_test.ipynb        # YOLOv5n proof-of-concept notebook
 ├── backend/                   # Python REST API (Litestar)
-│   └── notifications/         # Email (SendGrid) + SMS (Twilio) + Wikipedia lookup
+│   ├── notifications/         # Email (SendGrid) + SMS (Twilio) + Wikipedia lookup
+│   ├── simulator.py           # Virtual feeder — drives the real Pi client (Phase 5)
+│   └── demo.py                # DEMO_MODE: boot seed + read-only enforcement
 ├── inference_server/          # GPU inference server (RTX 5080, gaming PC)
 ├── frontend/                  # React web app (M5, built)
 └── requirements.txt
@@ -58,6 +60,41 @@ The Pi falls back from Tier 1 → 2 → 3 based on availability and confidence t
 - **Run via Docker** — `docker compose up` from project root starts both `api` and `db` containers.
 - **Inference server runs bare-metal** — it needs direct GPU access; no Docker for the inference server.
 
+## Device Simulator & Demo Mode
+There is no Pi needed to see the app work. `backend/simulator.py` is a virtual
+feeder that drives the **real Pi client** (`raspberry_pi_code.api_client.
+BackendClient`) against `POST /sightings`, so it exercises the exact multipart
+contract the hardware uses — there is no second upload implementation to drift.
+
+```bash
+# Backfill history: 120 sightings over the last 14 days, then exit
+python -m backend.simulator --mode burst --count 120 --days 14
+
+# Live drip: one sighting every ~8s until Ctrl-C (watch the dashboard update)
+python -m backend.simulator --mode live --interval 8
+```
+
+With no `--device-token` it signs in as the demo owner and reads tokens straight
+off `GET /devices`, so a seeded stack needs zero configuration. Species come from
+`machine_learning/taxonomy.csv` (so every simulated bird is one Tier 1 could
+actually predict); visits are dawn/dusk weighted; confidence is drawn from a
+per-tier band. Placeholder capture images are drawn at run time from each
+species' palette — **needs Pillow**, which is in `backend/requirements-dev.txt`
+(the API container never imports it).
+
+**Demo mode** (`DEMO_MODE=1`) makes an instance safe to hand out:
+
+| Behaviour | Detail |
+|---|---|
+| Boot seed | Seeds the demo dataset if the DB is empty. Never seeds twice; a failure logs and boots anyway. Schema still belongs to Alembic. |
+| Read-only | Every user-authenticated write returns 403 with the standard error envelope. |
+| Still live | `POST /sightings`, `POST /classify`, the device heartbeat and `POST /login` keep working — that's what lets the simulator keep the feed moving. |
+| Discovery | `GET /meta` reports `demo_mode` and (only in demo mode) the demo login, so the frontend shows a banner and a one-click sign-in. |
+
+The allowlist in `backend/demo.py` is the whole security surface — the check runs
+as ASGI middleware, *before* any guard, so it decides on method + path alone.
+Adding a device-facing route means adding it there too.
+
 ## Running Locally
 ```powershell
 # Start backend + database (from project root)
@@ -82,7 +119,7 @@ running app:
 |---|---|
 | `http://localhost:8000/schema` | Interactive docs (Swagger UI / ReDoc) |
 | `http://localhost:8000/schema/openapi.json` | Raw OpenAPI 3.1 document |
-| `docs/openapi.json` | Committed snapshot — 22 paths, 29 operations |
+| `docs/openapi.json` | Committed snapshot — 25 paths, 32 operations |
 
 Both auth schemes are documented in the spec (`UserJWT`, `DeviceToken`), so the
 Pi/frontend contract is self-describing.
@@ -133,6 +170,7 @@ bash scripts/backup_smoke_test.sh           # prove a dump actually restores
 |---|---|---|
 | `GET /health` | Liveness — is the process up? | Nothing. Deliberately dependency-free, so a DB blip never restarts a healthy container. |
 | `GET /ready` | Readiness — can it serve? | DB reachable **and** schema migrated to a revision this build knows. 503 when not. |
+| `GET /meta` | What *is* this instance? | Nothing. Public and unauthenticated: reports `demo_mode` + environment so the web app can render the demo banner before login. |
 
 The compose healthcheck targets `/ready`, so `docker compose ps` only reports
 `healthy` once the container can actually serve. Use `/health` for liveness
@@ -173,7 +211,12 @@ bash scripts/run_integration.sh
   servers (GPU mocked). They are gated on `PECK_TEST_DATABASE_URL`, so the
   default `pytest -q` never touches them.
 - The deterministic demo dataset is shared by both suites via
-  `backend/fixtures.py` (`seed_reference_data`).
+  `backend/fixtures.py` (`seed_reference_data`). The larger, randomized web-app
+  dataset lives separately in `backend/seed.py` (`seed_demo_data`), which is
+  also what `DEMO_MODE` seeds at boot.
+- `integration_tests/test_contract_simulator.py` runs the simulator's real CLI
+  against a live server, so the Phase 5 seam is covered by the same mechanism as
+  the Pi's.
 
 ## Build Status (as of July 2026)
 Milestones M1–M6 are merged to `main`:
@@ -181,8 +224,9 @@ Milestones M1–M6 are merged to `main`:
 - **M6 — Claude API Tier 3** — built; `POST /classify` relays to the Claude multimodal API.
 - Wikipedia URL lookup (PRD §9.1) — built.
 
-FLEDGE roadmap Phases 0–3 are complete: CI + docs, backend hardening, frontend
-polish, and the integration/contract suite (real Postgres + live-server seam
-tests). Remaining work is tracked in `FLEDGE_ROADMAP.md`. **Phase 4 — physical
-hardware bring-up** (Pi camera/trigger, GPU inference server on the RTX 5080) is
-still open.
+FLEDGE roadmap Phases 0–3, 5, 6 and 8 are complete: CI + docs, backend
+hardening, frontend polish, the integration/contract suite (real Postgres +
+live-server seam tests), the device simulator + demo mode, analytics/export, and
+production readiness. Remaining work is tracked in `FLEDGE_ROADMAP.md`.
+**Phase 4 — physical hardware bring-up** (trigger sensor, real model weights)
+and **Phase 7 — PWA** are still open.

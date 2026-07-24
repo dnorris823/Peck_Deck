@@ -16,6 +16,7 @@ from .auth.guards import device_guard
 from .classification.claude import get_classifier
 from .config import settings
 from .database.connection import dispose_db, init_db, provide_db
+from .demo import demo_readonly_middleware, maybe_seed_demo
 from .devices.controller import DeviceController
 from .errors import http_exception_handler, unhandled_exception_handler
 from .observability import RequestContextMiddleware, configure_logging
@@ -52,6 +53,25 @@ async def ready() -> Response[dict]:
         content={"status": "ready" if ok else "not_ready", **detail},
         status_code=200 if ok else 503,
     )
+
+
+@get("/meta", sync_to_thread=False)
+def meta() -> dict:
+    """Public, unauthenticated description of *this* instance.
+
+    The frontend fetches this before the login screen so it can show the demo
+    banner and pre-fill the demo credentials. Deliberately tiny and free of
+    anything sensitive — it exposes only what an unauthenticated visitor needs
+    in order to understand what they are looking at.
+    """
+    body: dict = {"demo_mode": settings.DEMO_MODE, "environment": settings.ENVIRONMENT}
+    if settings.DEMO_MODE:
+        # Only meaningful on a demo instance, where these are published
+        # credentials for throwaway data — never emitted otherwise.
+        from .seed import DEMO_PASSWORD, USERS
+
+        body["demo_login"] = {"email": USERS[0]["email"], "password": DEMO_PASSWORD}
+    return body
 
 
 @dataclass
@@ -104,7 +124,14 @@ Sighting images are stored in PostgreSQL as `bytea` and served from
 `GET /sightings/{id}/image`, which requires a user JWT.
 
 `GET /health` is liveness (never touches the database); `GET /ready` is
-readiness (checks the database and migration state, 503 when not ready).
+readiness (checks the database and migration state, 503 when not ready);
+`GET /meta` describes the instance itself (notably whether it is running in
+read-only demo mode).
+
+With `DEMO_MODE=1` the instance seeds itself on first boot and rejects every
+user-authenticated write with 403. Device-token routes (`POST /sightings`,
+`POST /classify`, the heartbeat) and `POST /login` keep working, so the demo
+stays live rather than frozen.
 """.strip()
 
 _OPENAPI_TAGS = [
@@ -153,6 +180,8 @@ async def on_startup(app: Litestar) -> None:
     # would never actually reach the database. Migrations run before the app
     # starts (see backend/entrypoint.sh and scripts/migrate.sh).
     init_db(settings.DATABASE_URL)
+    # No-ops unless DEMO_MODE is on and the database is empty.
+    await maybe_seed_demo()
 
 
 async def on_shutdown(app: Litestar) -> None:
@@ -163,6 +192,7 @@ app = Litestar(
     route_handlers=[
         health,
         ready,
+        meta,
         login,
         classify,
         UserController,
@@ -172,7 +202,9 @@ app = Litestar(
         StatsController,
     ],
     dependencies={"db": Provide(provide_db)},
-    middleware=[RequestContextMiddleware],
+    # Order matters: the request-context middleware is outermost, so a demo-mode
+    # 403 still gets a request id and still shows up in the access log.
+    middleware=[RequestContextMiddleware, demo_readonly_middleware],
     exception_handlers={
         HTTPException: http_exception_handler,
         Exception: unhandled_exception_handler,

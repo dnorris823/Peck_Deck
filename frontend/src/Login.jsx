@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { login } from "./api.js";
 import { checkEmail } from "./validate.js";
+import { DemoLoginHint } from "./Demo.jsx";
 
 export function Login({ onSuccess }) {
   const [email, setEmail] = useState("");
@@ -9,21 +10,33 @@ export function Login({ onSuccess }) {
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  async function submit(e) {
-    e.preventDefault();
-    const emailErr = checkEmail(email);
-    if (emailErr) { setError(emailErr); return; }
-    if (!password) { setError("Enter your password."); return; }
+  async function signIn(nextEmail, nextPassword) {
     setBusy(true);
     setError(null);
     try {
-      await login(email.trim(), password);
+      await login(nextEmail, nextPassword);
       onSuccess();
     } catch (err) {
       setError(err.message);
     } finally {
       setBusy(false);
     }
+  }
+
+  async function submit(e) {
+    e.preventDefault();
+    const emailErr = checkEmail(email);
+    if (emailErr) { setError(emailErr); return; }
+    if (!password) { setError("Enter your password."); return; }
+    await signIn(email.trim(), password);
+  }
+
+  // On a demo instance the credentials are published by GET /meta — fill the
+  // fields (so they're visible, not magic) and sign straight in.
+  async function useDemoAccount(demoEmail, demoPassword) {
+    setEmail(demoEmail);
+    setPassword(demoPassword);
+    await signIn(demoEmail, demoPassword);
   }
 
   return (
@@ -63,6 +76,8 @@ export function Login({ onSuccess }) {
           style={{ width: "100%", justifyContent: "center" }}>
           {busy ? "Signing in…" : "Sign in"}
         </button>
+
+        <DemoLoginHint onUse={useDemoAccount} />
       </form>
     </div>
   );

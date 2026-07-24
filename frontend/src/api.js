@@ -23,6 +23,20 @@ export class AuthError extends Error {
   }
 }
 
+// Instance metadata — public and unauthenticated, so it can be read before the
+// login screen. Returns null on any failure: the demo banner is an enhancement,
+// and a backend without /meta (or no backend at all) must still render the app
+// rather than trapping the user behind an error.
+export async function fetchMeta() {
+  try {
+    const res = await fetch("/api/meta");
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 export async function login(email, password) {
   let res;
   try {

@@ -11,12 +11,16 @@ import { UsersPage, SettingsPage } from "./UsersSettings.jsx";
 import { Login } from "./Login.jsx";
 import { DataProvider, useData } from "./DataContext.jsx";
 import { AppearanceProvider, useAppearance } from "./Appearance.jsx";
+import { DemoProvider, DemoBanner, useDemo } from "./Demo.jsx";
 import { getToken, clearToken } from "./api.js";
 
 export default function App() {
   return (
     <AppearanceProvider>
-      <AppRoot />
+      {/* Outside the auth gate: the login screen shows the demo credentials. */}
+      <DemoProvider>
+        <AppRoot />
+      </DemoProvider>
     </AppearanceProvider>
   );
 }
@@ -39,6 +43,7 @@ function AppRoot() {
 function AppShell({ onLogout }) {
   const { data, loading, error, reload } = useData();
   const { appearance } = useAppearance();
+  const { demoMode } = useDemo();
   const [route, setRoute] = useState("dashboard");
   const [openSighting, setOpenSighting] = useState(null);
   const [toast, setToast] = useState(null);
@@ -75,7 +80,10 @@ function AppShell({ onLogout }) {
     <div className="app">
       {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />}
       <Sidebar route={route} setRoute={go} onLogout={onLogout} open={navOpen} onClose={() => setNavOpen(false)} />
-      <main className="main">
+      {/* has-demo offsets the sticky topbar so the banner stacks above it
+          instead of being slid under it. */}
+      <main className={`main ${demoMode ? "has-demo" : ""}`}>
+        <DemoBanner />
         <Topbar route={route} onOpenNav={() => setNavOpen(true)} />
         <div className="page" data-screen-label={NAV.find(n => n.id === route)?.label || route}>
           {route === "dashboard" && <Dashboard openSighting={setOpenSighting} />}

@@ -39,6 +39,14 @@ class Settings:
     # defaults (see backend/main.py).
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
 
+    # ── Demo mode (FLEDGE Phase 5) ────────────────────────────────────────────
+    # When on, the app seeds the demo dataset at boot if the database is empty
+    # and refuses every user-authenticated write, so a public/shared instance
+    # can be clicked through without being edited. Device writes (the Pi and the
+    # simulator) still work — that's what keeps the demo *live* rather than a
+    # frozen snapshot. Advertised to the frontend via GET /meta.
+    DEMO_MODE: bool = os.getenv("DEMO_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
+
     # ── Email (SendGrid) ──────────────────────────────────────────────────────
     SENDGRID_API_KEY: str = os.getenv("SENDGRID_API_KEY", "")
     NOTIFICATION_FROM_EMAIL: str = os.getenv(
