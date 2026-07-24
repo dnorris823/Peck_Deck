@@ -32,15 +32,15 @@ $COMPOSE up -d
 
 echo "==> Waiting for postgres to become healthy ..."
 for _ in $(seq 1 30); do
-  if $COMPOSE exec -T db pg_isready -U peck_deck -d peck_deck >/dev/null 2>&1; then
+  if $COMPOSE exec -T db pg_isready -U peck_deck -d peck_deck_test >/dev/null 2>&1; then
     break
   fi
   sleep 2
 done
-$COMPOSE exec -T db pg_isready -U peck_deck -d peck_deck >/dev/null 2>&1 \
+$COMPOSE exec -T db pg_isready -U peck_deck -d peck_deck_test >/dev/null 2>&1 \
   || { echo "postgres did not become ready in time" >&2; exit 1; }
 
-export PECK_TEST_DATABASE_URL="postgresql+asyncpg://peck_deck:${POSTGRES_PASSWORD}@localhost:5432/peck_deck"
+export PECK_TEST_DATABASE_URL="postgresql+asyncpg://peck_deck:${POSTGRES_PASSWORD}@localhost:5433/peck_deck_test"
 
 echo "==> Running integration + contract tests ..."
 python -m pytest integration_tests/ -q "$@"

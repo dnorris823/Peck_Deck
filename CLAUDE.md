@@ -74,6 +74,25 @@ python -m inference_server
 npm run dev
 ```
 
+## API Documentation
+The OpenAPI schema is generated from the route handlers and served by the
+running app:
+
+| URL | What |
+|---|---|
+| `http://localhost:8000/schema` | Interactive docs (Swagger UI / ReDoc) |
+| `http://localhost:8000/schema/openapi.json` | Raw OpenAPI 3.1 document |
+| `docs/openapi.json` | Committed snapshot — 22 paths, 29 operations |
+
+Both auth schemes are documented in the spec (`UserJWT`, `DeviceToken`), so the
+Pi/frontend contract is self-describing.
+
+**After changing a route, regenerate the snapshot** so the contract change shows
+up as a diff in review:
+```bash
+python scripts/export_openapi.py
+```
+
 ## Security Model
 | Control | Behaviour |
 |---|---|

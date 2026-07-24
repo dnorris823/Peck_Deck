@@ -13,16 +13,44 @@ skipped entirely. CI and ``scripts/run_integration.sh`` set it after standing
 up Postgres.
 """
 import os
+from urllib.parse import urlsplit
 
 import pytest
 
 PG_URL = os.getenv("PECK_TEST_DATABASE_URL")
+
+# ── Destructive-run guard ────────────────────────────────────────────────────
+# This suite DROPS EVERY TABLE before seeding. Pointed at a real database it
+# destroys all of it — which is exactly what happened once during Phase 8, when
+# PECK_TEST_DATABASE_URL was aimed at the live `peck_deck` database and wiped
+# 135 sightings including real Raspberry Pi captures.
+#
+# So: refuse to run unless the target database name marks itself as disposable.
+# Override with PECK_TEST_DB_ALLOW_ANY_NAME=1 only if you are certain.
+_SAFE_NAME_MARKERS = ("test", "scratch", "ci", "tmp")
+
+
+def _assert_disposable(url: str) -> None:
+    if os.getenv("PECK_TEST_DB_ALLOW_ANY_NAME") == "1":
+        return
+    name = urlsplit(url).path.lstrip("/")
+    if not any(marker in name.lower() for marker in _SAFE_NAME_MARKERS):
+        raise RuntimeError(
+            f"Refusing to run the integration suite against database {name!r}.\n"
+            "This suite DROPS EVERY TABLE before seeding, so it must only target a\n"
+            f"disposable database — name it with one of {_SAFE_NAME_MARKERS} "
+            "(e.g. 'peck_deck_test').\n"
+            "Set PECK_TEST_DB_ALLOW_ANY_NAME=1 to override if you really mean it."
+        )
+
 
 # No database configured → skip the entire integration suite (don't even import
 # the test modules, which pull in the backend app bound to this URL).
 if not PG_URL:
     collect_ignore_glob = ["test_*.py"]
 else:
+    _assert_disposable(PG_URL)
+
     # Bind the backend to the real Postgres BEFORE importing any backend module
     # (backend.config reads DATABASE_URL at import time).
     os.environ["DATABASE_URL"] = PG_URL

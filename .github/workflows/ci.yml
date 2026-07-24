@@ -47,14 +47,14 @@ jobs:
       postgres:
         image: postgres:16
         env:
-          POSTGRES_DB: peck_deck
+          POSTGRES_DB: peck_deck_test
           POSTGRES_USER: peck_deck
           POSTGRES_PASSWORD: changeme
         ports:
           - 5432:5432
         # Wait for the DB to accept connections before the job starts.
         options: >-
-          --health-cmd "pg_isready -U peck_deck -d peck_deck"
+          --health-cmd "pg_isready -U peck_deck -d peck_deck_test"
           --health-interval 5s
           --health-timeout 3s
           --health-retries 10
@@ -76,7 +76,7 @@ jobs:
       # GPU mocked). Gated on PECK_TEST_DATABASE_URL — unset, the suite no-ops.
       - name: Run integration + contract tests
         env:
-          PECK_TEST_DATABASE_URL: postgresql+asyncpg://peck_deck:changeme@localhost:5432/peck_deck
+          PECK_TEST_DATABASE_URL: postgresql+asyncpg://peck_deck:changeme@localhost:5432/peck_deck_test
           JWT_SECRET: ci-integration-secret-key-at-least-32-bytes!!
         run: pytest integration_tests/ -q
 
