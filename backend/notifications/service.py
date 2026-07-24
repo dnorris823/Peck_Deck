@@ -33,7 +33,15 @@ class NotificationService:
     _last_notified: dict[tuple[int, int], float] = field(default_factory=dict)
 
     def _can_notify(self, user_id: int, device_id: int, interval: int) -> bool:
-        last = self._last_notified.get((user_id, device_id), 0.0)
+        last = self._last_notified.get((user_id, device_id))
+        # A recipient we've never notified is always eligible. Defaulting `last`
+        # to 0.0 here used to mean "throttled until time.monotonic() >= interval"
+        # — and on Linux time.monotonic() counts from boot, so for the first
+        # `interval` seconds of uptime *every* first notification was silently
+        # suppressed. That dropped the first sighting after any reboot, and made
+        # the notification tests fail intermittently on freshly-booted CI runners.
+        if last is None:
+            return True
         return time.monotonic() - last >= interval
 
     def _mark_notified(self, user_id: int, device_id: int) -> None:
