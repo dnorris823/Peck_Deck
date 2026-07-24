@@ -22,6 +22,8 @@ def _to_response(s) -> SpeciesResponse:
         palette=json.loads(s.palette) if s.palette else [],
         silhouette=s.silhouette,
         note=s.note,
+        description=s.description,
+        family=s.family,
     )
 
 

@@ -14,7 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import device_guard, user_guard
 from ..notifications.service import notification_service
-from ..notifications.wikipedia import update_species_wiki_url
+from ..species.enrichment import enrich_species
 from ..species.operations import get_species
 from . import export as export_ops
 from .operations import create_sighting, get_sighting, list_sightings
@@ -170,10 +170,15 @@ class SightingController(Controller):
         asyncio.create_task(
             notification_service.dispatch(sighting.id, sighting.device_id)
         )
-        if species is not None and species.wiki_url is None:
+        # Enrich once, on first sighting: anything still missing gets filled in
+        # (wiki URL, description, family, order). Skipped when already complete
+        # so a busy feeder doesn't hammer Wikipedia/GBIF on every visit.
+        if species is not None and not (
+            species.wiki_url and species.description and species.family
+        ):
             sci = f"{species.genus} {species.species_name}".strip()
             asyncio.create_task(
-                update_species_wiki_url(species.id, species.common_name, sci)
+                enrich_species(species.id, species.common_name, sci)
             )
 
         return _to_response(sighting)

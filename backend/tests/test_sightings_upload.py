@@ -52,7 +52,7 @@ def _silence_side_effects(monkeypatch):
         return None
 
     monkeypatch.setattr(sighting_controller.notification_service, "dispatch", _noop)
-    monkeypatch.setattr(sighting_controller, "update_species_wiki_url", _noop)
+    monkeypatch.setattr(sighting_controller, "enrich_species", _noop)
 
 
 def _upload(client, token, *, delayed, image=_JPEG):

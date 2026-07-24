@@ -14,6 +14,9 @@ class SpeciesCountResponse:
     note: str | None
     count: int
     first_seen: str | None
+    # Field-guide enrichment (Phase 6); null until the background task runs.
+    description: str | None = None
+    family: str | None = None
 
 
 @dataclass

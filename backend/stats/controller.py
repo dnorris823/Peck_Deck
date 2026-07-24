@@ -28,6 +28,8 @@ def _species_count_response(row: dict) -> SpeciesCountResponse:
         palette=json.loads(s.palette) if s.palette else [],
         silhouette=s.silhouette,
         note=s.note,
+        description=s.description,
+        family=s.family,
         count=row["count"],
         first_seen=row["first_seen"],
     )

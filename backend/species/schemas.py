@@ -24,3 +24,6 @@ class SpeciesResponse:
     palette: list[str]
     silhouette: str | None
     note: str | None
+    # Field-guide enrichment (Phase 6); null until the background task runs.
+    description: str | None = None
+    family: str | None = None
