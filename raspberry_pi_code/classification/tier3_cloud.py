@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from pathlib import Path
 
@@ -16,7 +17,7 @@ class CloudClassifier(ClassifierBase):
     The API key never leaves the gaming PC.
     """
 
-    def __init__(self, backend_url: str, device_token: str, timeout_seconds: int = 60):
+    def __init__(self, backend_url: str, device_token: str, timeout_seconds: int = 25):
         self._url = backend_url.rstrip("/") + "/classify"
         self._token = device_token
         self._timeout = aiohttp.ClientTimeout(total=timeout_seconds)
@@ -47,6 +48,11 @@ class CloudClassifier(ClassifierBase):
                             confidence=float(data["confidence"]),
                             tier_used="cloud",
                         )
+        except asyncio.TimeoutError:
+            # An offline backend is a routine condition out at the feeder, not a
+            # bug — warn like Tier 2 does rather than dumping a stack trace.
+            logger.warning("Cloud classify timed out (%s)", image_path.name)
+            return None
         except aiohttp.ClientError:
             logger.warning("Backend unreachable for cloud classification")
             return None

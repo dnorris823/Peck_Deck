@@ -29,7 +29,9 @@ class Pipeline:
         )
         self._tier1 = TFLiteClassifier(config.model_path, config.taxonomy_path)
         self._tier2 = GPUServerClassifier(config.inference_server_url, config.tier2_request_timeout)
-        self._tier3 = CloudClassifier(config.backend_url, config.device_token)
+        self._tier3 = CloudClassifier(
+            config.backend_url, config.device_token, config.tier3_request_timeout
+        )
 
         self._last_capture: float = 0.0
         self._capture_lock = asyncio.Lock()
@@ -143,9 +145,39 @@ class Pipeline:
         return [self._tier1, self._tier2, self._tier3]
 
     async def _classify(self, image_path: Path) -> ClassificationResult | None:
+        """Walk the tier chain, falling through on failure *or* low confidence.
+
+        A tier that answers below ``confidence_threshold`` doesn't win outright —
+        the next tier gets a shot. The best low-confidence answer is kept as a
+        fallback so a weak guess still beats discarding the sighting entirely.
+        """
+        threshold = self._cfg.confidence_threshold
+        best: ClassificationResult | None = None
+
         for clf in self._classifiers_for_preference():
             result = await clf.classify(image_path)
-            if result is not None:
+
+            if result is None:
+                logger.warning("Tier '%s' failed — trying next", clf.tier_name)
+                continue
+
+            if result.confidence >= threshold:
                 return result
-            logger.warning("Tier '%s' failed — trying next", clf.tier_name)
-        return None
+
+            logger.info(
+                "Tier '%s' confidence %.2f below threshold %.2f — trying next",
+                clf.tier_name,
+                result.confidence,
+                threshold,
+            )
+            if best is None or result.confidence > best.confidence:
+                best = result
+
+        if best is not None:
+            logger.warning(
+                "No tier met the confidence threshold — using best effort: %s (%.2f) [tier=%s]",
+                best.common_name,
+                best.confidence,
+                best.tier_used,
+            )
+        return best

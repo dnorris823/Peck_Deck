@@ -22,6 +22,9 @@ class Config:
     tier_preference: str = os.getenv("TIER_PREFERENCE", "auto")  # local|gpu|cloud|auto
     confidence_threshold: float = float(os.getenv("CONFIDENCE_THRESHOLD", "0.5"))
     tier2_request_timeout: int = int(os.getenv("TIER2_REQUEST_TIMEOUT", "30"))
+    # Keep below debounce_seconds: an unreachable backend must not stall the
+    # pipeline past the next trigger.
+    tier3_request_timeout: int = int(os.getenv("TIER3_REQUEST_TIMEOUT", "25"))
     backend_connect_timeout: int = int(os.getenv("BACKEND_CONNECT_TIMEOUT", "10"))
     backend_upload_timeout: int = int(os.getenv("BACKEND_UPLOAD_TIMEOUT", "60"))
 

@@ -27,10 +27,14 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-          cache-dependency-path: backend/requirements-dev.txt
+          cache-dependency-path: |
+            backend/requirements-dev.txt
+            raspberry_pi_code/requirements.txt
 
+      # The Pi deps cover raspberry_pi_code/tests (tier-chain logic). Only the
+      # cross-platform ones are listed there; picamera2/tflite stay Pi-only.
       - name: Install dependencies
-        run: pip install -r backend/requirements-dev.txt
+        run: pip install -r backend/requirements-dev.txt -r raspberry_pi_code/requirements.txt
 
       # Suite runs against a throwaway SQLite DB (aiosqlite) — no Postgres needed.
       - name: Run tests

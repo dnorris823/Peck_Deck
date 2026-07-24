@@ -143,13 +143,44 @@ stale.
 
 *The one pass that genuinely needs the bench. Everything above de-risks it.*
 
-- [ ] Pi camera capture + trigger (PIR / IR beam) real runs; validate debounce.
-- [ ] Tier 1 on-device TFLite inference — real latency/accuracy on the Pi.
-- [ ] Tier 2 GPU inference server — load the real model on the RTX 5080, measure throughput.
-- [ ] Execute `HARDWARE_TEST_PLAN.md` end-to-end.
+- [x] **Pi camera capture** — real IMX708 stills via the project's own `PiCamera`
+  (~300 KB JPEG at 1920×1080 in ~1.0 s). Trigger/debounce still **blocked**: no
+  PIR / IR-beam sensor is wired to the header.
+- [x] **Tier 1 on-device TFLite inference** — real latency measured on the Pi:
+  model load 6 ms, inference **38.7 ms avg** (min 37.1 / max 41.1 over 10 runs).
+  *Accuracy still unmeasured* — this is the stand-in model, not the real one.
+- [x] **Tier 2 GPU inference server** — running on the RTX 5080
+  (torch 2.11.0+cu128, capability 12.0/sm_120). Real Pi `GPUServerClassifier`
+  → live server round-trips in **~26 ms** locally, ~1 s from the Pi over WiFi.
+  Throughput testing deliberately skipped (personal project, latency is fine).
+  *Real weights still outstanding* — see below.
+- [x] **Tier chain handoff verified on hardware** — live capture → Tier 1 (0.05,
+  under threshold) → Tier 2 (0.27, under threshold) → Tier 3 (backend offline,
+  times out) → best-effort result retained. Exercises the confidence-threshold
+  fallback end-to-end across a real LAN hop.
+- [x] **GPIO sanity (C0–C2)** — `rpi-lgpio` shim confirmed on RP1; BCM17 output
+  toggle and internal pull-up/pull-down readbacks all correct.
+- [ ] Trigger peripheral (C3 loopback / C4 real sensor) — needs a jumper or a
+  physical PIR / IR-beam sensor.
+- [ ] **Real model weights** — both tiers currently run stand-ins (Tier 1: the
+  generated `stand_in_smoketest_224_uint8.tflite`; Tier 2: `tf_efficientnet_b4`
+  with a randomly-initialised 20-class head). Every label produced so far is
+  meaningless by construction. This is now the single biggest gap.
+- [x] **Backend + Postgres on the gaming PC** — `docker compose up` (after
+  fixing the container, which had never been able to boot). Real multipart
+  `POST /sightings` from the Pi lands a 300 KB camera JPEG in Postgres as
+  `bytea`; `GET /sightings/{id}/image` returns it byte-identical under a user
+  JWT and 401s without one.
+- [ ] **Tier 3 on hardware** — reached the backend and got a clean 503 because
+  `CLAUDE_API_KEY` is unset. Set the key to actually exercise the Claude relay.
 - [ ] Full field test: live bird → capture → classify → sighting → notification.
 
 **Exit criteria:** a real visit at the feeder produces a correct, notified sighting in the web app.
+
+> **Bring-up session 2026-07-24:** plumbing is proven end-to-end on real
+> hardware; what remains is *substance* (real weights, a trigger sensor, the
+> backend up). Four defects were found and fixed along the way — see
+> `HARDWARE_TEST_PLAN.md` §6.
 
 ---
 
