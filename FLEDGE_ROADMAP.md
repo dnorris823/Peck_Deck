@@ -230,21 +230,35 @@ notification — on a phone, with no Pi in the loop.
 *Turn the sightings table into something worth checking daily. Pure
 data/backend + charts — all cloud.*
 
-- [ ] **Richer dashboard analytics** — extend `backend/stats/` beyond the current
-  dashboard/species-count/heatmap: visits-per-day trend, busiest hours, species
-  diversity over time, first-seen / new-species-this-week, longest streaks.
-- [ ] **Frontend charts** — wire the new aggregates into the Dashboard with
-  accessible, theme-aware visualizations (see the `dataviz` skill), including a
-  time-range selector and per-device breakdown.
-- [ ] **Data export** — `GET /sightings/export` (CSV/JSON, auth-scoped) and a
-  frontend "Export" action; optional per-species report.
-- [ ] **Species enrichment** — go past the Wikipedia URL: cache a short
-  description, taxonomy order/family, and (where a free API allows) conservation
-  status, so the Species Library reads like a field guide.
+- [x] **Richer dashboard analytics** — `GET /stats/insights` over a selectable
+  window (clamped 1–365): visits-per-day trend, hour-of-day histogram,
+  cumulative species diversity, new-species arrivals, longest active-day streak,
+  and a per-device breakdown. "New" means the species' *all-time* first sighting
+  falls in the window, not merely its first sighting within it.
+- [x] **Frontend charts** — an Insights section on the Dashboard with a time
+  range + station filter row scoping everything below it. Built to the `dataviz`
+  method: brand hue angles snapped into the charting lightness band and
+  **validated** (CVD separation, normal-vision floor, ≥3:1 contrast, at
+  `--pairs all`) for light *and* dark, dark steps selected rather than flipped.
+  Single-hue marks (identity lives on the axis), 2px lines, 24px-capped bars
+  with rounded data-ends, crosshair + per-mark tooltips, keyboard focus parity,
+  and a table view on every chart so no value is gated behind a pointer.
+- [x] **Data export** — `GET /sightings/export` (CSV/JSON, auth-scoped, served
+  as an attachment) plus Export CSV/JSON actions in the filter row. Rows join
+  species and device names so the file reads standalone; image bytes are
+  excluded in favour of an `image_url` per row.
+- [x] **Species enrichment** — cached description (Wikipedia summary extract,
+  free in the request already being made for the URL) and taxonomy family/order
+  (GBIF, keyless). Fills only empty columns so curated values survive.
+  Conservation status intentionally skipped — IUCN needs a registered key and
+  GBIF's threat status is sparse for backyard birds.
 
 **Exit criteria:** the Dashboard answers "what's been happening at the feeder?"
 at a glance, and a user can export their sighting history in one click. Covered
-by unit tests over the new aggregate queries + export serialization.
+by unit tests over the new aggregate queries + export serialization. ✅
+*(24 backend tests for insights/export, 14 for enrichment, 9 frontend chart
+tests; verified in the browser against the real 135-sighting dataset in both
+themes.)*
 
 ---
 

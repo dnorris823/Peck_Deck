@@ -3,7 +3,7 @@
 // (the same shapes the original design fixtures used, so pages barely changed).
 // `loadAll()` fetches everything in parallel; DataContext calls it after login.
 
-import { apiGet, apiSend } from "./api.js";
+import { apiDownload, apiGet, apiSend } from "./api.js";
 
 // ── Fallbacks for presentation-only fields ────────────────────────────────
 // The backend now carries palette/silhouette/note (see seed.py), but a species
@@ -179,6 +179,28 @@ export async function updateDevice(deviceId, patch) {
 // Add a species to the library.
 export async function createSpecies(body) {
   return apiSend("/species", "POST", body);
+}
+
+// ── Insights (Phase 6) ────────────────────────────────────────────────────
+// Fetched on demand rather than in loadAll(): the range and device filters
+// change it, and the dashboard should paint before analytics arrive.
+export async function loadInsights({ days = 30, deviceId = null } = {}) {
+  const params = new URLSearchParams({ days: String(days) });
+  if (deviceId != null) params.set("device_id", String(deviceId));
+  return apiGet(`/stats/insights?${params}`);
+}
+
+// Build the authenticated export URL. Returned as a blob rather than a plain
+// link because the endpoint needs the Bearer token, which an <a href> can't
+// carry.
+export async function downloadExport({ fmt = "csv", deviceId = null, days = null } = {}) {
+  const params = new URLSearchParams({ fmt });
+  if (deviceId != null) params.set("device_id", String(deviceId));
+  if (days != null) {
+    const from = new Date(Date.now() - days * 86400000).toISOString();
+    params.set("from_date", from);
+  }
+  return apiDownload(`/sightings/export?${params}`);
 }
 
 // ── Date/time formatting helpers (unchanged API; now use real "now") ──────

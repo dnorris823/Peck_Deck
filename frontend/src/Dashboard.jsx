@@ -3,6 +3,7 @@ import React from "react";
 import { BirdPlate } from "./BirdPlate.jsx";
 import { Icon } from "./Icon.jsx";
 import { Empty } from "./Empty.jsx";
+import { Insights } from "./Insights.jsx";
 import { useData } from "./DataContext.jsx";
 import { fmtTime, fmtRelative } from "./data.js";
 
@@ -287,6 +288,10 @@ export function Dashboard({ openSighting }) {
           {DEVICES.map(d => <DeviceCard key={d.id} d={d} />)}
         </div>
       </div>
+
+      <div style={{ height: 36 }} />
+
+      <Insights />
 
       <div style={{ height: 36 }} />
 
