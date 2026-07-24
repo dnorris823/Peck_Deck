@@ -39,7 +39,12 @@ def _envelope(status_code: int, exc_type: str, detail: Any, extra: Any = None) -
 
 
 def http_exception_handler(request: Request, exc: HTTPException) -> Response:
-    """Render any HTTPException (4xx/5xx, incl. validation) as the envelope."""
+    """Render any HTTPException (4xx/5xx, incl. validation) as the envelope.
+
+    Headers set on the exception are preserved. Rebuilding the response used to
+    drop them, which silently swallowed semantically required headers such as
+    ``Retry-After`` on a 429 and ``WWW-Authenticate`` on a 401.
+    """
     return Response(
         content=_envelope(
             exc.status_code,
@@ -48,6 +53,7 @@ def http_exception_handler(request: Request, exc: HTTPException) -> Response:
             getattr(exc, "extra", None),
         ),
         status_code=exc.status_code,
+        headers=getattr(exc, "headers", None) or None,
     )
 
 

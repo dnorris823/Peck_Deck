@@ -274,24 +274,44 @@ Phase 5 simulator with no hardware.
 
 *Make it safe to actually run. All static-analysis / config / test work — cloud.*
 
-- [ ] **Security pass** — run `/security-review` and close findings: auth rate
-  limiting / lockout on `/login`, CORS policy, JWT expiry + rotation, device-token
-  handling, request-size limits on image upload, and a dependency audit
-  (`pip-audit` / `npm audit`) wired into CI.
-- [ ] **Database migrations** — introduce Alembic so schema changes are
-  versioned instead of `create_tables()` at boot; add an initial baseline
-  migration and a `scripts/migrate` entrypoint.
-- [ ] **Health & readiness** — extend `/health` into a real readiness probe
-  (DB connectivity, migration state) for container orchestration; document the
-  compose healthchecks.
-- [ ] **Backup & restore** — a documented `pg_dump`/restore flow for the
-  `bytea`-backed media + records, with a smoke test.
-- [ ] **API docs** — publish Litestar's generated OpenAPI schema and link it from
-  the docs so the Pi/frontend contract is self-describing.
+- [x] **Security pass** — closed a live **privilege escalation**: `POST /users`
+  had no guard and `role` was client-supplied, so anyone could mint an owner
+  account and enumerate every user's email and phone. Now owner-only with a
+  validated role. Added per-account **and** per-IP login throttling (5 / 5 min →
+  429 + `Retry-After`), an explicit CORS allowlist (`*` rejected while
+  credentials are allowed), a 15 MB request-body cap, and a production boot
+  check that refuses default/short `JWT_SECRET` or wildcard CORS. Dependency
+  audits (`pip-audit` + `npm audit`) run in CI; the 6 npm findings were cleared
+  by upgrading to vite 8 / vitest 4.
+- [x] **Database migrations** — Alembic replaces `create_tables()` at boot
+  (which only ever created *missing* tables, so model changes never reached the
+  database). Baseline verified against a `pg_dump` of the `create_all` schema;
+  `scripts/migrate.sh` entrypoint; the container migrates before serving; and
+  `integration_tests/test_migrations.py` fails CI if models drift from
+  migrations.
+- [x] **Health & readiness** — `/health` stays dependency-free (liveness);
+  new `/ready` checks DB connectivity **and** migration state, 503 when not
+  ready. The compose healthcheck targets `/ready`.
+- [x] **Backup & restore** — `scripts/backup.sh` / `restore.sh` (pg_dump `-Fc`
+  from inside the db container) plus `backup_smoke_test.sh`, which restores into
+  a throwaway database and compares row counts **and a SHA-256 of the image
+  bytes** — a backup that restored rows but truncated `bytea` would lose every
+  photo unnoticed.
+- [x] **API docs** — OpenAPI schema at `/schema` (interactive) and
+  `/schema/openapi.json`, with both auth schemes documented. Snapshot committed
+  to `docs/openapi.json` via `scripts/export_openapi.py` so contract changes
+  appear in review diffs.
 
 **Exit criteria:** a clean security review, versioned migrations, a readiness
 probe orchestration can trust, and a documented backup path — the stack is
-deployable, not just runnable.
+deployable, not just runnable. ✅
+
+> **Also fixed during this phase** (not originally scoped): notifications were
+> silently dropped for the first `min_interval_seconds` of process uptime —
+> `time.monotonic()` counts from boot, so the throttle suppressed every *first*
+> notification after a reboot. This was also why CI had been red on `main` since
+> Phase 0. Separately, the Phase 1 error envelope dropped `exc.headers`,
+> swallowing `Retry-After` and `WWW-Authenticate`.
 
 ---
 

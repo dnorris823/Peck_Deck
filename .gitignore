@@ -9,6 +9,10 @@ __pycache__/
 *.db
 *.sqlite3
 
+# Database backups (contain real sighting images and user records)
+backups/
+*.dump
+
 # Node / Vite build cache
 node_modules/
 frontend/.vite/

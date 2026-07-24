@@ -10,7 +10,9 @@ def _fresh_owner(client):
     """
     import secrets
     email = f"devtest_{secrets.token_hex(4)}@test.dev"
-    res = client.post("/users", json={
+    # Registration is owner-only, so the seeded owner issues the invite.
+    seeded_owner = {"Authorization": f"Bearer {create_user_token(IDS['owner_id'], 'owner')}"}
+    res = client.post("/users", headers=seeded_owner, json={
         "name": "Dev Test Owner", "email": email, "password": "pw", "role": "owner",
     })
     uid = res.json()["id"]

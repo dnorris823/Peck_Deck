@@ -6,12 +6,19 @@ These register throwaway users so they never mutate the seeded owner/viewer
 import secrets
 
 from backend.auth.jwt_utils import create_user_token
+from backend.tests.conftest import IDS
+
+
+def _owner_headers() -> dict:
+    """Registration is owner-only, so throwaway users are created as an owner."""
+    return {"Authorization": f"Bearer {create_user_token(IDS['owner_id'], 'owner')}"}
 
 
 def _register(client, *, role="viewer", password="pw"):
     email = f"acct_{secrets.token_hex(4)}@test.dev"
     res = client.post(
         "/users",
+        headers=_owner_headers(),
         json={"name": "Acct User", "email": email, "password": password, "role": role},
     )
     assert res.status_code == 201

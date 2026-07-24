@@ -11,6 +11,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # fails with "attempted relative import with no known parent package".
 COPY . ./backend
 
+RUN chmod +x /app/backend/entrypoint.sh
+
 EXPOSE 8000
 
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# entrypoint.sh applies Alembic migrations before starting uvicorn, so a failed
+# migration stops the container rather than serving against an unknown schema.
+CMD ["/app/backend/entrypoint.sh"]

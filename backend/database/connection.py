@@ -26,6 +26,13 @@ def get_session_factory() -> async_sessionmaker[AsyncSession]:
 
 
 async def create_tables() -> None:
+    """Create the schema directly from the models.
+
+    **Test-suite only.** Production schema is owned by Alembic — see
+    ``backend/migrations/``. The suites use this instead of running migrations
+    because it's faster and keeps them independent of migration history; the
+    ``alembic check`` step in CI is what guarantees the two stay in agreement.
+    """
     assert _engine is not None
     async with _engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

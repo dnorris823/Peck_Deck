@@ -8,13 +8,13 @@ def test_list_users(client, owner_headers):
     assert {"owner@test.dev", "viewer@test.dev"} <= emails
 
 
-def test_register_and_duplicate(client):
+def test_register_and_duplicate(client, owner_headers):
     payload = {"name": "New Person", "email": "new@test.dev", "password": "pw", "role": "viewer"}
-    res = client.post("/users", json=payload)
+    res = client.post("/users", headers=owner_headers, json=payload)
     assert res.status_code == 201
     assert res.json()["email"] == "new@test.dev"
 
-    dup = client.post("/users", json=payload)
+    dup = client.post("/users", headers=owner_headers, json=payload)
     assert dup.status_code == 409
 
 

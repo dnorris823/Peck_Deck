@@ -1,0 +1,27 @@
+# Shell scripts and container files MUST keep LF endings. Checked out with CRLF
+# on Windows they break inside Linux containers with
+# "bad interpreter: /usr/bin/env sh^M" — which would only show up at runtime,
+# after a successful build.
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+*.mako          text eol=lf
+entrypoint.sh   text eol=lf
+
+# Normalise the rest, letting git pick the platform ending on checkout.
+*.py            text
+*.md            text
+*.yml           text
+*.yaml          text
+*.json          text
+*.ini           text
+*.csv           text
+*.js            text
+*.jsx           text
+*.css           text
+*.html          text
+
+# Binary — never touch.
+*.tflite        binary
+*.jpg           binary
+*.jpeg          binary
+*.png           binary

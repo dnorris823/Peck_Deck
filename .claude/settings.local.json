@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(Get-ChildItem -Recurse -Force)",
-      "Bash(Select-Object FullName)"
+      "Bash(Select-Object FullName)",
+      "PowerShell(python -c \"import torch; print\\('torch', torch.__version__, 'cuda', torch.cuda.is_available\\(\\), torch.cuda.get_device_name\\(0\\) if torch.cuda.is_available\\(\\) else ''\\)\" ; if \\($?\\) { } else { \"torch not installed\" })",
+      "PowerShell(docker compose version *)"
     ]
   }
 }
