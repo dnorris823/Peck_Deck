@@ -17,9 +17,11 @@ export default defineConfig({
     port: 5173,
     // Proxy API calls to the Litestar backend (docker compose exposes :8000).
     // The frontend calls fetch("/api/...") in dev and Vite forwards it.
+    // Override with VITE_API_TARGET to point the dev server at another
+    // instance — e.g. a DEMO_MODE backend running on a different port.
     proxy: {
       "/api": {
-        target: "http://localhost:8000",
+        target: process.env.VITE_API_TARGET || "http://localhost:8000",
         changeOrigin: true,
         rewrite: (p) => p.replace(/^\/api/, ""),
       },

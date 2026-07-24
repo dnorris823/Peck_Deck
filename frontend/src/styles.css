@@ -207,6 +207,15 @@ a { color: inherit; }
 
 /* ---------- Main ---------- */
 .main { min-width: 0; }
+/* Topbar plus anything stacked above it (the demo banner) stick as one block.
+   Sticking them separately would need the topbar's offset to equal the banner's
+   height, which stops being true the moment the banner wraps on a phone. */
+.topstack {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  min-width: 0;
+}
 .topbar {
   display: flex;
   align-items: center;
@@ -214,12 +223,9 @@ a { color: inherit; }
   gap: 16px;
   padding: 18px 32px;
   border-bottom: 1px solid var(--hairline);
-  position: sticky;
-  top: 0;
   background: var(--surface-glass);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  z-index: 10;
   min-width: 0;
 }
 .topbar > * { min-width: 0; }
@@ -235,6 +241,11 @@ a { color: inherit; }
   min-width: 0;
 }
 .search input { min-width: 0; }
+/* Icon glyphs carry no intrinsic size, so a context that never sized them lets
+   the SVG fall back to 300x150 and blow the layout apart. .icon-btn/.btn/.chip
+   all size theirs; these two didn't. */
+.search svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.modal-close svg { width: 16px; height: 16px; }
 @media (max-width: 1180px) {
   .search { width: 200px; }
   .search .kbd { display: none; }
@@ -1061,9 +1072,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); }
    rgba over the current surface so the strip works unchanged in dusk, where the
    yolk hue stays legible against the dark ground. */
 .demo-banner {
-  position: sticky;
-  top: 0;
-  z-index: 20; /* above the topbar (10), which is offset by .main.has-demo */
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1078,7 +1086,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); }
 }
 .demo-banner-text { min-width: 0; }
 .demo-banner strong { font-weight: 600; }
-.main.has-demo .topbar { top: 38px; }
 
 /* Ink-on-paper like .chip.active and .role-owner — theme-aware by construction
    and well clear of contrast minimums at 10px, which a yolk chip is not. */

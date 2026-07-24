@@ -256,9 +256,10 @@ class VirtualFeeder:
             delayed=delayed,
         )
         level = logging.INFO if ok else logging.WARNING
+        # ASCII markers: a Windows console under cp1252 mangles ✓/✗ into escapes.
         logger.log(
-            level, "%s %-14s %-26s %s %.2f",
-            "✓" if ok else "✗", self.name, entry.common_name, tier, confidence,
+            level, "%-4s %-14s %-26s %-5s %.2f",
+            "ok" if ok else "FAIL", self.name, entry.common_name, tier, confidence,
         )
         return ok
 
