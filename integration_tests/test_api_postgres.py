@@ -82,7 +82,7 @@ def test_image_bytea_round_trips_through_postgres(client, owner_headers, monkeyp
         return None
 
     monkeypatch.setattr(sighting_controller.notification_service, "dispatch", _noop)
-    monkeypatch.setattr(sighting_controller, "update_species_wiki_url", _noop)
+    monkeypatch.setattr(sighting_controller, "enrich_species", _noop)
 
     token = _fresh_device_token()
     res = client.post(

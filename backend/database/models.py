@@ -116,6 +116,13 @@ class Species(Base):
     order_name: Mapped[str | None] = mapped_column(String, nullable=True)
     wiki_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
+    # Field-guide enrichment (FLEDGE Phase 6), cached on first sighting of a
+    # species so the Species Library reads like a field guide rather than a
+    # bare name. `description` is the Wikipedia summary extract; `family` comes
+    # from GBIF's taxonomy match.
+    description: Mapped[str | None] = mapped_column(String, nullable=True)
+    family: Mapped[str | None] = mapped_column(String, nullable=True)
+
     # Field-guide presentation metadata used to render the stylized SVG plates
     # in the web app. `palette` is a JSON-encoded list of hex colors.
     palette: Mapped[str | None] = mapped_column(String, nullable=True)

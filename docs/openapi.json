@@ -171,6 +171,22 @@
         "title": "DashboardResponse",
         "type": "object"
       },
+      "DeviceCountResponse": {
+        "properties": {
+          "count": {
+            "type": "integer"
+          },
+          "device_id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "device_id"
+        ],
+        "title": "DeviceCountResponse",
+        "type": "object"
+      },
       "DeviceHeartbeat": {
         "properties": {
           "battery": {
@@ -308,6 +324,109 @@
         "title": "DeviceResponse",
         "type": "object"
       },
+      "InsightsResponse": {
+        "properties": {
+          "active_days": {
+            "type": "integer"
+          },
+          "busiest_day": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "busiest_hour": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "day_labels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "days": {
+            "type": "integer"
+          },
+          "device_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "distinct_species": {
+            "type": "integer"
+          },
+          "diversity": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "hours": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "longest_streak": {
+            "type": "integer"
+          },
+          "new_species": {
+            "items": {
+              "$ref": "#/components/schemas/NewSpeciesResponse"
+            },
+            "type": "array"
+          },
+          "per_day": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "per_device": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceCountResponse"
+            },
+            "type": "array"
+          },
+          "total_sightings": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "active_days",
+          "busiest_day",
+          "busiest_hour",
+          "day_labels",
+          "days",
+          "device_id",
+          "distinct_species",
+          "diversity",
+          "hours",
+          "longest_streak",
+          "new_species",
+          "per_day",
+          "per_device",
+          "total_sightings"
+        ],
+        "title": "InsightsResponse",
+        "type": "object"
+      },
       "LoginRequest": {
         "properties": {
           "email": {
@@ -322,6 +441,26 @@
           "password"
         ],
         "title": "LoginRequest",
+        "type": "object"
+      },
+      "NewSpeciesResponse": {
+        "properties": {
+          "common_name": {
+            "type": "string"
+          },
+          "first_seen": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "common_name",
+          "first_seen",
+          "id"
+        ],
+        "title": "NewSpeciesResponse",
         "type": "object"
       },
       "PreferencesResponse": {
@@ -535,6 +674,26 @@
           "count": {
             "type": "integer"
           },
+          "description": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "family": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "first_seen": {
             "oneOf": [
               {
@@ -621,6 +780,26 @@
         "properties": {
           "common_name": {
             "type": "string"
+          },
+          "description": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "family": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "genus": {
             "type": "string"
@@ -1757,6 +1936,148 @@
         "summary": "Create"
       }
     },
+    "/sightings/export": {
+      "get": {
+        "deprecated": false,
+        "operationId": "SightingsExportExport",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "fmt",
+            "required": false,
+            "schema": {
+              "default": "csv",
+              "type": "string"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "device_id",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "species_id",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "from_date",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "to_date",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Export"
+      }
+    },
     "/sightings/{sighting_id}": {
       "get": {
         "deprecated": false,
@@ -2097,6 +2418,96 @@
           }
         },
         "summary": "Heatmap"
+      }
+    },
+    "/stats/insights": {
+      "get": {
+        "deprecated": false,
+        "operationId": "StatsInsightsInsights",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "device_id",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsightsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Insights"
       }
     },
     "/stats/species-counts": {

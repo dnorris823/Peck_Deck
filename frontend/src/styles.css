@@ -45,6 +45,20 @@
   --hover: rgba(28, 38, 32, 0.05);            /* subtle interactive tint */
   --dot-1: rgba(28, 38, 32, 0.025);           /* page texture dots */
   --dot-2: rgba(28, 38, 32, 0.018);
+
+  /* ---------- Chart tokens ----------
+     Data marks need more lightness and chroma than the brand ink hues, which
+     read gray at chart scale. These are the brand hue *angles* snapped into the
+     charting lightness band (OKLCH L 0.43–0.77 light) with chroma >= 0.10, then
+     validated: CVD separation, normal-vision floor, and >= 3:1 against the
+     surface all pass at --pairs all. Do not substitute raw --forest/--cardinal
+     here; those fail the chroma floor and read as gray bars.
+     Dark-mode steps are *selected* separately below, not flipped. */
+  --chart-data: #1c7643;      /* forest hue — the single data series */
+  --chart-accent: #824a89;    /* plum hue — emphasis / second series */
+  --chart-grid: var(--hairline);
+  --chart-surface: var(--paper);
+  --chart-fill: rgba(28, 118, 67, 0.1);   /* --chart-data at ~10% — a wash */
 }
 
 /* ---------- Reset ---------- */
@@ -895,6 +909,110 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); }
 .toast-name { font-family: var(--display); font-style: italic; font-size: 16px; line-height: 1; }
 .toast-sub { font-size: 11px; color: rgba(243, 237, 224, 0.7); margin-top: 3px; font-family: var(--mono); }
 
+/* ---------- Charts (Insights) ---------- */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+.chart-figure { margin: 0; }
+.chart-wrap { position: relative; width: 100%; }
+.chart-svg { display: block; width: 100%; height: auto; overflow: visible; }
+
+/* Chrome stays recessive — hairline, solid, never dashed. */
+.chart-grid-line { stroke: var(--chart-grid); stroke-width: 1; }
+.chart-crosshair { stroke: var(--hairline-strong); stroke-width: 1; }
+
+/* Text wears text tokens, never the series colour. */
+.chart-axis-text {
+  fill: var(--ink-mute); font-family: var(--mono); font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.chart-value-label {
+  fill: var(--ink); font-family: var(--mono); font-size: 11px; font-weight: 500;
+}
+
+.chart-bar { transition: opacity 120ms ease; }
+.chart-bar.is-hover { opacity: 0.78; }
+.chart-wrap :focus-visible { outline: 2px solid var(--chart-accent); outline-offset: 2px; }
+
+.chart-caption {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--hairline);
+  font-size: 12px; color: var(--ink-mute);
+}
+.chart-table-toggle { flex: none; }
+
+.chart-tip {
+  position: absolute; pointer-events: none; z-index: 5;
+  background: var(--paper); border: 1px solid var(--hairline-strong);
+  border-radius: var(--r-card); box-shadow: var(--shadow-lift);
+  padding: 8px 10px; min-width: 104px;
+}
+.chart-tip-title {
+  font-family: var(--mono); font-size: 10px; color: var(--ink-mute);
+  letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 4px;
+}
+.chart-tip-row { display: flex; align-items: baseline; gap: 6px; }
+/* A short stroke keys the series — at tooltip density a filled box is
+   data-weight ink doing a label's job. */
+.chart-tip-key { width: 10px; height: 2px; border-radius: 1px; flex: none; align-self: center; }
+.chart-tip-value { font-family: var(--mono); font-size: 14px; color: var(--ink); font-weight: 500; }
+.chart-tip-label { font-size: 11px; color: var(--ink-soft); }
+
+.chart-table-wrap { margin-top: 10px; max-height: 260px; overflow: auto; }
+.chart-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.chart-table th, .chart-table td {
+  text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--hairline);
+}
+.chart-table thead th {
+  position: sticky; top: 0; background: var(--paper);
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--ink-mute);
+}
+.chart-table td { font-family: var(--mono); color: var(--ink-soft); }
+
+/* Horizontal bar list — one hue; identity is on the axis. */
+.barlist { display: flex; flex-direction: column; gap: 10px; }
+.barlist-row { display: grid; grid-template-columns: minmax(72px, 26%) 1fr auto; align-items: center; gap: 10px; }
+.barlist-label { font-size: 13px; color: var(--ink-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.barlist-track { height: 10px; background: var(--paper-2); border-radius: 2px; overflow: hidden; }
+.barlist-fill {
+  display: block; height: 100%; background: var(--chart-data);
+  /* 4px rounded data-end, square at the baseline. */
+  border-radius: 0 4px 4px 0;
+}
+.barlist-value { font-family: var(--mono); font-size: 12px; color: var(--ink-soft); }
+
+/* Filters: one row, above the charts, scoping everything below. */
+.insights-filters {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 14px;
+}
+.insights-filters .spacer { flex: 1 1 auto; }
+/* align-items:start so a short chart card doesn't stretch to match a tall
+   neighbour and leave a slab of dead space under the plot. */
+.insights-grid { display: grid; grid-template-columns: 1.6fr 1fr; gap: var(--gutter); align-items: start; }
+/* While data reloads, hold the previous render at reduced opacity — no
+   skeleton, no layout jump. */
+.insights-loading { opacity: 0.55; transition: opacity 120ms ease; }
+
+.insight-stats { display: flex; flex-direction: column; justify-content: space-between; gap: 14px; }
+.insight-stat-value { font-family: var(--mono); font-size: 26px; color: var(--ink); line-height: 1.1; margin-top: 2px; }
+.insight-stat-detail { font-size: 11px; color: var(--ink-mute); margin-top: 2px; }
+
+.arrivals { list-style: none; margin: 0; padding: 0; }
+.arrivals li {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  padding: 7px 0; border-top: 1px dashed var(--hairline);
+}
+.arrivals li:first-child { border-top: none; }
+.arrivals-name { font-family: var(--display); font-style: italic; font-size: 15px; }
+.arrivals-date { font-family: var(--mono); font-size: 11px; color: var(--ink-mute); }
+
+@media (max-width: 900px) {
+  .insights-grid { grid-template-columns: 1fr; }
+}
+
 /* ---------- Dusk (dark) theme — activated via [data-theme="dusk"] ---------- */
 [data-theme="dusk"] {
   /* Paper & ink inverted: deep forest-charcoal surfaces, warm parchment ink. */
@@ -918,6 +1036,16 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); }
   --hover: rgba(236, 228, 210, 0.07);
   --dot-1: rgba(236, 228, 210, 0.03);
   --dot-2: rgba(236, 228, 210, 0.022);
+
+  /* Chart steps chosen for the dusk surface, not flipped from light.
+     Note the two are deliberately far apart in lightness: at equal lightness a
+     green and a red collapse to CVD deltaE 4 under deuteranopia. Plum rather
+     than cardinal for the accent — against near-black, a cardinal light enough
+     to clear 3:1 sits too close to the green for a deutan reader. */
+  --chart-data: #53a971;
+  --chart-accent: #9a599f;
+  --chart-surface: var(--paper);
+  --chart-fill: rgba(83, 169, 113, 0.12);
 
   /* Shadows read against black on a dark ground, else cards float invisibly. */
   --shadow-card: 0 1px 0 rgba(0, 0, 0, 0.25), 0 1px 3px rgba(0, 0, 0, 0.4);

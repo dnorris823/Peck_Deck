@@ -59,6 +59,30 @@ export async function apiGet(path) {
   return res.json();
 }
 
+// Fetch a file download as a Blob. Used for the sightings export, which is
+// auth-scoped — a plain <a href> can't carry the Bearer token, so the bytes are
+// fetched here and handed to the caller to save.
+export async function apiDownload(path) {
+  const token = getToken();
+  let res;
+  try {
+    res = await fetch(`/api${path}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+  } catch {
+    throw new Error("Can't reach the server. Is the backend running?");
+  }
+  if (res.status === 401) {
+    clearToken();
+    throw new AuthError("Your session has expired. Please sign in again.");
+  }
+  if (!res.ok) throw new Error(`Export failed (${res.status}).`);
+
+  const disposition = res.headers.get("Content-Disposition") || "";
+  const match = /filename="?([^"';]+)"?/.exec(disposition);
+  return { blob: await res.blob(), filename: match ? match[1] : "export" };
+}
+
 // Mutating request (PUT/POST) with a JSON body. Returns the parsed response,
 // or null for a 204 No Content.
 export async function apiSend(path, method, body) {

@@ -14,8 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import device_guard, user_guard
 from ..notifications.service import notification_service
-from ..notifications.wikipedia import update_species_wiki_url
+from ..species.enrichment import enrich_species
 from ..species.operations import get_species
+from . import export as export_ops
 from .operations import create_sighting, get_sighting, list_sightings
 from .schemas import SightingResponse
 
@@ -85,6 +86,56 @@ class SightingController(Controller):
         )
         return [_to_response(s) for s in sightings]
 
+    @get("/export", guards=[user_guard])
+    async def export(
+        self,
+        request: Request,
+        db: NamedDependency[AsyncSession],
+        fmt: FromQuery[str] = "csv",
+        device_id: FromQuery[int | None] = None,
+        species_id: FromQuery[int | None] = None,
+        from_date: FromQuery[str | None] = None,
+        to_date: FromQuery[str | None] = None,
+    ) -> Response:
+        """Download sighting history as CSV or JSON, scoped to this user.
+
+        Returned as an attachment so a browser saves it rather than rendering.
+        Image bytes are excluded — each row carries `image_url` instead, since
+        inlining them would make the file enormous.
+        """
+        fmt = fmt.lower()
+        if fmt not in {"csv", "json"}:
+            raise HTTPException(status_code=400, detail="fmt must be 'csv' or 'json'")
+
+        try:
+            from_dt = datetime.fromisoformat(from_date) if from_date else None
+            to_dt = datetime.fromisoformat(to_date) if to_date else None
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="from_date/to_date must be ISO-8601 (e.g. 2026-07-19 or 2026-07-19T10:00:00)",
+            )
+
+        rows = await export_ops.collect_rows(
+            db,
+            request.state.user_id,
+            device_id=device_id,
+            species_id=species_id,
+            from_date=from_dt,
+            to_date=to_dt,
+        )
+
+        name = export_ops.filename(fmt)
+        headers = {"Content-Disposition": f'attachment; filename="{name}"'}
+
+        if fmt == "csv":
+            return Response(
+                content=export_ops.to_csv(rows),
+                media_type="text/csv",
+                headers=headers,
+            )
+        return Response(content=rows, media_type="application/json", headers=headers)
+
     @post("/", guards=[device_guard], status_code=201)
     async def create(
         self,
@@ -119,10 +170,15 @@ class SightingController(Controller):
         asyncio.create_task(
             notification_service.dispatch(sighting.id, sighting.device_id)
         )
-        if species is not None and species.wiki_url is None:
+        # Enrich once, on first sighting: anything still missing gets filled in
+        # (wiki URL, description, family, order). Skipped when already complete
+        # so a busy feeder doesn't hammer Wikipedia/GBIF on every visit.
+        if species is not None and not (
+            species.wiki_url and species.description and species.family
+        ):
             sci = f"{species.genus} {species.species_name}".strip()
             asyncio.create_task(
-                update_species_wiki_url(species.id, species.common_name, sci)
+                enrich_species(species.id, species.common_name, sci)
             )
 
         return _to_response(sighting)
