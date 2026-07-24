@@ -1,9 +1,12 @@
 import os
 from dataclasses import dataclass
+from pathlib import Path
 
 from dotenv import load_dotenv
 
 load_dotenv()
+
+_ROOT = Path(__file__).parents[1]
 
 
 @dataclass
@@ -14,9 +17,12 @@ class Settings:
     MODEL_NAME: str = os.getenv("MODEL_NAME", "tf_efficientnet_b4.ns_jft_in1k")
     # path to .pth weights file; when set, loaded on top of the model architecture
     MODEL_PATH: str | None = os.getenv("MODEL_PATH")
-    # taxonomy CSV — same format as the Pi's Tier 1 taxonomy
+    # taxonomy CSV — same format as the Pi's Tier 1 taxonomy.
+    # Resolved relative to the repo root, not the CWD: `python -m inference_server`
+    # has to run from the root for the package to import, which the old
+    # "../machine_learning/..." default pointed outside of.
     TAXONOMY_PATH: str = os.getenv(
-        "TAXONOMY_PATH", "../machine_learning/taxonomy.csv"
+        "TAXONOMY_PATH", str(_ROOT / "machine_learning" / "taxonomy.csv")
     )
     # input image size expected by the model (square)
     IMAGE_SIZE: int = int(os.getenv("IMAGE_SIZE", "380"))
