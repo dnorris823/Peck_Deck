@@ -43,7 +43,7 @@ function SightingTile({ s, onClick }) {
         <div className="tile-name">{s.species.common}</div>
         <div className="tile-foot">
           <span className="tile-time">{fmtDateLabel(s.datetime)} · {s.device.name}</span>
-          <span className="tile-time" style={{ color: "var(--ink-soft)" }}>{s.tier.toUpperCase()}</span>
+          <span className="tile-time">{s.tier.toUpperCase()}</span>
         </div>
       </div>
     </div>
@@ -177,7 +177,8 @@ export function Sightings({ openSighting }) {
         ))}
 
         <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <select value={species} onChange={e => setSpecies(e.target.value === "all" ? "all" : Number(e.target.value))}
+          <select value={species} aria-label="Filter by species"
+            onChange={e => setSpecies(e.target.value === "all" ? "all" : Number(e.target.value))}
             style={{ width: 200 }}>
             <option value="all">All species</option>
             {SPECIES.map(s => <option key={s.id} value={s.id}>{s.common}</option>)}

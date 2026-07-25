@@ -8,10 +8,10 @@ RTX 5080 gaming PC in hand — so real progress ships from anywhere, including a
 phone — then land the remaining hardware bring-up in one focused pass once you're
 back at the bench.
 
-Phases 0–3 are complete. Phase 4 (hardware) is parked until the bench is
-available; **Phases 5–8 are all cloud/mobile** and keep the app moving in the
-meantime — a live device simulator, deeper analytics, a mobile PWA, and
-production hardening.
+Phases 0–3 and 5–8 are complete — a live device simulator, deeper analytics, an
+installable PWA with web push, and production hardening all shipped without
+touching hardware. **Phase 4 (hardware) is the only phase still open**, parked
+until the bench is available.
 
 ---
 
@@ -279,20 +279,79 @@ themes.)*
 *A native app is a v1 non-goal (PRD §3) — a PWA closes most of that gap and is
 exactly what pays off "while on mobile."*
 
-- [ ] **Installable PWA** — web app manifest (icons, name, theme color), a
-  service worker for offline shell caching, and "Add to Home Screen" support.
-- [ ] **Offline-tolerant reads** — cache the last-loaded sightings/species so the
-  app opens to content on a flaky connection (write paths stay online-only).
-- [ ] **Web push notifications** — opt-in browser push for new sightings as a
-  fourth delivery channel alongside email/SMS, wired into the existing
-  fire-and-forget notification service (mockable in CI).
-- [ ] **Mobile-first polish** — build on the Phase 2 off-canvas nav: touch-target
-  sizing, pull-to-refresh on the feed, image lazy-loading, and lighthouse/PWA
-  audit fixes.
+- [x] **Installable PWA** — `frontend/public/manifest.webmanifest` (name, scope,
+  standalone display, brand `background_color`/`theme_color`, home-screen
+  shortcuts that deep-link via `?screen=`), icons rendered from the sidebar's own
+  brand mark by `scripts/generate_pwa_icons.py` (192/512/maskable/apple-touch),
+  and a **hand-written** service worker.
+  Hand-written rather than plugin-generated because the app wants three different
+  strategies: network-first for the shell (so a deploy is picked up), cache-first
+  for content-addressed assets (which can't go stale), network-first-with-fallback
+  for API reads. It never caches a non-GET or a non-200, so a 401 can't outlive
+  the session, and it does **not** `skipWaiting` — a new worker takes over on the
+  next visit instead of swapping caches out from under a running page.
+  Registration is production-only (a worker in front of the Vite dev server
+  serves stale modules and fights HMR), so `vite preview` now proxies `/api` too.
+- [x] **Offline-tolerant reads** — the last successful set of API payloads is kept
+  in localStorage and re-mapped on open, so the app paints content on the *first*
+  render rather than a spinner. The **raw** payloads are stored and `loadAll` was
+  split into `fetchRaw` + `mapAll`: a JSON round trip would hand the pages
+  `datetime` as a string, and a second mapper would drift from the first. Cleared
+  on sign-out and on an expired session — it holds one user's records. Writes stay
+  online-only: this is a read cache, not a sync queue.
+  The banner needs `navigator.onLine` **as well as** the stale flag, because with
+  the worker installed an offline load *succeeds* (answered from cache), so
+  nothing in the data layer knows anything is wrong.
+- [x] **Web push notifications** — a fourth channel in the same fire-and-forget
+  `NotificationService`, implemented against the specs on `cryptography` +
+  `aiohttp` (RFC 8291 `aes128gcm` payload encryption, RFC 8292 VAPID) rather than
+  via `pywebpush`, which is synchronous and would need a thread per send.
+  Three decisions worth keeping: the VAPID public key is **derived** from the
+  private key (a mismatched pair would fail only at delivery time, on every send);
+  a subscription row **is** the opt-in, so there's no `notify_push` flag to keep in
+  sync with it and `endpoint` is unique because re-subscribing must replace the
+  row, not add one that delivers every alert twice; and subscriptions are loaded
+  once per dispatch *before* sending, so concurrent per-recipient sends never
+  share the `AsyncSession`. A 404/410 prunes the row; a 429/500 leaves it.
+  Push writes are deliberately **not** on the demo-mode allowlist — every demo
+  visitor shares one account, so one subscription would push every later sighting
+  to all the others' browsers.
+- [x] **Mobile-first polish** — pull-to-refresh, *implemented* rather than
+  inherited: the browser's own gesture reloads the document and throws away the
+  React tree for what is only a data refresh (`overscroll-behavior-y: contain`
+  suppresses it). 44px touch targets and 16px inputs under `pointer: coarse` only,
+  so the desktop layout doesn't loosen. Safe-area insets now that
+  `viewport-fit=cover` claims the notch.
+  Lighthouse (mobile): **accessibility 100, best practices 100** — fixed a real
+  `--ink-mute`-on-paper contrast failure in the gallery tile foot and an unlabelled
+  species `<select>`, and added a `robots.txt` so the SPA fallback stops serving
+  HTML at that path. The two remaining audit failures are deliberate: `is-crawlable`
+  (a private dashboard should not be indexed) and `llms-txt` (not applicable).
+- [x] **Sighting photos are visible at all** — not originally scoped, but
+  "image lazy-loading" presupposed images and the gallery only ever showed the
+  stylized species plate, so every frame the Pi uploaded was invisible in the app.
+  `loading="lazy"` cannot do this: `GET /sightings/{id}/image` needs a JWT and an
+  `<img src>` carries no headers. An IntersectionObserver starts an authed blob
+  fetch just before a tile scrolls in, with the plate as placeholder *and*
+  fallback, and the object URL revoked on unmount. Eagerly loading a 100-tile
+  gallery at ~300 KB a frame is most of a phone's data plan.
 
 **Exit criteria:** Peck Deck installs to a phone home screen, opens offline to
 cached content, and can push a new-sighting alert — verifiable against the
-Phase 5 simulator with no hardware.
+Phase 5 simulator with no hardware. ✅ *(32 backend push tests, 4 live-socket push
+contract tests, 71 new frontend tests — 58 → 129. Verified in Chrome at a 390px
+viewport against the real 135-sighting database: worker activated, shell + assets
++ API + image bytes cached, a full offline reload paints real content behind the
+"You're offline" banner, and the capture photo from the hardware bring-up renders
+in the gallery.)*
+
+> **Also fixed during this phase** (unrelated landmine): `docker-compose.test.yml`
+> shared the default compose project **and** the service name `db` with
+> `docker-compose.yml`, so `scripts/run_integration.sh` recreated the developer's
+> running dev database container as the test one and then deleted it on exit. The
+> dev data survived only because `pg_data` is declared in the other file and so
+> was out of that project's reach. The test stack now declares its own project
+> name. (Found the hard way, twice, during this phase.)
 
 ---
 
@@ -351,9 +410,13 @@ Phase 0 first: CI + accurate docs make every later phase safer and faster. Phase
 and 2 are independent and can leapfrog based on what you feel like building. Phase 3
 ties them together. **Phase 5 is the unlock for the rest** — a simulator means
 Phases 6–8 (and even a dry-run of Phase 4's flow) are all visually verifiable from
-a phone. Phases 6, 7, and 8 are independent of each other; pick by mood. Phase 4
-still waits for the hardware — by then everything feeding into it is proven twice
-over: once by the tests, once by the simulator.
+a phone. Phases 6, 7, and 8 are independent of each other; pick by mood.
+
+That order held: everything except Phase 4 is done. **Phase 4 is what's left**,
+and by now everything feeding into it is proven twice over — once by the tests,
+once by the simulator. The open items are all *substance* rather than plumbing: a
+trigger sensor wired to the header, real model weights for both tiers, a
+`CLAUDE_API_KEY` for the Tier 3 relay, and one real bird.
 
 ---
 

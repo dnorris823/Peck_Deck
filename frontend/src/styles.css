@@ -662,11 +662,18 @@ a { color: inherit; }
 .tile-img .corner-r {
   position: absolute;
   top: 8px; right: 8px;
+  /* The element carries both .corner and .corner-r, so it inherits left: 8px and
+     stretched the full width of the tile. Invisible while the tile showed a pale
+     plate; obvious as a translucent bar once real photos landed behind it. */
+  left: auto;
 }
 .tile-body { padding: 11px 13px 13px; }
 .tile-name { font-family: var(--display); font-style: italic; font-size: 17px; line-height: 1.05; }
 .tile-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
-.tile-time { font-family: var(--mono); font-size: 10px; color: var(--ink-mute); letter-spacing: 0.05em; }
+/* --ink-soft, not --ink-mute: at 10px the mute step is ~3.5:1 on paper, which
+   Lighthouse (rightly) fails. The tier label to its right carries the same
+   color; right-alignment is what separates the two, not a lightness step. */
+.tile-time { font-family: var(--mono); font-size: 10px; color: var(--ink-soft); letter-spacing: 0.05em; }
 
 /* ---------- Species library ---------- */
 .species-grid {

@@ -16,11 +16,12 @@ Peck_Deck/
 │   ├── taxonomy.csv           # Maps model output indices → species names
 │   └── yolo_test.ipynb        # YOLOv5n proof-of-concept notebook
 ├── backend/                   # Python REST API (Litestar)
-│   ├── notifications/         # Email (SendGrid) + SMS (Twilio) + Wikipedia lookup
+│   ├── notifications/         # Email (SendGrid) + SMS (Twilio) + web push + Wikipedia
 │   ├── simulator.py           # Virtual feeder — drives the real Pi client (Phase 5)
 │   └── demo.py                # DEMO_MODE: boot seed + read-only enforcement
 ├── inference_server/          # GPU inference server (RTX 5080, gaming PC)
-├── frontend/                  # React web app (M5, built)
+├── frontend/                  # React web app (M5, built) — installable PWA
+│   └── public/                # Web manifest, service worker, app icons (Phase 7)
 └── requirements.txt
 ```
 
@@ -34,7 +35,8 @@ Peck_Deck/
 | Media storage | Images stored as **bytea** in PostgreSQL (not on disk) |
 | Deployment | **Docker + docker-compose** (two containers: `api` + `db`) |
 | GPU inference server | Python + **FastAPI** + PyTorch/timm, RTX 5080 |
-| Notifications | SendGrid (email), Twilio (SMS) — fire-and-forget |
+| Notifications | SendGrid (email), Twilio (SMS), web push (VAPID) — fire-and-forget |
+| Web app install | PWA: web manifest + hand-written service worker (no build plugin) |
 | Cloud classification | Claude API (Anthropic) multimodal — M6 |
 | Auth | JWT (users) + device token (Pi devices) |
 
@@ -54,6 +56,8 @@ The Pi falls back from Tier 1 → 2 → 3 based on availability and confidence t
 - **Pi code is self-contained** — `raspberry_pi_code/` must run independently of the backend (it calls the API over HTTP).
 - **Pi sighting upload is a single multipart POST** — Pi sends image bytes + metadata together to `POST /sightings`.
 - **Notifications are fire-and-forget** — `asyncio.create_task()` in the sighting controller; notification service opens its own DB session.
+- **A push subscription row *is* the push opt-in** — there is no `notify_push`
+  column to keep in sync with it. Deleting the row is how push is turned off.
 - **Secrets in env vars** — API keys (Claude, SendGrid, Twilio) go in `.env` files, never committed.
 - **Schema is owned by Alembic** — never `create_all()` in app code. Change a
   model → generate a migration. The container applies migrations on start.
@@ -95,6 +99,41 @@ The allowlist in `backend/demo.py` is the whole security surface — the check r
 as ASGI middleware, *before* any guard, so it decides on method + path alone.
 Adding a device-facing route means adding it there too.
 
+## PWA & Web Push (Phase 7)
+The web app installs to a phone home screen, opens offline to cached content, and
+can deliver a new-sighting alert as a browser notification.
+
+```bash
+# The service worker only registers in a production build, so this is how the
+# PWA (install prompt, offline reload, push) is exercised locally:
+cd frontend && npm run build && npm run preview   # :4173, /api proxied
+
+# Generate a VAPID keypair for push, then put it in .env (see .env.example)
+python scripts/generate_vapid_keys.py
+
+# Re-render the app icons after changing the brand mark (needs Pillow)
+python scripts/generate_pwa_icons.py
+```
+
+| Piece | Where | Notes |
+|---|---|---|
+| Manifest + icons | `frontend/public/` | Icons are generated from the sidebar's own brand mark and committed. |
+| Service worker | `frontend/public/sw.js` | Hand-written: network-first shell, cache-first hashed assets, network-first-with-fallback API reads. Never caches a non-GET or a non-200, so a 401 can't outlive the session. No `skipWaiting` — a new worker takes over on the next visit. |
+| Offline reads | `frontend/src/offline.js` | Last raw API payloads in localStorage, re-mapped through `mapAll` on open. Cleared on sign-out. **Reads only** — no write queue. |
+| Push transport | `backend/notifications/push_sender.py` | RFC 8291 encryption + RFC 8292 VAPID on `cryptography` + `aiohttp`. Not `pywebpush`, which is synchronous and would need a thread per send. |
+| Push routes | `GET /push/config`, `POST`/`DELETE /push/subscriptions` | Config reports `enabled:false` when no keys are set, and the web app hides the opt-in. |
+
+Notes that will bite otherwise:
+- **The VAPID public key is derived from the private key**, never read from
+  `VAPID_PUBLIC_KEY` (which is only cross-checked). A mismatched pair fails only
+  at delivery time, on every send.
+- **Keep the keypair stable.** Browsers bake the public key into their
+  subscription; rotating it silently invalidates every existing subscription.
+- **Push subscription writes are blocked in `DEMO_MODE`** and deliberately not on
+  the allowlist — every demo visitor shares one account, so one subscription
+  would push every later sighting to all the others' browsers.
+- A 404/410 from a push service prunes the subscription; a 429/500 leaves it.
+
 ## Running Locally
 ```powershell
 # Start backend + database (from project root)
@@ -119,7 +158,7 @@ running app:
 |---|---|
 | `http://localhost:8000/schema` | Interactive docs (Swagger UI / ReDoc) |
 | `http://localhost:8000/schema/openapi.json` | Raw OpenAPI 3.1 document |
-| `docs/openapi.json` | Committed snapshot — 25 paths, 32 operations |
+| `docs/openapi.json` | Committed snapshot — 27 paths, 36 operations |
 
 Both auth schemes are documented in the spec (`UserJWT`, `DeviceToken`), so the
 Pi/frontend contract is self-describing.
@@ -224,9 +263,9 @@ Milestones M1–M6 are merged to `main`:
 - **M6 — Claude API Tier 3** — built; `POST /classify` relays to the Claude multimodal API.
 - Wikipedia URL lookup (PRD §9.1) — built.
 
-FLEDGE roadmap Phases 0–3, 5, 6 and 8 are complete: CI + docs, backend
-hardening, frontend polish, the integration/contract suite (real Postgres +
-live-server seam tests), the device simulator + demo mode, analytics/export, and
-production readiness. Remaining work is tracked in `FLEDGE_ROADMAP.md`.
-**Phase 4 — physical hardware bring-up** (trigger sensor, real model weights)
-and **Phase 7 — PWA** are still open.
+FLEDGE roadmap Phases 0–3 and 5–8 are complete: CI + docs, backend hardening,
+frontend polish, the integration/contract suite (real Postgres + live-server seam
+tests), the device simulator + demo mode, analytics/export, the installable PWA
+with web push, and production readiness. Remaining work is tracked in
+`FLEDGE_ROADMAP.md`. **Phase 4 — physical hardware bring-up** (trigger sensor,
+real model weights) is the only phase still open.
