@@ -270,6 +270,11 @@ battery, no external power at the feeder" is a legitimate design goal — but it
 worth confirming it's still a goal you want, rather than one inherited from an
 early draft. If it is, rung C/D is the answer and this section is moot.
 
+> **DECIDED (§12 Q1):** the chosen covered-deck mount (§8.3) has an outdoor mains
+> outlet, so this is a straight rung E — but simpler than PoE or a 24 V run,
+> because the outlet is already *at* the feeder. The delivery details (official
+> 27 W supply, weatherproof outlet cover, drip loop) live in §8.3.
+
 ### 2.8 Power bank gotcha (rung A)
 
 Most USB power banks **auto-shut-off below a minimum load** — typically 50–100 mA
@@ -916,8 +921,30 @@ software and optics are settled and power is the only remaining variable.
 
 This is the **DECIDED** long-term home (§12 Q2): the enclosure bolted to the
 house wall under the roof of a raised, covered outdoor deck. It behaves like the
-eave mount (§8.2) — pre-shaded, good WiFi, mains likely within reach, no frost
-heave — with one difference that matters, covered below.
+eave mount (§8.2) — pre-shaded, good WiFi, no frost heave — and it has a
+confirmed **outdoor mains outlet on the deck**, which makes it **rung E** (§2.7):
+power is a solved problem, not a battery-life exercise. One difference from the
+eave still matters — squirrel access — covered below.
+
+**Powering it from the deck outlet.** The clean off-the-shelf path is the
+**official Raspberry Pi 5 27 W USB-C PD supply** plugged into the deck outlet,
+with its lead routed into the enclosure through a bottom/side gland and a **drip
+loop** (§3.5). Two things make this the low-drama choice:
+
+- Because it's the official supply, the Pi negotiates 5 V @ 5 A and enables full
+  peripheral current on its own — you skip the `usb_max_current_enable=1` dance
+  and, more importantly, the power-bank auto-sleep failure mode entirely (§2.8
+  simply doesn't apply).
+- **The adapter is not weatherproof.** Keep it dry under a weatherproof **"in-use"
+  / bubble outlet cover** (outdoor outlets should already be GFCI — confirm it
+  is), or house the adapter inside the enclosure and bring 120 V AC in through
+  its own gland. Either way the mains brick never sees rain, and every cable
+  through the wall gets a drip loop.
+
+A UPS is optional but cheap insurance: the gaming-PC backend already rides out
+power blips on the Pi's offline queue (§7.2), so a brief deck-outlet outage just
+pauses captures rather than corrupting anything — provided you did the SD-card
+hardening in §7.3.
 
 ```
         \=================================\   <- deck cover / roof
@@ -1044,7 +1071,9 @@ through a battery-powered box on a pole is worth two days.
 
 ## 11. Shopping List
 
-Minimum viable outdoor build, rung A power, perch-switch trigger:
+Minimum viable outdoor build, **rung E mains power** (§8.3), perch-switch trigger.
+Reflects the decided covered-deck mount, so the pole and baffle are dropped and
+mains parts replace the power bank:
 
 | Item | Approx. | Notes |
 |---|---|---|
@@ -1052,25 +1081,25 @@ Minimum viable outdoor build, rung A power, perch-switch trigger:
 | Pressure-equalisation vent (Gore PolyVent / Bud PMF) | $8 | **Do not skip.** §3.3 |
 | Cable gland variety pack (PG7/PG9 nylon) + blanking plugs | $10 | Match gland range to cable diameter |
 | Rechargeable silica gel desiccant, colour-indicating | $10 | 50 g, plus a spare to rotate |
-| USB-C PD power bank, 25,000 mAh, **"always-on" / low-current mode** | $50 | §2.2 rung A, §2.8 |
-| 5 A-rated / e-marked USB-C cable, short | $10 | Undersized cable = brownouts that look like software bugs |
+| **Official Raspberry Pi 5 27 W USB-C PD supply (5 V/5 A)** | $14 | **The power cable for the deck outlet.** Enables full peripheral current automatically — skips §2.8 entirely. §8.3 |
+| Weatherproof "in-use" / bubble outlet cover | $12 | Keeps the mains adapter dry at the deck outlet. Confirm the outlet is GFCI. §8.3 |
 | SPDT roller-lever microswitch (10-pack) | $8 | §4.3 |
 | Aluminium plate + thermal pad | $12 | Pi heatsink → enclosure wall. §3.2 |
-| 1-inch smooth steel feeder pole | $30 | Not wood |
-| Wrap-around squirrel baffle, ≥15 in diameter | $30 | §6.1 |
-| Flexible metal conduit + fittings, 10 ft | $15 | Cable protection. §6.3 |
-| Acrylic/glass disc + clear silicone (if opaque enclosure) | $10 | Camera window. §5.2 |
+| Lag bolts / French cleat + wall anchors for the wall mount | $10 | Into a stud, not just siding. §8.3 |
+| Dome baffle (mounted above, against drop-in squirrels) | $20 | §6.2, §8.3 — the cover is a drop-in route |
+| Flexible metal conduit + fittings, 10 ft | $15 | Cable protection — the real squirrel defence. §6.3 |
+| Acrylic/glass disc + clear silicone (if opaque enclosure) | $10 | Camera window. Glass, since squirrels contact it. §5.2 |
 | Black adhesive felt / foam (lens light seal) | $6 | §5.2 — small part, large effect |
-| **Total** | **~$225** | |
+| **Total** | **~$170** | |
 
 Deferred until the shakedown tells you it's needed:
 
 | Item | Approx. | Trigger to buy |
 |---|---|---|
-| 12 V 20 Ah LiFePO4 + low-temp-cutoff BMS + 5 A buck | $120 | Rung A swap interval is too short |
-| 100 W solar panel + MPPT + steep-tilt mount | $180 | You're committed to the pole *and* to off-grid |
-| Outdoor mesh node / directional antenna | $70 | Pole RSSI survey comes back worse than −75 dBm |
-| PoE injector + splitter + outdoor Cat6 | $60 | You decide the eave is the permanent home (§2.7) |
+| USB-C PD power bank, 25,000 mAh, **"always-on" / low-current mode** | $50 | Only if you run the Stage 3 battery de-risk (§10) or ever want an untethered spot. §2.2 rung A, §2.8 |
+| Small UPS / battery backup for the deck outlet | $40 | If deck-outlet blips prove disruptive despite the offline queue. §8.3 |
+| 12 V 20 Ah LiFePO4 + low-temp-cutoff BMS + 5 A buck | $120 | Only relevant if you abandon mains for a yard pole after all |
+| Outdoor mesh node / directional antenna | $70 | Deck-mount RSSI survey comes back worse than −75 dBm |
 | USB SSD boot drive | $30 | After your first SD card corruption, or before it |
 
 ---
@@ -1085,9 +1114,13 @@ revisited.
    inherited assumption?** It's the constraint driving the most cost and
    complexity here. If the eave is acceptable long-term, §2.7 removes most of
    this document's difficulty. Worth an explicit decision either way.
-   *Still open — but note the §8.3 covered-deck mount almost certainly puts a
-   mains outlet within reach, which would resolve this in favour of "not a
-   requirement." Confirm the outlet before committing.*
+   **DECIDED: not a requirement.** The chosen covered-deck mount (§8.3) has an
+   outdoor mains outlet, so this is **rung E** (§2.2, §2.7) — mains at the
+   feeder. That treats it as an inherited assumption from an early draft, not a
+   live constraint. Consequence: the battery ladder (§2.2 A–D), the cold-charging
+   problem (§2.5), and solar sizing (§2.6) all become optional / de-risk-only.
+   Duty cycling (§2.4) is still worth keeping for the thermal saving, not for
+   runtime.
 2. **Pole or eave as the permanent home?** They have opposite strengths, and §10
    suggests using both in sequence — but the long-term answer changes the
    battery, network, and baffle spend.
@@ -1105,11 +1138,11 @@ revisited.
 4. **How often are you willing to walk out there?** Every power decision reduces
    to this number. Weekly is easy and cheap; monthly needs rung C; never needs
    mains or a well-sized solar array.
-   **DECIDED: weekly.** On battery this points to **rung B** (~4 days gated) as
-   the floor, or **rung C** (~6 days gated, ~4.5 in January) for real weekly
-   margin — but if the deck outlet in Q1 pans out, mains (rung E) makes the walk
-   a *maintenance* visit (desiccant, lens, queue check), not a battery swap, and
-   weekly is trivially met.
+   **DECIDED: weekly — and it's a maintenance walk, not a battery swap.** With
+   mains confirmed at the deck (Q1 → rung E), the weekly visit is desiccant
+   check, lens/window clean (weekly in smoke season, §5.4), and a queue/telemetry
+   glance — none of it power-driven. The battery cadence math (rung B/C) only
+   matters if you later run the Stage 3 battery de-risk (§10).
 5. **What's your real accuracy on wild birds?** Unknown until Stage 1. It may
    reorder these priorities entirely — if real-world top-1 is 70%, that's a bigger
    problem than any enclosure question.
