@@ -24,7 +24,10 @@ Peck Deck is a smart bird feeder system that automatically detects bird visits, 
 
 ## 3. Non-Goals (v1)
 
-- Mobile native app (web app only for v1).
+- Mobile native app (web app only for v1). *Partly addressed since: FLEDGE Phase 7
+  made the web app an installable PWA that opens offline and receives push
+  notifications — most of what the native app would have been for, without an app
+  store.*
 - Internet-accessible deployment (local network first; remote access is a future option).
 - Multi-feeder fleet management.
 - Real-time video streaming.
@@ -207,6 +210,12 @@ Species records are created on-demand — the table is empty at startup and a ne
 | POST | /species | Add a species record |
 | GET | /species/{id} | Get species detail |
 | POST | /classify | Accept an image, return species prediction (Tier 2 GPU endpoint) |
+| GET | /push/config | VAPID public key for web push (§7.3), or `enabled:false` |
+| POST | /push/subscriptions | Register this browser for push |
+| DELETE | /push/subscriptions | Forget this browser's subscription |
+
+*The table above is the original design sketch. The generated OpenAPI document
+(`/schema/openapi.json`, snapshot in `docs/openapi.json`) is the actual contract.*
 
 ---
 
@@ -234,8 +243,28 @@ Sender: Twilio phone number.
 - `🐦 Peck Deck: [Common Name] at [Device Name] — sighting #[N]. [Wikipedia URL]`
 - Media URL to the captured image (MMS if supported).
 
-### 7.3 Notification Rules
-- Users can toggle email and SMS notifications independently in their profile settings.
+### 7.3 Web Push Notification
+
+*Added in FLEDGE Phase 7 — not in the original v1 scope. It is what makes the
+installable web app (§3) close most of the gap to the native app v1 rules out:
+alerts arrive with the app closed.*
+
+Sender: this server itself, identified by a VAPID keypair (RFC 8292). There is no
+vendor — the browser nominates its own push service and the payload is encrypted
+for the browser (RFC 8291), so the service relays ciphertext it cannot read.
+
+**Notification contains:**
+- Title: `[Common Name] at [Device Name]`
+- Body: confidence, sighting number at this feeder, and the device's location.
+- Tapping it focuses an open tab, or opens the app.
+
+Opt-in is per **browser**, not per account: a stored subscription *is* the
+consent, and it is granted from Settings → Notifications on the device that wants
+alerts. Requires the service worker, so it is unavailable on a dev server.
+
+### 7.4 Notification Rules
+- Users can toggle email and SMS notifications independently in their profile
+  settings; web push is toggled per browser (see §7.3).
 - A minimum interval between notifications per device (configurable, default 60s) prevents spam during a long visit.
 - Notification failures are logged but do not block the sighting from being saved.
 
@@ -272,7 +301,7 @@ Sender: Twilio phone number.
 
 #### Settings
 - Classification tier preference (global default).
-- Email and SMS notification toggles.
+- Email, SMS, and browser-push notification toggles (push is per browser — §7.3).
 - API key management (Claude API key for Tier 3, SendGrid key, Twilio credentials).
 - Account details (name, email, phone, password change).
 
@@ -315,7 +344,7 @@ The resolved URL and a short description (from the API when available) are store
 
 - All API endpoints except `/login` require a valid JWT.
 - Passwords stored as bcrypt hashes only.
-- API keys (Claude, SendGrid, Twilio) stored in environment variables or a secrets file on the gaming PC, never committed to version control.
+- API keys (Claude, SendGrid, Twilio) and the VAPID push signing key stored in environment variables or a secrets file on the gaming PC, never committed to version control.
 - Pi authenticates to the backend API using a device-specific token (not a user JWT).
 - Media files stored in a local directory not directly served without auth.
 

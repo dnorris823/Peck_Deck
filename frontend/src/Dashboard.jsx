@@ -1,6 +1,6 @@
 // Dashboard — recent feed, stats, device status, activity heatmap
 import React from "react";
-import { BirdPlate } from "./BirdPlate.jsx";
+import { SightingImage } from "./SightingImage.jsx";
 import { Icon } from "./Icon.jsx";
 import { Empty } from "./Empty.jsx";
 import { Insights } from "./Insights.jsx";
@@ -54,7 +54,7 @@ function FeedItem({ s, onClick }) {
   return (
     <div className="feed-item" onClick={() => onClick(s)}>
       <div className="feed-thumb">
-        <BirdPlate species={s.species} showLabel={false} />
+        <SightingImage sighting={s} />
       </div>
       <div>
         <div className="feed-time">

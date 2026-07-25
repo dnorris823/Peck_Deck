@@ -77,6 +77,10 @@ body {
     radial-gradient(var(--dot-2) 1px, transparent 1px);
   background-size: 3px 3px, 7px 7px;
   background-position: 0 0, 1px 2px;
+  /* Suppress the browser's own pull-to-refresh, which reloads the whole document
+     — throwing away the React tree and the current screen — for what is only a
+     data refresh. The app implements the gesture itself (Offline.jsx). */
+  overscroll-behavior-y: contain;
 }
 button, input, select, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; border: none; background: none; padding: 0; }
@@ -658,11 +662,18 @@ a { color: inherit; }
 .tile-img .corner-r {
   position: absolute;
   top: 8px; right: 8px;
+  /* The element carries both .corner and .corner-r, so it inherits left: 8px and
+     stretched the full width of the tile. Invisible while the tile showed a pale
+     plate; obvious as a translucent bar once real photos landed behind it. */
+  left: auto;
 }
 .tile-body { padding: 11px 13px 13px; }
 .tile-name { font-family: var(--display); font-style: italic; font-size: 17px; line-height: 1.05; }
 .tile-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; }
-.tile-time { font-family: var(--mono); font-size: 10px; color: var(--ink-mute); letter-spacing: 0.05em; }
+/* --ink-soft, not --ink-mute: at 10px the mute step is ~3.5:1 on paper, which
+   Lighthouse (rightly) fails. The tier label to its right carries the same
+   color; right-alignment is what separates the two, not a lightness step. */
+.tile-time { font-family: var(--mono); font-size: 10px; color: var(--ink-soft); letter-spacing: 0.05em; }
 
 /* ---------- Species library ---------- */
 .species-grid {
@@ -1217,4 +1228,123 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); }
 
 @media (max-width: 420px) {
   .stats-grid { grid-template-columns: 1fr; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FLEDGE Phase 7 — PWA & mobile
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ---------- Capture photo over the species plate ----------
+   The plate is the placeholder and the fallback, so it stays in the flow and the
+   photo is layered on top. Fading in stops a tile from flickering plate → photo
+   as the gallery scrolls. */
+.capture { position: absolute; inset: 0; }
+.capture .bird-plate { position: absolute; inset: 0; width: 100%; height: 100%; }
+.capture-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  animation: capture-in 240ms ease both;
+}
+@keyframes capture-in { from { opacity: 0; } to { opacity: 1; } }
+/* .capture fills its container absolutely, which works because all three of its
+   hosts — .tile-img, .modal-img and .feed-thumb — are already position: relative
+   for their corner badges. */
+
+/* ---------- Offline / stale-data banner ----------
+   Sky, not yolk or cardinal: demo mode already owns yolk, and being offline is
+   neither a warning about the instance nor an error — the content below is real,
+   just not current. */
+.offline-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 32px;
+  min-height: 38px;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: rgba(107, 155, 184, 0.16);
+  border-bottom: 1px solid rgba(107, 155, 184, 0.42);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.offline-banner-icon { width: 14px; height: 14px; flex: 0 0 auto; color: var(--sky-deep); }
+.offline-banner strong { font-weight: 600; }
+.offline-retry { margin-left: auto; flex: 0 0 auto; }
+
+/* ---------- Pull to refresh ----------
+   Height is driven inline by the drag, so the indicator physically follows the
+   finger instead of appearing at a fixed point. */
+.ptr {
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  transition: height 160ms ease;
+}
+.ptr-mark {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  padding: 6px 12px;
+  border: 1px solid var(--hairline);
+  border-radius: var(--r-pill);
+  background: var(--paper-2);
+  white-space: nowrap;
+}
+.ptr-mark.ready { color: var(--ink); border-color: var(--hairline-strong); }
+
+/* ---------- Touch targets & safe areas ----------
+   Pointer-coarse only: growing every chip and icon button on a mouse-driven
+   desktop would loosen the whole layout for no benefit. 44px is the smallest
+   reliably-hittable target on a phone. */
+@media (pointer: coarse) {
+  .icon-btn { width: 44px; height: 44px; }
+  .chip { padding: 11px 14px; }
+  .nav-item { padding: 12px 10px; }
+  .settings-nav button { min-height: 44px; }
+  .btn, .btn.sm { min-height: 44px; }
+  .toggle { min-height: 30px; }
+  /* Checkbox/radio inputs can't be padded into a bigger target. */
+  input[type="checkbox"], input[type="radio"] { width: 20px; height: 20px; }
+  /* iOS zooms the page when a focused input's text is under 16px. */
+  input, select, textarea { font-size: 16px; }
+}
+
+/* Installed on a phone the app owns the whole screen, notch included
+   (viewport-fit=cover in index.html), so anything against an edge needs the safe
+   inset added or it lands under the status bar / home indicator. */
+@supports (padding: env(safe-area-inset-left)) {
+  .topstack { padding-top: env(safe-area-inset-top); }
+  .topbar, .demo-banner, .offline-banner {
+    padding-left: max(32px, env(safe-area-inset-left));
+    padding-right: max(32px, env(safe-area-inset-right));
+  }
+  .page {
+    padding-left: max(32px, env(safe-area-inset-left));
+    padding-right: max(32px, env(safe-area-inset-right));
+    padding-bottom: calc(60px + env(safe-area-inset-bottom));
+  }
+  .rail { padding-left: max(18px, env(safe-area-inset-left)); }
+  @media (max-width: 720px) {
+    .topbar, .demo-banner, .offline-banner {
+      padding-left: max(16px, env(safe-area-inset-left));
+      padding-right: max(16px, env(safe-area-inset-right));
+    }
+    .page {
+      padding-left: max(16px, env(safe-area-inset-left));
+      padding-right: max(16px, env(safe-area-inset-right));
+      padding-bottom: calc(48px + env(safe-area-inset-bottom));
+    }
+    .toast { bottom: max(16px, env(safe-area-inset-bottom)); }
+  }
+}
+
+@media (max-width: 720px) {
+  .offline-banner { padding: 8px 16px; }
+  .offline-banner-icon { display: none; }
 }

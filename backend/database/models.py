@@ -64,6 +64,41 @@ class UserPreferences(Base):
     user: Mapped["User"] = relationship("User")
 
 
+class PushSubscription(Base):
+    """A browser's web-push endpoint — FLEDGE Phase 7.
+
+    One row per (user, browser). The row's *existence* is the opt-in: web push
+    can't be sent without the endpoint and keys the browser hands out at
+    subscribe time, so there is no separate "push enabled" flag to keep in sync
+    with it. Deleting the row is how a user turns push off.
+
+    ``endpoint`` is unique because the push service's URL identifies the browser
+    installation — re-subscribing (after a key rotation or a permission reset)
+    must update the existing row rather than accumulate duplicates that would
+    each deliver the same alert.
+    """
+
+    __tablename__ = "push_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
+    # The push service URL to POST the encrypted payload to.
+    endpoint: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    # Client keys from the PushSubscription, base64url (RFC 8291):
+    # p256dh is the browser's ECDH public key, auth is a 16-byte shared secret.
+    p256dh: Mapped[str] = mapped_column(String, nullable=False)
+    auth: Mapped[str] = mapped_column(String, nullable=False)
+    # Free-text label so a user can tell their phone from their laptop.
+    user_agent: Mapped[str | None] = mapped_column(String, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+
+    user: Mapped["User"] = relationship("User")
+
+
 class Device(Base):
     __tablename__ = "devices"
 

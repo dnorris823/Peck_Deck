@@ -1,0 +1,8 @@
+# Peck Deck is a private field station dashboard, not a public site — every
+# useful page is behind a login, so there is nothing here worth indexing.
+#
+# It also exists so /robots.txt returns a valid file instead of the SPA's
+# index.html, which the single-page fallback would otherwise serve to any crawler
+# (and which Lighthouse reports as an invalid robots.txt).
+User-agent: *
+Disallow: /
