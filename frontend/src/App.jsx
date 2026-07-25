@@ -12,7 +12,16 @@ import { Login } from "./Login.jsx";
 import { DataProvider, useData } from "./DataContext.jsx";
 import { AppearanceProvider, useAppearance } from "./Appearance.jsx";
 import { DemoProvider, DemoBanner } from "./Demo.jsx";
+import { OfflineBanner, PullToRefresh, useOnline } from "./Offline.jsx";
 import { getToken, clearToken } from "./api.js";
+import { clearSnapshot } from "./offline.js";
+
+// Home-screen shortcuts in the web manifest deep-link with ?screen=<id>, so a
+// long-press on the installed icon can open straight to Sightings or Species.
+function initialRoute() {
+  const wanted = new URLSearchParams(window.location.search).get("screen");
+  return NAV.some((n) => n.id === wanted) ? wanted : "dashboard";
+}
 
 export default function App() {
   return (
@@ -35,15 +44,22 @@ function AppRoot() {
 
   return (
     <DataProvider onAuthError={onAuthError}>
-      <AppShell onLogout={() => { clearToken(); setAuthed(false); }} />
+      <AppShell onLogout={() => {
+        // The offline snapshot holds this user's records — it must not survive
+        // them signing out on a shared phone.
+        clearSnapshot();
+        clearToken();
+        setAuthed(false);
+      }} />
     </DataProvider>
   );
 }
 
 function AppShell({ onLogout }) {
-  const { data, loading, error, reload } = useData();
+  const { data, loading, error, stale, reload } = useData();
   const { appearance } = useAppearance();
-  const [route, setRoute] = useState("dashboard");
+  const online = useOnline();
+  const [route, setRoute] = useState(initialRoute);
   const [openSighting, setOpenSighting] = useState(null);
   const [toast, setToast] = useState(null);
   const [navOpen, setNavOpen] = useState(false); // mobile off-canvas sidebar
@@ -84,8 +100,10 @@ function AppShell({ onLogout }) {
             lines on a phone can't slide it under the topbar. */}
         <div className="topstack">
           <DemoBanner />
+          <OfflineBanner stale={stale} offline={!online} loading={loading} onRetry={reload} />
           <Topbar route={route} onOpenNav={() => setNavOpen(true)} />
         </div>
+        <PullToRefresh onRefresh={reload} busy={loading} />
         <div className="page" data-screen-label={NAV.find(n => n.id === route)?.label || route}>
           {route === "dashboard" && <Dashboard openSighting={setOpenSighting} />}
           {route === "sightings" && <Sightings openSighting={setOpenSighting} />}

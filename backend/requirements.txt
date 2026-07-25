@@ -8,3 +8,7 @@ python-dotenv>=1.0
 uvicorn[standard]>=0.27
 aiohttp>=3.9
 anthropic>=0.40
+# Web push (FLEDGE Phase 7): ECDH + AES-GCM for RFC 8291 payload encryption and
+# the ES256 signature PyJWT needs for the VAPID token. Used instead of pywebpush,
+# which is synchronous (requests) and would need a thread per notification.
+cryptography>=42.0

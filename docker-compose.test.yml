@@ -4,6 +4,15 @@
 # database and runs the suite green end-to-end — no Raspberry Pi, no GPU.
 # (The backend and inference servers are started in-process by the tests via
 # uvicorn, so only Postgres needs a container here.)
+#
+# The explicit project name matters. Without it this file lands in the same
+# default project as docker-compose.yml — same project, same service name `db` —
+# so `up -d` here RECREATED the developer's running dev database container as the
+# test one, and the script's `down -v` on exit then deleted it. (The dev data
+# survived only because `pg_data` is declared in the other file and so was out of
+# this project's reach.) A separate project keeps the two stacks independent.
+name: peck_deck_test
+
 services:
   db:
     image: postgres:16

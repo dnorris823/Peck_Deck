@@ -1,6 +1,6 @@
 // Sightings gallery — filters + tile grid + detail modal
 import React, { useRef, useState, useMemo } from "react";
-import { BirdPlate } from "./BirdPlate.jsx";
+import { SightingImage } from "./SightingImage.jsx";
 import { Icon } from "./Icon.jsx";
 import { Empty } from "./Empty.jsx";
 import { useDialog } from "./Modal.jsx";
@@ -26,7 +26,7 @@ function SightingTile({ s, onClick }) {
   return (
     <div className="tile" onClick={() => onClick(s)}>
       <div className="tile-img">
-        <BirdPlate species={s.species} showLabel={false} />
+        <SightingImage sighting={s} />
         <span className="corner">{fmtTime(s.datetime)}</span>
         <span className={`corner corner-r feed-conf ${cls}`} style={{ background: undefined, padding: "3px 6px" }}>
           {Math.round(conf * 100)}%
@@ -43,7 +43,7 @@ function SightingTile({ s, onClick }) {
         <div className="tile-name">{s.species.common}</div>
         <div className="tile-foot">
           <span className="tile-time">{fmtDateLabel(s.datetime)} · {s.device.name}</span>
-          <span className="tile-time" style={{ color: "var(--ink-soft)" }}>{s.tier.toUpperCase()}</span>
+          <span className="tile-time">{s.tier.toUpperCase()}</span>
         </div>
       </div>
     </div>
@@ -65,7 +65,7 @@ export function SightingDetail({ s, onClose }) {
         <button className="modal-close" onClick={onClose} aria-label="Close dialog"><Icon name="x" className="" /></button>
         <div className="modal-grid">
           <div className="modal-img">
-            <BirdPlate species={s.species} showLabel={false} large />
+            <SightingImage sighting={s} large />
             <div style={{ position: "absolute", bottom: 14, left: 16, fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "0.16em", color: "rgba(28,38,32,0.75)", textTransform: "uppercase" }}>
               Plate № {String(s.id).padStart(4, "0")}
             </div>
@@ -177,7 +177,8 @@ export function Sightings({ openSighting }) {
         ))}
 
         <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <select value={species} onChange={e => setSpecies(e.target.value === "all" ? "all" : Number(e.target.value))}
+          <select value={species} aria-label="Filter by species"
+            onChange={e => setSpecies(e.target.value === "all" ? "all" : Number(e.target.value))}
             style={{ width: 200 }}>
             <option value="all">All species</option>
             {SPECIES.map(s => <option key={s.id} value={s.id}>{s.common}</option>)}
