@@ -3,7 +3,9 @@ import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-vi.mock("./api.js", () => ({ login: vi.fn() }));
+// fetchMeta is pulled in transitively by Demo.jsx (the demo-credentials
+// footnote on the card); stubbed here so the mocked module is complete.
+vi.mock("./api.js", () => ({ login: vi.fn(), fetchMeta: vi.fn() }));
 
 import { login } from "./api.js";
 import { Login } from "./Login.jsx";

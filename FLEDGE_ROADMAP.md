@@ -203,25 +203,37 @@ The static `backend/seed.py` gives a snapshot; this gives a **living** feed. It
 turns "I can't test the app without hardware" into "the app is always
 demonstrable."
 
-- [ ] **Virtual device / sighting generator** — a script (`backend/simulator.py`
-  or `scripts/simulate.py`) that authenticates as a device token and posts
-  realistic sightings to `POST /sightings` on an interval: rotating species from
-  `taxonomy.csv`, plausible confidence per tier, day/night visit weighting, and a
-  small bank of placeholder bird images.
-- [ ] **Continuous vs. burst modes** — one-shot backfill (N sightings over the
-  last M days) for populating history, and a live drip (one every few seconds)
-  to watch the dashboard, notifications, and "online" device status update in
-  real time.
-- [ ] **Demo Mode toggle** — an env-gated, read-only demo seed + a banner in the
-  frontend so a fresh clone (or a reviewer on their phone) lands on a populated,
-  clickable app with zero setup.
-- [ ] Contract-align the simulator with the real Pi client so it exercises the
-  exact `POST /sightings` multipart shape the hardware will use (reuse the
-  Phase 3 seam).
+- [x] **Virtual device / sighting generator** — `backend/simulator.py`
+  authenticates with a device token and posts realistic sightings to
+  `POST /sightings`: species drawn from `machine_learning/taxonomy.csv` (so every
+  simulated bird is one Tier 1 could actually predict) on a long-tail weighting,
+  confidence sampled from a per-tier band, dawn/dusk visit weighting, and
+  placeholder capture JPEGs drawn at run time from each species' palette.
+  With no `--device-token` it signs in and reads tokens off `GET /devices`, so a
+  seeded stack needs zero configuration.
+- [x] **Continuous vs. burst modes** — `--mode burst --count N --days M`
+  backfills history (marked `delayed=True`, which is what the offline-sync path
+  really uploads); `--mode live --interval S` drips one visit at a time so the
+  dashboard, notifications and device "online" status can be watched updating.
+- [x] **Demo Mode toggle** — `DEMO_MODE=1` seeds the demo dataset at boot when
+  the database is empty, refuses every user-authenticated write with 403, and
+  advertises itself on `GET /meta`. The frontend renders a banner and a
+  one-click sign-in with the published demo account. Device-token routes stay
+  open on purpose — that is what keeps the demo *live* rather than a static
+  snapshot of `backend/seed.py`.
+- [x] Contract-align the simulator with the real Pi client — it imports and
+  drives `raspberry_pi_code.api_client.BackendClient` unmodified, so there is no
+  second upload implementation to drift.
+  `integration_tests/test_contract_simulator.py` runs the real CLI against a
+  live uvicorn backend on real Postgres (the Phase 3 seam) and asserts what
+  landed: image bytes in `bytea`, per-tier confidence bounds, `delayed` on
+  backfill, and that the simulator keeps posting while demo mode blocks user
+  writes.
 
 **Exit criteria:** `python -m backend.simulator` populates a running stack and
 you can watch a sighting flow end-to-end — capture → classify → gallery →
-notification — on a phone, with no Pi in the loop.
+notification — on a phone, with no Pi in the loop. ✅ *(29 demo-mode + 21
+simulator backend tests, 4 live-server contract tests, 7 frontend tests.)*
 
 ---
 

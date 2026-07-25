@@ -11,12 +11,16 @@ import { UsersPage, SettingsPage } from "./UsersSettings.jsx";
 import { Login } from "./Login.jsx";
 import { DataProvider, useData } from "./DataContext.jsx";
 import { AppearanceProvider, useAppearance } from "./Appearance.jsx";
+import { DemoProvider, DemoBanner } from "./Demo.jsx";
 import { getToken, clearToken } from "./api.js";
 
 export default function App() {
   return (
     <AppearanceProvider>
-      <AppRoot />
+      {/* Outside the auth gate: the login screen shows the demo credentials. */}
+      <DemoProvider>
+        <AppRoot />
+      </DemoProvider>
     </AppearanceProvider>
   );
 }
@@ -76,7 +80,12 @@ function AppShell({ onLogout }) {
       {navOpen && <div className="nav-backdrop" onClick={() => setNavOpen(false)} aria-hidden="true" />}
       <Sidebar route={route} setRoute={go} onLogout={onLogout} open={navOpen} onClose={() => setNavOpen(false)} />
       <main className="main">
-        <Topbar route={route} onOpenNav={() => setNavOpen(true)} />
+        {/* Banner and topbar stick as one block, so the banner wrapping to two
+            lines on a phone can't slide it under the topbar. */}
+        <div className="topstack">
+          <DemoBanner />
+          <Topbar route={route} onOpenNav={() => setNavOpen(true)} />
+        </div>
         <div className="page" data-screen-label={NAV.find(n => n.id === route)?.label || route}>
           {route === "dashboard" && <Dashboard openSighting={setOpenSighting} />}
           {route === "sightings" && <Sightings openSighting={setOpenSighting} />}

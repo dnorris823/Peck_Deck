@@ -207,6 +207,15 @@ a { color: inherit; }
 
 /* ---------- Main ---------- */
 .main { min-width: 0; }
+/* Topbar plus anything stacked above it (the demo banner) stick as one block.
+   Sticking them separately would need the topbar's offset to equal the banner's
+   height, which stops being true the moment the banner wraps on a phone. */
+.topstack {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  min-width: 0;
+}
 .topbar {
   display: flex;
   align-items: center;
@@ -214,12 +223,9 @@ a { color: inherit; }
   gap: 16px;
   padding: 18px 32px;
   border-bottom: 1px solid var(--hairline);
-  position: sticky;
-  top: 0;
   background: var(--surface-glass);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  z-index: 10;
   min-width: 0;
 }
 .topbar > * { min-width: 0; }
@@ -235,6 +241,11 @@ a { color: inherit; }
   min-width: 0;
 }
 .search input { min-width: 0; }
+/* Icon glyphs carry no intrinsic size, so a context that never sized them lets
+   the SVG fall back to 300x150 and blow the layout apart. .icon-btn/.btn/.chip
+   all size theirs; these two didn't. */
+.search svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.modal-close svg { width: 16px; height: 16px; }
 @media (max-width: 1180px) {
   .search { width: 200px; }
   .search .kbd { display: none; }
@@ -1055,6 +1066,55 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); }
 [data-theme="dusk"] body { background: var(--paper); }
 /* Toast inverts (light chip on dark app); keep its sub-line tied to the chip fg. */
 [data-theme="dusk"] .toast-sub { color: var(--paper); opacity: 0.62; }
+
+/* ---------- Demo mode ----------
+   Yolk, not cardinal: a demo instance is a notice, not an error. The tints are
+   rgba over the current surface so the strip works unchanged in dusk, where the
+   yolk hue stays legible against the dark ground. */
+.demo-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 32px;
+  min-height: 38px;
+  font-size: 12.5px;
+  color: var(--ink);
+  background: rgba(212, 162, 58, 0.16);
+  border-bottom: 1px solid rgba(212, 162, 58, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.demo-banner-text { min-width: 0; }
+.demo-banner strong { font-weight: 600; }
+
+/* Ink-on-paper like .chip.active and .role-owner — theme-aware by construction
+   and well clear of contrast minimums at 10px, which a yolk chip is not. */
+.demo-badge {
+  flex: 0 0 auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: var(--r-pill);
+  color: var(--paper);
+  background: var(--ink);
+}
+
+/* Login-card footnote carrying the published demo credentials. */
+.demo-hint {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--hairline);
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+.demo-hint-row { display: flex; align-items: center; gap: 8px; }
+.demo-hint-btn { width: 100%; justify-content: center; margin-top: 10px; }
+
+@media (max-width: 720px) {
+  .demo-banner { padding: 8px 16px; }
+}
 
 /* ---------- Login gate + boot/loading states ---------- */
 .login-bg {

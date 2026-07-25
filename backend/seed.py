@@ -113,97 +113,117 @@ def _hour_weight(hour: int) -> float:
     return 0.05  # rare at night
 
 
+async def owner_exists(db) -> bool:
+    """Has this database already been seeded? (Checks for the demo owner.)"""
+    from sqlalchemy import select
+
+    result = await db.execute(select(User).where(User.email == USERS[0]["email"]))
+    return result.scalar_one_or_none() is not None
+
+
+async def seed_demo_data(db, *, rng_seed: int = 42) -> int:
+    """Insert the demo dataset into ``db`` and return the sighting count.
+
+    The caller owns the transaction and the schema — this function only INSERTs,
+    so it is safe to call from application startup (where the schema belongs to
+    Alembic) as well as from the ``python -m backend.seed`` script.
+
+    Separate from :func:`backend.fixtures.seed_reference_data`, which builds the
+    tiny exact-assertion dataset the test suites use. This one is deliberately
+    larger and randomized (from a fixed seed) so the web app has something worth
+    looking at.
+    """
+    rng = random.Random(rng_seed)
+
+    # ── Users ────────────────────────────────────────────────────────────────
+    users = []
+    for u in USERS:
+        user = User(
+            name=u["name"], email=u["email"],
+            password_hash=hash_password(DEMO_PASSWORD),
+            phone=u["phone"], role=u["role"],
+            notify_email=u["notify_email"], notify_sms=u["notify_sms"],
+        )
+        db.add(user)
+        users.append(user)
+    await db.flush()
+    owner = users[0]
+
+    # ── Species ──────────────────────────────────────────────────────────────
+    species_objs = []
+    for common, sci, order, palette, silhouette, wiki, note in SPECIES:
+        genus, _, species_name = sci.partition(" ")
+        sp = Species(
+            common_name=common, genus=genus, species_name=species_name,
+            order_name=order, wiki_url=wiki,
+            palette=json.dumps(palette), silhouette=silhouette, note=note,
+        )
+        db.add(sp)
+        species_objs.append(sp)
+    await db.flush()
+
+    # ── Devices (all owned by Dominic; shared with the viewers) ──────────────
+    now = datetime.now(timezone.utc)
+    device_objs = []
+    for d in DEVICES:
+        dev = Device(
+            name=d["name"], city=d["city"], state=d["state"],
+            owner_id=owner.id, classification_tier=d["classification_tier"],
+            feed_type=d["feed_type"], token=secrets.token_urlsafe(32),
+            battery=d["battery"], signal=d["signal"],
+            last_seen=now - timedelta(seconds=d["last_seen_secs"]),
+        )
+        db.add(dev)
+        device_objs.append(dev)
+    await db.flush()
+    for viewer in users[1:]:
+        for dev in device_objs:
+            db.add(DeviceUser(device_id=dev.id, user_id=viewer.id))
+
+    # ── Sightings across the last 7 days ─────────────────────────────────────
+    # Cardinal/chickadee weighted heaviest so "most frequent" is stable.
+    species_weights = [8, 6, 5, 4, 4, 3, 3, 3, 2, 2, 2, 2]
+    device_weights = [d["weight"] for d in DEVICES]
+    tiers = ["gpu", "local", "cloud"]
+    tier_weights = [5, 4, 1]
+
+    total = 0
+    for day_offset in range(6, -1, -1):
+        day = now - timedelta(days=day_offset)
+        n = rng.randint(16, 26)
+        for _ in range(n):
+            hour = rng.choices(range(24), weights=[_hour_weight(h) for h in range(24)])[0]
+            ts = day.replace(
+                hour=hour, minute=rng.randint(0, 59),
+                second=rng.randint(0, 59), microsecond=0,
+            )
+            if ts > now:
+                continue
+            sp = rng.choices(species_objs, weights=species_weights)[0]
+            dev = rng.choices(device_objs, weights=device_weights)[0]
+            tier = rng.choices(tiers, weights=tier_weights)[0]
+            conf = round(rng.uniform(0.68, 0.99), 2)
+            db.add(Sighting(
+                species_id=sp.id, device_id=dev.id, datetime=ts,
+                classification_tier_used=tier, confidence_score=conf,
+                delayed=False,
+            ))
+            total += 1
+
+    return total
+
+
 async def seed() -> None:
     force = "--force" in sys.argv
     init_db(settings.DATABASE_URL)
     await create_tables()
-    rng = random.Random(42)
 
     async with get_session_factory()() as db:
         async with db.begin():
-            from sqlalchemy import select
-
-            existing = await db.execute(
-                select(User).where(User.email == USERS[0]["email"])
-            )
-            if existing.scalar_one_or_none() is not None and not force:
+            if await owner_exists(db) and not force:
                 print("Owner account already exists — skipping seed (use --force).")
                 return
-
-            # ── Users ────────────────────────────────────────────────────────
-            users = []
-            for u in USERS:
-                user = User(
-                    name=u["name"], email=u["email"],
-                    password_hash=hash_password(DEMO_PASSWORD),
-                    phone=u["phone"], role=u["role"],
-                    notify_email=u["notify_email"], notify_sms=u["notify_sms"],
-                )
-                db.add(user)
-                users.append(user)
-            await db.flush()
-            owner = users[0]
-
-            # ── Species ──────────────────────────────────────────────────────
-            species_objs = []
-            for common, sci, order, palette, silhouette, wiki, note in SPECIES:
-                genus, _, species_name = sci.partition(" ")
-                sp = Species(
-                    common_name=common, genus=genus, species_name=species_name,
-                    order_name=order, wiki_url=wiki,
-                    palette=json.dumps(palette), silhouette=silhouette, note=note,
-                )
-                db.add(sp)
-                species_objs.append(sp)
-            await db.flush()
-
-            # ── Devices (all owned by Dominic; shared with the viewers) ───────
-            now = datetime.now(timezone.utc)
-            device_objs = []
-            for d in DEVICES:
-                dev = Device(
-                    name=d["name"], city=d["city"], state=d["state"],
-                    owner_id=owner.id, classification_tier=d["classification_tier"],
-                    feed_type=d["feed_type"], token=secrets.token_urlsafe(32),
-                    battery=d["battery"], signal=d["signal"],
-                    last_seen=now - timedelta(seconds=d["last_seen_secs"]),
-                )
-                db.add(dev)
-                device_objs.append(dev)
-            await db.flush()
-            for viewer in users[1:]:
-                for dev in device_objs:
-                    db.add(DeviceUser(device_id=dev.id, user_id=viewer.id))
-
-            # ── Sightings across the last 7 days ─────────────────────────────
-            # Cardinal/chickadee weighted heaviest so "most frequent" is stable.
-            species_weights = [8, 6, 5, 4, 4, 3, 3, 3, 2, 2, 2, 2]
-            device_weights = [d["weight"] for d in DEVICES]
-            tiers = ["gpu", "local", "cloud"]
-            tier_weights = [5, 4, 1]
-
-            total = 0
-            for day_offset in range(6, -1, -1):
-                day = now - timedelta(days=day_offset)
-                n = rng.randint(16, 26)
-                for _ in range(n):
-                    hour = rng.choices(range(24), weights=[_hour_weight(h) for h in range(24)])[0]
-                    ts = day.replace(
-                        hour=hour, minute=rng.randint(0, 59),
-                        second=rng.randint(0, 59), microsecond=0,
-                    )
-                    if ts > now:
-                        continue
-                    sp = rng.choices(species_objs, weights=species_weights)[0]
-                    dev = rng.choices(device_objs, weights=device_weights)[0]
-                    tier = rng.choices(tiers, weights=tier_weights)[0]
-                    conf = round(rng.uniform(0.68, 0.99), 2)
-                    db.add(Sighting(
-                        species_id=sp.id, device_id=dev.id, datetime=ts,
-                        classification_tier_used=tier, confidence_score=conf,
-                        delayed=False,
-                    ))
-                    total += 1
+            total = await seed_demo_data(db)
 
     print(f"Seeded {len(USERS)} users, {len(SPECIES)} species, "
           f"{len(DEVICES)} devices, {total} sightings.")
