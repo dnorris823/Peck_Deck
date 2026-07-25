@@ -7,8 +7,18 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.connection import get_session_factory
-from ..database.models import Device, DeviceUser, Sighting, Species, User, UserPreferences
+from ..database.models import (
+    Device,
+    DeviceUser,
+    PushSubscription,
+    Sighting,
+    Species,
+    User,
+    UserPreferences,
+)
 from .email_sender import send_email
+from .push import delete_endpoints, subscriptions_for_users, to_target
+from .push_sender import push_enabled, send_push
 from .sms_sender import send_sms
 
 logger = logging.getLogger(__name__)
@@ -113,6 +123,17 @@ class NotificationService:
         ).scalars().all()
         prefs_by_user = {p.user_id: p for p in prefs_rows}
 
+        # Push subscriptions for every recipient, in one query and *before* any
+        # sending starts. Loading them lazily inside the per-recipient coroutines
+        # would have several of them using this AsyncSession concurrently, which
+        # it does not support.
+        subs_by_user = (
+            await subscriptions_for_users(db, seen_ids) if push_enabled() else {}
+        )
+        # Endpoints the push service reported as permanently gone; deleted after
+        # all sends finish so a dead browser isn't retried on every sighting.
+        dead_endpoints: list[str] = []
+
         location = " — ".join(filter(None, [device.city, device.state])) or "Unknown location"
         delayed_note = " (delayed sync)" if sighting.delayed else ""
 
@@ -143,6 +164,15 @@ class NotificationService:
                 channels.append(
                     self._sms(user, sighting, species, device, sighting_count, delayed_note)
                 )
+            # Web push needs no per-user flag: a stored subscription *is* the
+            # opt-in, and unsubscribing in the browser deletes the row.
+            for sub in subs_by_user.get(user.id, []):
+                channels.append(
+                    self._push(
+                        sub, sighting, species, device, sighting_count,
+                        location, delayed_note, dead_endpoints,
+                    )
+                )
             if channels:
                 self._mark_notified(user.id, device_id)
                 tasks.extend(channels)
@@ -152,6 +182,10 @@ class NotificationService:
             for r in results:
                 if isinstance(r, Exception):
                     logger.warning("Notification subtask failed: %s", r)
+
+        if dead_endpoints:
+            removed = await delete_endpoints(db, dead_endpoints)
+            logger.info("Pruned %d dead push subscription(s)", removed)
 
     async def _email(
         self, user: User, sighting: Sighting, species: Species,
@@ -184,6 +218,36 @@ class NotificationService:
             image_data=sighting.image_data,
             image_filename=f"sighting_{sighting.id}.jpg",
         )
+
+    async def _push(
+        self, sub: PushSubscription, sighting: Sighting, species: Species,
+        device: Device, count: int, location: str, delayed_note: str,
+        dead_endpoints: list[str],
+    ) -> None:
+        """Send one web push and record the endpoint if it is permanently gone.
+
+        The payload is what the service worker renders, so it carries display
+        text rather than ids to look up — the worker has no session and cannot
+        call the API. ``tag`` lets a phone that missed several alerts collapse
+        them into the latest one per feeder instead of stacking a wall of them.
+        """
+        payload = {
+            "title": f"{species.common_name} at {device.name}",
+            "body": (
+                f"{round(sighting.confidence_score * 100)}% confident · "
+                f"sighting #{count} · {location}{delayed_note}"
+            ),
+            "tag": f"peckdeck-device-{device.id}",
+            "data": {
+                "sighting_id": sighting.id,
+                "species_id": species.id,
+                "device_id": device.id,
+                "url": "/",
+            },
+        }
+        result = await send_push(to_target(sub), payload)
+        if result.gone:
+            dead_endpoints.append(sub.endpoint)
 
     async def _sms(
         self, user: User, sighting: Sighting, species: Species,

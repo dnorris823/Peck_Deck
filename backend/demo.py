@@ -41,6 +41,11 @@ _ALLOWED_WRITES: tuple[re.Pattern[str], ...] = (
     re.compile(r"^/devices/\d+/heartbeat/?$"),       # device_guard — telemetry
 )
 
+# Deliberately *not* allowlisted: POST/DELETE /push/subscriptions (Phase 7).
+# Every demo visitor signs in as the same published account, so a subscription
+# stored by one of them would deliver every later sighting alert to all the
+# others' browsers. Push is demonstrable on any non-demo instance instead.
+
 DEMO_BLOCK_DETAIL = (
     "This is a read-only demo instance — sign-in and browsing work, but changes "
     "are not saved."

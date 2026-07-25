@@ -19,6 +19,7 @@ from .database.connection import dispose_db, init_db, provide_db
 from .demo import demo_readonly_middleware, maybe_seed_demo
 from .devices.controller import DeviceController
 from .errors import http_exception_handler, unhandled_exception_handler
+from .notifications.controller import PushController
 from .observability import RequestContextMiddleware, configure_logging
 from .readiness import check_readiness
 from .sightings.controller import SightingController
@@ -141,6 +142,7 @@ _OPENAPI_TAGS = [
     Tag(name="sightings", description="Bird visits and their images"),
     Tag(name="species", description="Species reference data"),
     Tag(name="stats", description="Dashboard aggregates"),
+    Tag(name="notifications", description="Web push subscriptions"),
     Tag(name="ops", description="Liveness, readiness, and classification relay"),
 ]
 
@@ -200,6 +202,7 @@ app = Litestar(
         SpeciesController,
         SightingController,
         StatsController,
+        PushController,
     ],
     dependencies={"db": Provide(provide_db)},
     # Order matters: the request-context middleware is outermost, so a demo-mode

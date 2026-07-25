@@ -63,6 +63,23 @@ class Settings:
         os.getenv("NOTIFICATION_MIN_INTERVAL_SECONDS", "60")
     )
 
+    # ── Web push (FLEDGE Phase 7) ─────────────────────────────────────────────
+    # VAPID identifies *this server* to the browser's push service (RFC 8292).
+    # The private key is base64url-encoded raw 32 bytes (what `web-push
+    # generate-vapid-keys` emits) or a PEM block; generate a pair with
+    # `python scripts/generate_vapid_keys.py`. The public key the browser
+    # subscribes with is derived from the private key, so it can never drift —
+    # VAPID_PUBLIC_KEY is only cross-checked, never trusted over the derivation.
+    # With no private key configured, push is simply off: subscriptions are
+    # still accepted, nothing is sent.
+    VAPID_PRIVATE_KEY: str = os.getenv("VAPID_PRIVATE_KEY", "")
+    VAPID_PUBLIC_KEY: str = os.getenv("VAPID_PUBLIC_KEY", "")
+    # Contact for the push service operator to reach if this server misbehaves.
+    # Must be a mailto: or https: URL.
+    VAPID_SUBJECT: str = os.getenv("VAPID_SUBJECT", "mailto:admin@peckdeck.local")
+    # How long a push service should hold an undelivered message, in seconds.
+    PUSH_TTL_SECONDS: int = int(os.getenv("PUSH_TTL_SECONDS", "86400"))
+
     # ── Cloud classification (Tier 3 — Claude API, M6) ────────────────────────
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
     ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-8")
