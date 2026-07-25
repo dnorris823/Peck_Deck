@@ -1,6 +1,6 @@
 # Peck Deck — Outdoor Deployment Guide
 
-**Site:** Spokane, WA (47.6 °N) · **Mounting:** freestanding yard pole + house/eave
+**Site:** Spokane, WA (47.6 °N) · **Mounting:** covered-deck house-wall mount (chosen, §8.3); yard pole / eave still documented
 **Power baseline:** Ring battery pack · **Build preference:** off-the-shelf parts
 **Status:** planning doc for FLEDGE Phase 4 field bring-up. Nothing here is built yet.
 
@@ -269,6 +269,11 @@ heater, always-on operation, and Tier 2 offload. The PRD's "runs entirely from
 battery, no external power at the feeder" is a legitimate design goal — but it's
 worth confirming it's still a goal you want, rather than one inherited from an
 early draft. If it is, rung C/D is the answer and this section is moot.
+
+> **DECIDED (§12 Q1):** the chosen covered-deck mount (§8.3) has an outdoor mains
+> outlet, so this is a straight rung E — but simpler than PoE or a 24 V run,
+> because the outlet is already *at* the feeder. The delivery details (official
+> 27 W supply, weatherproof outlet cover, drip loop) live in §8.3.
 
 ### 2.8 Power bank gotcha (rung A)
 
@@ -771,6 +776,55 @@ over-engineer a weight threshold. Do make sure the perch and switch survive a
 500 g animal sitting on them, which a lever microswitch will as long as there's
 a hard stop limiting the deflection.
 
+### 6.5 Deterrence by seed and taste
+
+On the chosen covered-deck mount (§8.3) you can't deny squirrels physical access
+— siding and deck structure are climbing routes, and the cover is a drop-in
+route. So the useful game is making the feeder *boring* to squirrels while
+staying attractive to birds. Two levers do the work; surface sprays mostly don't.
+None of this replaces the hardware hardening in §6.3 — deterrence lowers how
+*often* a squirrel is on your camera, and the conduit is what saves you when one
+still is.
+
+**1. Seed choice — the biggest lever, and free.** Several seeds birds love are
+ones squirrels won't work for:
+
+- **Safflower** — cardinals, chickadees, titmice, nuthatches, house finches eat
+  it; squirrels find it bitter and mostly give up. **Bonus: starlings and
+  grackles dislike it too**, which directly helps the flock-flooding problem in
+  §4.5.
+- **Nyjer (thistle)** — goldfinches, house finches, siskins, redpolls love it;
+  squirrels almost entirely ignore it (tiny, oily, not worth the effort). Needs a
+  fine-port nyjer feeder. About as squirrel-proof as seed gets.
+- **White proso millet** — juncos and sparrows (the winter Spokane crowd, §1.3)
+  like it, with lower squirrel interest than sunflower or corn.
+- **Avoid** black-oil/striped sunflower, cracked corn, peanuts, and "deluxe"
+  mixes built around them — those bait squirrels straight onto your hardware.
+
+For this winter-focused deployment, **safflower or a safflower/nyjer split** hits
+the target species and is one of the poorer squirrel draws.
+
+**2. Capsaicin ("hot" seed) — the treatment that actually works.** Birds lack the
+capsaicin (TRPV1) response that mammals have, so hot-pepper heat is invisible to
+birds but repels squirrels. Sold as **pre-treated "hot" seed/suet** or a **liquid
+concentrate** you coat your own seed with. Caveats for this build:
+
+- **It's an irritant to *you*** — wear gloves, don't handle it upwind, and keep
+  it off the camera window on refills (a capsaicin film hazes the glass, §5.2/§5.4).
+- **Liquid coatings wash off** in rain; pre-treated seed lasts longer.
+- Costs more than plain safflower — many people run safflower as the everyday
+  deterrent and add hot seed only if squirrels persist.
+
+**3. Surface sprays — mostly skip.** Garden repellent sprays (predator-urine,
+putrescent-egg, peppermint-oil, capsaicin) wash off fast, can foul the area or
+deter birds, and must never go near the enclosure or optics. Put the capsaicin
+*in the food*, not on surfaces; peppermint oil in particular has weak evidence.
+
+**Ceiling, stated plainly:** no seed or spray makes a determined squirrel quit
+entirely, especially with easy deck access. Treat deterrence as traffic
+reduction layered on top of the real defence (§6.3), and remember a squirrel
+visit is not a failure here — §6.4, it self-logs as `background`.
+
 ---
 
 ## 7. Network
@@ -912,6 +966,83 @@ The eave gives you mains power and good WiFi while you're debugging everything
 else, so you're only solving one problem at a time. Move to the pole once the
 software and optics are settled and power is the only remaining variable.
 
+### 8.3 Side-of-house on a covered deck (the chosen mount)
+
+This is the **DECIDED** long-term home (§12 Q2): the enclosure bolted to the
+house wall under the roof of a raised, covered outdoor deck. It behaves like the
+eave mount (§8.2) — pre-shaded, good WiFi, no frost heave — and it has a
+confirmed **outdoor mains outlet on the deck**, which makes it **rung E** (§2.7):
+power is a solved problem, not a battery-life exercise. One difference from the
+eave still matters — squirrel access — covered below.
+
+**Powering it from the deck outlet.** The clean off-the-shelf path is the
+**official Raspberry Pi 5 27 W USB-C PD supply** plugged into the deck outlet,
+with its lead routed into the enclosure through a bottom/side gland and a **drip
+loop** (§3.5). Two things make this the low-drama choice:
+
+- Because it's the official supply, the Pi negotiates 5 V @ 5 A and enables full
+  peripheral current on its own — you skip the `usb_max_current_enable=1` dance
+  and, more importantly, the power-bank auto-sleep failure mode entirely (§2.8
+  simply doesn't apply).
+- **The adapter is not weatherproof.** Keep it dry under a weatherproof **"in-use"
+  / bubble outlet cover** (outdoor outlets should already be GFCI — confirm it
+  is), or house the adapter inside the enclosure and bring 120 V AC in through
+  its own gland. Either way the mains brick never sees rain, and every cable
+  through the wall gets a drip loop.
+
+A UPS is optional but cheap insurance: the gaming-PC backend already rides out
+power blips on the Pi's offline queue (§7.2), so a brief deck-outlet outage just
+pauses captures rather than corrupting anything — provided you did the SD-card
+hardening in §7.3.
+
+```
+        \=================================\   <- deck cover / roof
+         \                                 \
+          \   [dome baffle]  <- against a drop-in from the cover above
+           \_____|___________________________
+           |     |                           |  <- house wall / siding
+           |  +==+========+                  |
+           |  | ENCLOSURE  |  <- lag-bolted to a stud, not just the siding
+           |  |  [O]--->   |                 |     camera looks NORTH (§5.1)
+           |  +==+======+==+                 |
+           |     |      |                     |
+           |  +--+------+--+                  |
+           |  | PERCH+FEED |  <- 10-16" from lens (§5.3)                 |
+           |  +------------+                  |
+           |                                  |
+        ===+==================================+===  <- deck floor / railing below
+
+        Pros: shaded and rain-covered for free; mains + WiFi trivial;
+              no frost heave; reachable for the weekly visit without a ladder
+        Cons: NOT squirrel-free (see below); house-proximity window-strike
+              risk (keep <3 ft or >30 ft from any window, §8.2)
+```
+
+**The squirrel caveat — the reason this isn't just "the eave, but easier":**
+mounting to a wall does **not** put the unit out of a squirrel's reach. House
+siding is a climbing surface — wood, vinyl, stucco, brick and fiber-cement are
+all rougher than tree bark, and squirrels go up them routinely; only a genuinely
+smooth, seamless vertical face stops them, and even then they route around it via
+downspouts, trim, and the **deck's own posts and railings**. On top of that, the
+deck cover overhead adds the §6.2 *drop-in* route. So this mount inherits the
+climbing route *and* the drop-in route, and a baffle addresses neither.
+
+The consequence is not alarming, because the doc's thesis holds: **a squirrel
+reaching the unit is not the failure — a squirrel chewing a cable is (§6.3), and
+scratching the optics is second (§6.4).** Since you can't keep them off a wall
+mount, defend the hardware, not the airspace around it:
+
+- **Cables in flexible metal conduit (§6.3), no exposed connectors.** This is the
+  single highest-value squirrel defence for a wall/deck mount — split loom is not
+  enough.
+- **Glass camera port, recessed and protected (§5.2)** — chosen already for
+  exactly this "squirrels will physically contact it" case.
+- **Screwed or latched lid; nothing dangling** (raccoons work this deck too —
+  §6.4 — and they open latches).
+- **Mount high on the wall and away from launch points** (railing, deck
+  furniture, the nearest branch). You can't make access zero, but you can make it
+  uncasual.
+
 ---
 
 ## 9. Software Changes This Implies
@@ -989,7 +1120,9 @@ through a battery-powered box on a pole is worth two days.
 
 ## 11. Shopping List
 
-Minimum viable outdoor build, rung A power, perch-switch trigger:
+Minimum viable outdoor build, **rung E mains power** (§8.3), perch-switch trigger.
+Reflects the decided covered-deck mount, so the pole and baffle are dropped and
+mains parts replace the power bank:
 
 | Item | Approx. | Notes |
 |---|---|---|
@@ -997,46 +1130,70 @@ Minimum viable outdoor build, rung A power, perch-switch trigger:
 | Pressure-equalisation vent (Gore PolyVent / Bud PMF) | $8 | **Do not skip.** §3.3 |
 | Cable gland variety pack (PG7/PG9 nylon) + blanking plugs | $10 | Match gland range to cable diameter |
 | Rechargeable silica gel desiccant, colour-indicating | $10 | 50 g, plus a spare to rotate |
-| USB-C PD power bank, 25,000 mAh, **"always-on" / low-current mode** | $50 | §2.2 rung A, §2.8 |
-| 5 A-rated / e-marked USB-C cable, short | $10 | Undersized cable = brownouts that look like software bugs |
+| **Official Raspberry Pi 5 27 W USB-C PD supply (5 V/5 A)** | $14 | **The power cable for the deck outlet.** Enables full peripheral current automatically — skips §2.8 entirely. §8.3 |
+| Weatherproof "in-use" / bubble outlet cover | $12 | Keeps the mains adapter dry at the deck outlet. Confirm the outlet is GFCI. §8.3 |
 | SPDT roller-lever microswitch (10-pack) | $8 | §4.3 |
 | Aluminium plate + thermal pad | $12 | Pi heatsink → enclosure wall. §3.2 |
-| 1-inch smooth steel feeder pole | $30 | Not wood |
-| Wrap-around squirrel baffle, ≥15 in diameter | $30 | §6.1 |
-| Flexible metal conduit + fittings, 10 ft | $15 | Cable protection. §6.3 |
-| Acrylic/glass disc + clear silicone (if opaque enclosure) | $10 | Camera window. §5.2 |
+| Lag bolts / French cleat + wall anchors for the wall mount | $10 | Into a stud, not just siding. §8.3 |
+| Dome baffle (mounted above, against drop-in squirrels) | $20 | §6.2, §8.3 — the cover is a drop-in route |
+| Safflower (+ nyjer for a finch feeder) | $15 | Bird-friendly, squirrel- and starling-poor seed. §6.5 |
+| Flexible metal conduit + fittings, 10 ft | $15 | Cable protection — the real squirrel defence. §6.3 |
+| Acrylic/glass disc + clear silicone (if opaque enclosure) | $10 | Camera window. Glass, since squirrels contact it. §5.2 |
 | Black adhesive felt / foam (lens light seal) | $6 | §5.2 — small part, large effect |
-| **Total** | **~$225** | |
+| **Total** | **~$185** | |
 
 Deferred until the shakedown tells you it's needed:
 
 | Item | Approx. | Trigger to buy |
 |---|---|---|
-| 12 V 20 Ah LiFePO4 + low-temp-cutoff BMS + 5 A buck | $120 | Rung A swap interval is too short |
-| 100 W solar panel + MPPT + steep-tilt mount | $180 | You're committed to the pole *and* to off-grid |
-| Outdoor mesh node / directional antenna | $70 | Pole RSSI survey comes back worse than −75 dBm |
-| PoE injector + splitter + outdoor Cat6 | $60 | You decide the eave is the permanent home (§2.7) |
+| USB-C PD power bank, 25,000 mAh, **"always-on" / low-current mode** | $50 | Only if you run the Stage 3 battery de-risk (§10) or ever want an untethered spot. §2.2 rung A, §2.8 |
+| Small UPS / battery backup for the deck outlet | $40 | If deck-outlet blips prove disruptive despite the offline queue. §8.3 |
+| 12 V 20 Ah LiFePO4 + low-temp-cutoff BMS + 5 A buck | $120 | Only relevant if you abandon mains for a yard pole after all |
+| Outdoor mesh node / directional antenna | $70 | Deck-mount RSSI survey comes back worse than −75 dBm |
 | USB SSD boot drive | $30 | After your first SD card corruption, or before it |
+| Capsaicin "hot" seed or liquid seed-coat concentrate | $15–20 | If safflower/nyjer alone don't discourage persistent squirrels. §6.5 |
 
 ---
 
 ## 12. Open Questions
 
-Things this document can't decide for you:
+Things this document can't decide for you. Tentative answers recorded as of
+2026-07-25 are marked **DECIDED**; the reasoning stays so the decision can be
+revisited.
 
 1. **Is "no external power at the feeder" (PRD §5.4) still a requirement, or an
    inherited assumption?** It's the constraint driving the most cost and
    complexity here. If the eave is acceptable long-term, §2.7 removes most of
    this document's difficulty. Worth an explicit decision either way.
+   **DECIDED: not a requirement.** The chosen covered-deck mount (§8.3) has an
+   outdoor mains outlet, so this is **rung E** (§2.2, §2.7) — mains at the
+   feeder. That treats it as an inherited assumption from an early draft, not a
+   live constraint. Consequence: the battery ladder (§2.2 A–D), the cold-charging
+   problem (§2.5), and solar sizing (§2.6) all become optional / de-risk-only.
+   Duty cycling (§2.4) is still worth keeping for the thermal saving, not for
+   runtime.
 2. **Pole or eave as the permanent home?** They have opposite strengths, and §10
    suggests using both in sequence — but the long-term answer changes the
    battery, network, and baffle spend.
+   **DECIDED (tentative): a side-of-house mount on the raised, covered outdoor
+   deck** — a wall mount, not a freestanding pole. This is closest to the eave
+   case (§6.2): pre-shaded, good WiFi, mains likely available, no frost heave.
+   See the new §8.3 for the layout and the squirrel-access caveat (siding and
+   deck structure are both climbing routes, and the cover adds a drop-in route).
 3. **Perch switch or IR beam?** The perch switch is more reliable and cheaper but
    only catches perched birds. If you want ground feeders and hovering birds,
    that's a beam (or two).
+   **DECIDED: perch switch** (§4.3). Accepts the "perched birds only" filter.
+   No code change — `TRIGGER_TYPE=ir_beam`, wired as a falling edge into the
+   pull-up. Software change #1 in §9 (defaulting away from `pir`) still applies.
 4. **How often are you willing to walk out there?** Every power decision reduces
    to this number. Weekly is easy and cheap; monthly needs rung C; never needs
    mains or a well-sized solar array.
+   **DECIDED: weekly — and it's a maintenance walk, not a battery swap.** With
+   mains confirmed at the deck (Q1 → rung E), the weekly visit is desiccant
+   check, lens/window clean (weekly in smoke season, §5.4), and a queue/telemetry
+   glance — none of it power-driven. The battery cadence math (rung B/C) only
+   matters if you later run the Stage 3 battery de-risk (§10).
 5. **What's your real accuracy on wild birds?** Unknown until Stage 1. It may
    reorder these priorities entirely — if real-world top-1 is 70%, that's a bigger
    problem than any enclosure question.
