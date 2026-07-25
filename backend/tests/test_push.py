@@ -326,10 +326,18 @@ def _subscription_body(endpoint: str | None = None) -> dict:
     }
 
 
-def test_push_config_reports_disabled_by_default(client, owner_headers):
-    res = client.get("/push/config", headers=owner_headers)
-    assert res.status_code == 200
-    assert res.json() == {"enabled": False, "public_key": None}
+def test_push_config_reports_disabled_when_the_server_has_no_keys(
+    client, owner_headers, monkeypatch
+):
+    """The frontend hides the opt-in on this answer, rather than failing later."""
+    monkeypatch.setattr(settings, "VAPID_PRIVATE_KEY", "")
+    reset_keypair_cache()
+    try:
+        res = client.get("/push/config", headers=owner_headers)
+        assert res.status_code == 200
+        assert res.json() == {"enabled": False, "public_key": None}
+    finally:
+        reset_keypair_cache()
 
 
 def test_push_config_publishes_the_key_when_configured(

@@ -17,6 +17,12 @@ import tempfile
 _TMPDIR = tempfile.mkdtemp(prefix="peckdeck-test-")
 os.environ["DATABASE_URL"] = f"sqlite+aiosqlite:///{os.path.join(_TMPDIR, 'test.db')}"
 os.environ["JWT_SECRET"] = "test-secret-key-at-least-32-bytes-long!"
+# Web push off by default, whatever is in the developer's .env — otherwise the
+# tests asserting "no keys configured" behaviour pass or fail depending on whose
+# machine they run on. Tests that need push configure it themselves. (load_dotenv
+# doesn't override keys already in the environment, so "" wins.)
+os.environ["VAPID_PRIVATE_KEY"] = ""
+os.environ["VAPID_PUBLIC_KEY"] = ""
 
 import asyncio  # noqa: E402
 

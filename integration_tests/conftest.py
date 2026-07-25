@@ -55,6 +55,11 @@ else:
     # (backend.config reads DATABASE_URL at import time).
     os.environ["DATABASE_URL"] = PG_URL
     os.environ.setdefault("JWT_SECRET", "integration-secret-key-at-least-32-bytes!!")
+    # Web push off unless a test configures it, whatever is in the local .env, so
+    # nothing here depends on whose machine it runs on. (test_contract_push sets
+    # its own throwaway keypair.)
+    os.environ["VAPID_PRIVATE_KEY"] = ""
+    os.environ["VAPID_PUBLIC_KEY"] = ""
 
     import asyncio
 

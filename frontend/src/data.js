@@ -102,7 +102,11 @@ function mapMe(u) {
 }
 
 // ── Loader ────────────────────────────────────────────────────────────────
-export async function loadAll() {
+// Fetch and mapping are separate so the offline snapshot can store the *raw*
+// payloads and re-map them through this same function on a cached load. One
+// mapper, two sources — a second one would drift (dates in particular: mapping
+// produces Date objects that a JSON round trip would flatten to strings).
+export async function fetchRaw() {
   const [species, counts, devices, users, sightings, heatmap, dashboard, me, prefs] =
     await Promise.all([
       apiGet("/species"),
@@ -115,6 +119,11 @@ export async function loadAll() {
       apiGet("/users/me"),
       apiGet("/users/me/preferences"),
     ]);
+  return { species, counts, devices, users, sightings, heatmap, dashboard, me, prefs };
+}
+
+export function mapAll(raw) {
+  const { species, counts, devices, users, sightings, heatmap, dashboard, me, prefs } = raw;
 
   const SPECIES = species.map(mapSpecies);
   const SPECIES_COUNTS = counts.map(mapSpeciesCount);
@@ -134,6 +143,10 @@ export async function loadAll() {
     SPECIES, SPECIES_COUNTS, DEVICES, USERS, SIGHTINGS, HEATMAP,
     DASHBOARD: dashboard, ME: mapMe(me), PREFERENCES: prefs,
   };
+}
+
+export async function loadAll() {
+  return mapAll(await fetchRaw());
 }
 
 // ── Settings mutations ────────────────────────────────────────────────────

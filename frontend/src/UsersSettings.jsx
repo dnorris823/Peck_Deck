@@ -1,9 +1,13 @@
 // Users page + Settings page
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Icon } from "./Icon.jsx";
 import { useData } from "./DataContext.jsx";
 import { useAppearance } from "./Appearance.jsx";
 import { Modal, TextInput, SelectInput, FormNote } from "./Modal.jsx";
+import {
+  currentSubscription, disablePush, enablePush, fetchPushConfig, permission,
+  pushSupported,
+} from "./push.js";
 import {
   saveMe, savePreferences, createUser, updateUser, changePassword,
 } from "./data.js";
@@ -194,8 +198,11 @@ const SETTINGS_SECTIONS = [
   { id: "appearance", label: "Appearance" },
 ];
 
-function Toggle({ on, onChange }) {
-  return <button className={`toggle ${on ? "on" : ""}`} onClick={() => onChange(!on)} aria-pressed={on} />;
+function Toggle({ on, onChange, disabled = false }) {
+  return (
+    <button className={`toggle ${on ? "on" : ""}`} onClick={() => onChange(!on)}
+      aria-pressed={on} disabled={disabled} />
+  );
 }
 
 function Field({ label, help, children }) {
@@ -223,6 +230,85 @@ function SaveStatus({ status }) {
     <span className="label" style={{ color: s.color }} title={status.msg || ""}>
       {s.text}
     </span>
+  );
+}
+
+/**
+ * Browser push channel row — FLEDGE Phase 7.
+ *
+ * Unlike email and SMS this is not a user column: the subscription belongs to
+ * *this browser*, so the toggle reads its live state from the service worker
+ * rather than from `data.ME`. Which also means it must handle four different
+ * kinds of "off": unsupported browser, no service worker (dev), no server keys,
+ * and permission denied — each with a different thing for the user to do about
+ * it.
+ */
+function PushChannelRow() {
+  const [state, setState] = useState({ status: "loading" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!pushSupported()) {
+        if (!cancelled) setState({ status: "unsupported" });
+        return;
+      }
+      const [config, subscription] = await Promise.all([
+        fetchPushConfig(), currentSubscription(),
+      ]);
+      if (cancelled) return;
+      setState({
+        status: config.enabled ? "ready" : "server-disabled",
+        publicKey: config.public_key,
+        subscribed: !!subscription,
+      });
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  async function toggle(on) {
+    setBusy(true);
+    setError(null);
+    try {
+      if (on) await enablePush(state.publicKey);
+      else await disablePush();
+      setState((s) => ({ ...s, subscribed: on }));
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const denied = permission() === "denied";
+  const sub = state.status === "ready" && !!state.subscribed;
+
+  let note;
+  if (state.status === "loading") note = "Checking…";
+  else if (state.status === "unsupported") note = "This browser can't receive web push.";
+  else if (state.status === "server-disabled") note = "No VAPID keys on the server — see .env.example.";
+  else if (denied && !sub) note = "Blocked in your browser's site settings.";
+  else if (sub) note = "Alerts arrive even with the app closed.";
+  else note = "Instant alerts on this device — no email or phone number needed.";
+
+  return (
+    <div className="toggle-row">
+      <Toggle
+        on={sub}
+        disabled={busy || state.status !== "ready" || (denied && !sub)}
+        onChange={toggle}
+      />
+      <div className="toggle-row-text">
+        <div className="toggle-row-title">Browser push — this device</div>
+        <div className="toggle-row-sub">{note}</div>
+        {error && (
+          <div className="field-help" style={{ color: "var(--cardinal)" }}>{error}</div>
+        )}
+      </div>
+      <span className="label">VIA VAPID</span>
+    </div>
   );
 }
 
@@ -406,6 +492,7 @@ export function SettingsPage() {
                       </div>
                       <span className="label">VIA TWILIO</span>
                     </div>
+                    <PushChannelRow />
                   </div>
                 </div>
               </Field>

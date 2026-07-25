@@ -73,10 +73,11 @@ export async function apiGet(path) {
   return res.json();
 }
 
-// Fetch a file download as a Blob. Used for the sightings export, which is
-// auth-scoped — a plain <a href> can't carry the Bearer token, so the bytes are
-// fetched here and handed to the caller to save.
-export async function apiDownload(path) {
+// Fetch binary bytes with the Bearer token attached. Every endpoint that serves
+// bytes (the CSV/JSON export, sighting images) is auth-scoped, and neither an
+// <a href> nor an <img src> can carry an Authorization header — so the bytes come
+// through fetch and the caller turns them into a download or an object URL.
+export async function apiFetchBinary(path, { failure = "Request" } = {}) {
   const token = getToken();
   let res;
   try {
@@ -90,11 +91,50 @@ export async function apiDownload(path) {
     clearToken();
     throw new AuthError("Your session has expired. Please sign in again.");
   }
-  if (!res.ok) throw new Error(`Export failed (${res.status}).`);
+  if (!res.ok) throw new Error(`${failure} failed (${res.status}).`);
+  return res;
+}
 
+// Fetch a file download as a Blob, with the filename the server suggested.
+export async function apiDownload(path) {
+  const res = await apiFetchBinary(path, { failure: "Export" });
   const disposition = res.headers.get("Content-Disposition") || "";
   const match = /filename="?([^"';]+)"?/.exec(disposition);
   return { blob: await res.blob(), filename: match ? match[1] : "export" };
+}
+
+// Fetch an image and return an object URL for it. The caller owns the URL and
+// must revoke it — an un-revoked blob URL keeps the whole image alive for the
+// lifetime of the document, which a scrolling gallery would notice.
+export async function apiObjectUrl(path) {
+  const res = await apiFetchBinary(path, { failure: "Image" });
+  return URL.createObjectURL(await res.blob());
+}
+
+// DELETE with no body. Kept separate from apiSend because a DELETE that carries
+// a Content-Type but no payload confuses some proxies, and the routes that need
+// it (push subscriptions) identify the target with a query parameter.
+export async function apiDelete(path) {
+  const token = getToken();
+  let res;
+  try {
+    res = await fetch(`/api${path}`, {
+      method: "DELETE",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+  } catch {
+    throw new Error("Can't reach the server. Is the backend running?");
+  }
+  if (res.status === 401) {
+    clearToken();
+    throw new AuthError("Your session has expired. Please sign in again.");
+  }
+  if (!res.ok) {
+    const err = new Error(`Request to ${path} failed (${res.status}).`);
+    err.status = res.status;
+    throw err;
+  }
+  return null;
 }
 
 // Mutating request (PUT/POST) with a JSON body. Returns the parsed response,
