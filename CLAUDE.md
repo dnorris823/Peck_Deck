@@ -12,9 +12,11 @@ Peck_Deck/
 ├── CLAUDE.md                  # This file
 ├── raspberry_pi_code/         # Pi-side capture + classification pipeline
 ├── machine_learning/          # Models, notebooks, taxonomy data
-│   ├── INatVision_Small_2_fact256_8bit.tflite   # Tier 1 on-device model
-│   ├── taxonomy.csv           # Maps model output indices → species names
+│   ├── MODELS.md              # Model provenance, measured accuracy, conventions
+│   ├── taxonomy.csv           # 965 rows — the Tier 1 model's OWN label space
+│   ├── feeder_species.csv     # 20 curated backyard birds (simulator/demo)
 │   └── yolo_test.ipynb        # YOLOv5n proof-of-concept notebook
+│   #  weights are fetched, not committed: python scripts/fetch_models.py
 ├── backend/                   # Python REST API (Litestar)
 │   ├── notifications/         # Email (SendGrid) + SMS (Twilio) + web push + Wikipedia
 │   ├── simulator.py           # Virtual feeder — drives the real Pi client (Phase 5)
@@ -43,11 +45,21 @@ Peck_Deck/
 **Important:** The backend uses **Litestar**, not FastAPI. The inference server uses FastAPI (separate service). Don't mix them up.
 
 ## Classification Tiers (priority order)
-1. **Tier 1 — Local TFLite** — runs on Pi, no network needed
-2. **Tier 2 — LAN GPU server** — Pi sends image to `inference_server/` at `POST /classify`
+1. **Tier 1 — Local TFLite** — runs on Pi, no network needed. Google AIY
+   `birds_V1` (MobileNetV2/iNaturalist), 964 species + `background`.
+   Measured: 20/20 top-1, 57.9 ms on a Pi 5.
+2. **Tier 2 — LAN GPU server** — Pi sends image to `inference_server/` at `POST /classify`.
+   ViT-L/14 fine-tuned on iNat21 (10,000 classes), projected onto the shared
+   taxonomy. Measured: 20/20 top-1, 29.1 ms on the RTX 5080.
 3. **Tier 3 — Claude API** — Pi sends image to `backend POST /classify`; backend relays to Claude API (M6)
 
 The Pi falls back from Tier 1 → 2 → 3 based on availability and confidence thresholds.
+
+**Tiers 1 and 2 share one label space** — `machine_learning/taxonomy.csv`. Tier 1
+indexes into it directly; Tier 2 projects its own 10,000 classes onto it by
+scientific name (869 map). That is what makes their answers comparable. See
+`machine_learning/MODELS.md` — especially the warning that `taxonomy.csv` row
+order *is* the index contract and must be regenerated, never hand-edited.
 
 ## Key Conventions
 - **Async everywhere** — all DB and network I/O should be async.
@@ -87,7 +99,8 @@ python -m backend.simulator --mode live --interval 8
 
 With no `--device-token` it signs in as the demo owner and reads tokens straight
 off `GET /devices`, so a seeded stack needs zero configuration. Species come from
-`machine_learning/taxonomy.csv` (so every simulated bird is one Tier 1 could
+`machine_learning/feeder_species.csv` — a curated subset of the model's full
+label space, so every simulated bird is both plausible at a feeder and one Tier 1 could
 actually predict); visits are dawn/dusk weighted; confidence is drawn from a
 per-tier band. Placeholder capture images are drawn at run time from each
 species' palette — **needs Pillow**, which is in `backend/requirements-dev.txt`

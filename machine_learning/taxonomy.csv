@@ -1,21 +1,966 @@
 common_name,genus,species
-Northern Cardinal,Cardinalis,cardinalis
-American Goldfinch,Spinus,tristis
+Cassin's Finch,Haemorhous,cassinii
+Limpkin,Aramus,guarauna
+Roadside Hawk,Rupornis,magnirostris
 Blue Jay,Cyanocitta,cristata
-Black-capped Chickadee,Poecile,atricapillus
-House Sparrow,Passer,domesticus
-American Robin,Turdus,migratorius
-Mourning Dove,Zenaida,macroura
-Downy Woodpecker,Dryobates,pubescens
-Tufted Titmouse,Baeolophus,bicolor
-White-breasted Nuthatch,Sitta,carolinensis
-House Finch,Haemorhous,mexicanus
+Steller's Jay,Cyanocitta,stelleri
+Grey Crowned Crane,Balearica,regulorum
+Scarlet Flycatcher,Pyrocephalus,rubinus
+American Avocet,Recurvirostra,americana
+Kori Bustard,Ardeotis,kori
+Yellow-billed Magpie,Pica,nuttalli
+Canada Jay,Perisoreus,canadensis
+Sandhill Crane,Antigone,canadensis
+Northern Waterthrush,Parkesia,noveboracensis
+Great Blue Heron,Ardea,herodias
+Sora,Porzana,carolina
+Mexican Duck,Anas,platyrhynchos
+Grey Wagtail,Motacilla,cinerea
+Western Flycatcher,Empidonax,difficilis
+Least Flycatcher,Empidonax,minimus
+Buff-breasted Flycatcher,Empidonax,fulvifrons
+Willow Flycatcher,Empidonax,traillii
+Hammond's Flycatcher,Empidonax,hammondii
+Western Flycatcher,Empidonax,occidentalis
+Virginia Rail,Rallus,limicola
+Common Crane,Grus,grus
+Boat-tailed Grackle,Quiscalus,major
+Barnacle Goose,Branta,leucopsis
+Yucatan Jay,Cyanocorax,yucatanicus
+Inca Jay,Cyanocorax,yncas
+Wilson's Storm Petrel,Oceanites,oceanicus
+Greater Antillean Grackle,Quiscalus,niger
+Brown Jay,Psilorhinus,morio
+Boat-billed Flycatcher,Megarynchus,pitangua
+Dusky Moorhen,Gallinula,tenebrosa
+Chicken,Gallus,gallus
+Helmeted Guinea Fowl,Numida,meleagris
 Dark-eyed Junco,Junco,hyemalis
-Red-winged Blackbird,Agelaius,phoeniceus
+Cassin's Kingbird,Tyrannus,vociferans
+Eastern Kingbird,Tyrannus,tyrannus
+Scissor-tailed Flycatcher,Tyrannus,forficatus
+Thick-billed Kingbird,Tyrannus,crassirostris
+Western Kingbird,Tyrannus,verticalis
+Fork-tailed Flycatcher,Tyrannus,savana
+Weka,Gallirallus,australis
+White-throated Magpie-jay,Calocitta,formosa
+Black-throated Magpie-jay,Calocitta,colliei
+American Coot,Fulica,americana
+Rose-throated Becard,Pachyramphus,aglaiae
+Rough-legged Buzzard,Buteo,lagopus
+Black Swan,Cygnus,atratus
+North Island Saddleback,Philesturnus,rufusater
+Great Black-backed Gull,Larus,marinus
+Great Kiskadee,Pitangus,sulphuratus
+American Black Duck,Anas,rubripes
+New Zealand Pipit,Anthus,novaeseelandiae
+Eastern Phoebe,Sayornis,phoebe
+Black Phoebe,Sayornis,nigricans
+Masked Tityra,Tityra,semifasciata
+Lineated Woodpecker,Dryocopus,lineatus
+Australasian Swamphen,Porphyrio,melanotus
+White-cheeked Pintail,Anas,bahamensis
+White-faced Heron,Egretta,novaehollandiae
+Green-winged Teal,Anas,crecca
+Chukar Partridge,Alectoris,chukar
+Least Grebe,Tachybaptus,dominicus
+Bell's Sparrow,Artemisiospiza,belli
+Red Junglefowl,Gallus,gallus
+Pyrrhuloxia,Cardinalis,sinuatus
+Northern Cardinal,Cardinalis,cardinalis
+Lincoln's Sparrow,Melospiza,lincolnii
+Pied-billed Grebe,Podilymbus,podiceps
+Swamp Sparrow,Melospiza,georgiana
+Wild Turkey,Meleagris,gallopavo
+Ocellated Turkey,Meleagris,ocellata
+Willow Ptarmigan,Lagopus,lagopus
+Black-chinned Sparrow,Spizella,atrogularis
+Alpine Chough,Pyrrhocorax,graculus
+Brewer's Sparrow,Spizella,breweri
+Mountain Bluebird,Sialia,currucoides
+Field Sparrow,Spizella,pusilla
+Pacific Black Duck,Anas,superciliosa
+Fox Sparrow,Passerella,iliaca
+American Flamingo,Phoenicopterus,ruber
+Eurasian Blackcap,Sylvia,atricapilla
+Bell's Vireo,Vireo,bellii
+Plumbeous Vireo,Vireo,plumbeus
+Philadelphia Vireo,Vireo,philadelphicus
+Yellow-throated Vireo,Vireo,flavifrons
+Red-eyed Vireo,Vireo,olivaceus
+Harris's Sparrow,Zonotrichia,querula
+Hutton's Vireo,Vireo,huttoni
+White-throated Sparrow,Zonotrichia,albicollis
+Golden-crowned Sparrow,Zonotrichia,atricapilla
+Yellowhammer,Emberiza,citrinella
+Barrow's Goldeneye,Bucephala,islandica
+Common Reed Bunting,Emberiza,schoeniclus
+Warbling Vireo,Vireo,gilvus
+European Serin,Serinus,serinus
+Yellow-fronted Canary,Serinus,mozambicus
+Kalij Pheasant,Lophura,leucomelanos
+Elegant Euphonia,Euphonia,elegantissima
+Yellow-throated Euphonia,Euphonia,hirundinacea
+Scrub Euphonia,Euphonia,affinis
+Tricolored Blackbird,Agelaius,tricolor
+Lesson's Motmot,Momotus,lessonii
+Warbling White-eye,Zosterops,japonicus
+Pelagic Cormorant,Phalacrocorax,pelagicus
+Hooded Oriole,Icterus,cucullatus
+Audubon's Oriole,Icterus,graduacauda
+African Pied Wagtail,Motacilla,aguimp
+Pacific Black Duck,Anas,superciliosa
+Streak-backed Oriole,Icterus,pustulatus
+Altamira Oriole,Icterus,gularis
+Common Linnet,Carduelis,cannabina
+Gray-cheeked Thrush,Catharus,minimus
+White-breasted Waterhen,Amaurornis,phoenicurus
+Indian Peafowl,Pavo,cristatus
+Clapper Rail,Rallus,crepitans
+Kākā,Nestor,meridionalis
+Green-tailed Towhee,Pipilo,chlorurus
+Spotted Towhee,Pipilo,maculatus
+Eastern Towhee,Pipilo,erythrophthalmus
+Muscovy Duck,Cairina,moschata
+Australian Pied Cormorant,Phalacrocorax,varius
+American Three-toed Woodpecker,Picoides,dorsalis
+Nuttall's Woodpecker,Dryobates,nuttallii
+Ladder-backed Woodpecker,Dryobates,scalaris
+Gambel's Quail,Callipepla,gambelii
+Eurasian Bullfinch,Pyrrhula,pyrrhula
+Neotropic Cormorant,Phalacrocorax,brasilianus
+Downy Woodpecker,Dryobates,pubescens
+Northern Bobwhite,Colinus,virginianus
+Cinnamon-rumped Seedeater,Sporophila,torqueola
+Hairy Woodpecker,Dryobates,villosus
+Semipalmated Sandpiper,Calidris,pusilla
+Black-backed Woodpecker,Picoides,arcticus
+Greater Scaup,Aythya,marila
+Red-billed Tropicbird,Phaethon,aethereus
+Eastern Meadowlark,Sturnella,magna
+Budgerigar,Melopsittacus,undulatus
+Lesser Scaup,Aythya,affinis
+New Zealand Scaup,Aythya,novaeseelandiae
+Montezuma Quail,Cyrtonyx,montezumae
+Brown Pelican,Pelecanus,occidentalis
+White-throated Dipper,Cinclus,cinclus
+Ross's Goose,Chen,rossii
+California Quail,Callipepla,californica
 Common Grackle,Quiscalus,quiscula
-European Starling,Sturnus,vulgaris
-Carolina Wren,Thryothorus,ludovicianus
-Song Sparrow,Melospiza,melodia
-Ruby-throated Hummingbird,Archilochus,colubris
+Great-tailed Grackle,Quiscalus,mexicanus
+Scaled Quail,Callipepla,squamata
+Pileated Woodpecker,Dryocopus,pileatus
+Blue Grosbeak,Passerina,caerulea
+Berylline Hummingbird,Amazilia,beryllina
+Common Yellowthroat,Geothlypis,trichas
+Black-headed Trogon,Trogon,melanocephalus
+Common Whitethroat,Sylvia,communis
+Pine Grosbeak,Pinicola,enucleator
+Evening Grosbeak,Coccothraustes,vespertinus
+Hawfinch,Coccothraustes,coccothraustes
+Golden-winged Warbler,Vermivora,chrysoptera
+Hoatzin,Opisthocomus,hoazin
+Yellow-rumped Warbler,Setophaga,coronata
+Cinnamon-bellied Flowerpiercer,Diglossa,baritula
+Bluish-grey Saltator,Saltator,coerulescens
+Black-headed Saltator,Saltator,atriceps
+Saffron Finch,Sicalis,flaveola
+Mandarin Duck,Aix,galericulata
+Dark-eyed Junco,Junco,hyemalis
+Eupsittula canicularis,Eupsittula,canicularis
+Little Pied Cormorant,Microcarbo,melanoleucos
+Summer Tanager,Piranga,rubra
+Scarlet Tanager,Piranga,olivacea
+Red Tanager,Piranga,flava
+Black-throated Sparrow,Amphispiza,bilineata
+Kelp Gull,Larus,dominicanus
+Common Squirrel Cuckoo,Piaya,cayana
+Rufous-crowned Sparrow,Aimophila,ruficeps
+Lewis's Woodpecker,Melanerpes,lewis
+Gila Woodpecker,Melanerpes,uropygialis
+Savannah Sparrow,Passerculus,sandwichensis
+Black-cheeked Woodpecker,Melanerpes,pucherani
+Rock Wren,Salpinctes,obsoletus
+Red-bellied Woodpecker,Melanerpes,carolinus
+Golden-cheeked Woodpecker,Melanerpes,chrysogenys
+Acorn Woodpecker,Melanerpes,formicivorus
+Northern Flicker,Colaptes,auratus
+Rufous-capped Warbler,Basileuterus,rufifrons
+Yellow-legged Gull,Larus,michahellis
+Scarlet-rumped Tanager,Ramphocelus,passerinii
+Burrowing Owl,Athene,cunicularia
+Cackling Goose,Branta,hutchinsii
+Brambling,Fringilla,montifringilla
+Eurasian Chaffinch,Fringilla,coelebs
+Dark-eyed Junco,Junco,hyemalis
+Common Cuckoo,Cuculus,canorus
+Yellow-eyed Junco,Junco,phaeonotus
+Nelson's Sparrow,Ammodramus,nelsoni
+Grasshopper Sparrow,Ammodramus,savannarum
+Seaside Sparrow,Ammodramus,maritimus
+Black-billed Cuckoo,Coccyzus,erythropthalmus
+Mangrove Cuckoo,Coccyzus,minor
+Yellow-billed Cuckoo,Coccyzus,americanus
+Clark's Nutcracker,Nucifraga,columbiana
+Groove-billed Ani,Crotophaga,sulcirostris
+Vesper Sparrow,Pooecetes,gramineus
+Olive Sparrow,Arremonops,rufivirgatus
+Greater Roadrunner,Geococcyx,californianus
+Lesser Roadrunner,Geococcyx,velox
+Bananaquit,Coereba,flaveola
+Painted Bunting,Passerina,ciris
+Australian Brushturkey,Alectura,lathami
+Orange-breasted Bunting,Passerina,leclancherii
+Lazuli Bunting,Passerina,amoena
+Yellow-breasted Chat,Icteria,virens
+Great Curassow,Crax,rubra
+Crested Guan,Penelope,purpurascens
+White-rumped Shama,Copsychus,malabaricus
+Yellow-billed Cardinal,Paroaria,capitata
+Red-legged Honeycreeper,Cyanerpes,cyaneus
+Little Pied Cormorant,Microcarbo,melanoleucos
+Williamson's Sapsucker,Sphyrapicus,thyroideus
+Rose-breasted Grosbeak,Pheucticus,ludovicianus
+Red-breasted Sapsucker,Sphyrapicus,ruber
+Black-headed Grosbeak,Pheucticus,melanocephalus
+Red-naped Sapsucker,Sphyrapicus,nuchalis
+West Mexican Chachalaca,Ortalis,poliocephala
+Plain Chachalaca,Ortalis,vetula
+Pied Crow,Corvus,albus
+Black-and-white Warbler,Mniotilta,varia
+Blue-black Grassquit,Volatinia,jacarina
+Palm Tanager,Thraupis,palmarum
+Russet-crowned Motmot,Momotus,mexicanus
+Brewer's Blackbird,Euphagus,cyanocephalus
+Sulphur-crested Cockatoo,Cacatua,galerita
+Dark-eyed Junco,Junco,hyemalis
+Pacific Golden Plover,Pluvialis,fulva
+Bronzed Cowbird,Molothrus,aeneus
+Brown-headed Cowbird,Molothrus,ater
+Little Bee-eater,Merops,pusillus
+European Bee-eater,Merops,apiaster
+Collared Aracari,Pteroglossus,torquatus
+Red Crossbill,Loxia,curvirostra
+Asian Green Bee-eater,Merops,orientalis
+Two-barred Crossbill,Loxia,leucoptera
+European Roller,Coracias,garrulus
+Lilac-breasted Roller,Coracias,caudatus
+Indian Roller,Coracias,benghalensis
+Yellow-headed Blackbird,Xanthocephalus,xanthocephalus
+Lark Sparrow,Chondestes,grammacus
+Bobolink,Dolichonyx,oryzivorus
+Osprey,Pandion,haliaetus
+Phainopepla,Phainopepla,nitens
+Couch's Kingbird,Tyrannus,couchii
+Common Chiffchaff,Phylloscopus,collybita
+Hen Harrier,Circus,cyaneus
+Magpie-lark,Grallina,cyanoleuca
+Snow Bunting,Plectrophenax,nivalis
+Lark Bunting,Calamospiza,melanocorys
+Ruby-crowned Kinglet,Regulus,calendula
+Common Firecrest,Regulus,ignicapilla
+Goldcrest,Regulus,regulus
+Golden-crowned Kinglet,Regulus,satrapa
+Tropical Kingbird,Tyrannus,melancholicus
+Australian Pelican,Pelecanus,conspicillatus
+Northern Emerald Toucanet,Aulacorhynchus,prasinus
+Sacred Kingfisher,Todiramphus,sanctus
+Bullock's Oriole,Icterus,bullockii
+Dickcissel,Spiza,americana
+Gray Kingbird,Tyrannus,dominicensis
+Black Tern,Chlidonias,niger
+Striped Sparrow,Oriturus,superciliosus
+Montezuma Oropendola,Psarocolius,montezuma
+Fieldfare,Turdus,pilaris
+Stitchbird,Notiomystis,cincta
+Secretarybird,Sagittarius,serpentarius
+Rose-ringed Parakeet,Psittacula,krameri
+Eastern Rosella,Platycercus,eximius
+Prothonotary Warbler,Protonotaria,citrea
+Ringed Kingfisher,Megaceryle,torquata
+Kākā,Nestor,meridionalis
+Red-crowned Amazon,Amazona,viridigenalis
+White-fronted Amazon,Amazona,albifrons
+Yellow-headed Amazon,Amazona,oratrix
+Whinchat,Saxicola,rubetra
+Military Macaw,Ara,militaris
+American Tree Sparrow,Spizelloides,arborea
+Pied Kingfisher,Ceryle,rudis
+American Pygmy Kingfisher,Chloroceryle,aenea
+Amazon Kingfisher,Chloroceryle,amazona
+Social Flycatcher,Myiozetetes,similis
+Curve-billed Thrasher,Toxostoma,curvirostre
+Belted Kingfisher,Megaceryle,alcyon
+Horned Lark,Eremophila,alpestris
+Australian King Parrot,Alisterus,scapularis
+Garden Sunbird,Cinnyris,jugularis
+Ivory-billed Woodcreeper,Xiphorhynchus,flavigaster
+Wattled Jacana,Jacana,jacana
+Red Phalarope,Phalaropus,fulicarius
+European Turtle Dove,Streptopelia,turtur
+Black-billed Magpie,Pica,hudsonia
+Hooded Crow,Corvus,cornix
+Monk Parakeet,Myiopsitta,monachus
+Eurasian Collared Dove,Streptopelia,decaocto
+Western Tanager,Piranga,ludoviciana
+Least Bittern,Ixobrychus,exilis
+Verdin,Auriparus,flaviceps
+MacGillivray's Warbler,Geothlypis,tolmiei
+Rock Dove,Columba,livia
+Hooded Warbler,Setophaga,citrina
+Cerulean Warbler,Setophaga,cerulea
+Common Wood Pigeon,Columba,palumbus
+Flame-colored Tanager,Piranga,bidentata
+White-crowned Pigeon,Patagioenas,leucocephala
+Band-tailed Pigeon,Patagioenas,fasciata
+Red-billed Pigeon,Patagioenas,flavirostris
+Prairie Warbler,Setophaga,discolor
+Common Nighthawk,Chordeiles,minor
+Lesser Nighthawk,Chordeiles,acutipennis
+Eurasian Spoonbill,Platalea,leucorodia
+Common Poorwill,Phalaenoptilus,nuttallii
+House Finch,Haemorhous,mexicanus
+Purple Finch,Haemorhous,purpureus
+Pauraque,Nyctidromus,albicollis
+Pale-billed Woodpecker,Campephilus,guatemalensis
+Brown Thrasher,Toxostoma,rufum
+White-tipped Dove,Leptotila,verreauxi
+Northern Potoo,Nyctibius,jamaicensis
+Eurasian Wigeon,Anas,penelope
+Gray Hawk,Buteo,plagiatus
+Calliope Hummingbird,Selasphorus,calliope
+Western Screech Owl,Megascops,kennicottii
+Grey-headed Swamphen,Porphyrio,poliocephalus
+Eastern Screech Owl,Megascops,asio
+Eared Dove,Zenaida,auriculata
+Blue Duck,Hymenolaimus,malacorhynchos
+Black-throated Blue Warbler,Setophaga,caerulescens
+Northern Beardless Tyrannulet,Camptostoma,imberbe
+Crested Caracara,Caracara,plancus
+Common Ground Dove,Columbina,passerina
+Olive-throated Parakeet,Eupsittula,nana
+Kea,Nestor,notabilis
+Ruddy Ground Dove,Columbina,talpacoti
+Zebra Dove,Geopelia,striata
+Little Owl,Athene,noctua
+Smooth-billed Ani,Crotophaga,ani
 Eastern Bluebird,Sialia,sialis
+African Spoonbill,Platalea,alba
+Great Horned Owl,Bubo,virginianus
+Cave Swallow,Petrochelidon,fulva
+Purple Martin,Progne,subis
+Yellow-rumped Warbler,Setophaga,coronata
+Welcome Swallow,Hirundo,neoxena
+Barn Swallow,Hirundo,rustica
+Surfbird,Calidris,virgata
+Ruff,Calidris,pugnax
+Royal Spoonbill,Platalea,regia
+Violet-green Swallow,Tachycineta,thalassina
+Hadada Ibis,Bostrychia,hagedash
+Sand Martin,Riparia,riparia
+American White Ibis,Eudocimus,albus
+Glossy Ibis,Plegadis,falcinellus
+White-faced Ibis,Plegadis,chihi
+Common Raven,Corvus,corax
+Northern Rough-winged Swallow,Stelgidopteryx,serripennis
+Masked Booby,Sula,dactylatra
+Red-footed Booby,Sula,sula
+Brown Booby,Sula,leucogaster
+Australasian Gannet,Morus,serrator
+Little Penguin,Eudyptula,minor
+Yellow-eyed Penguin,Megadyptes,antipodes
+Hamerkop,Scopus,umbretta
+Eurasian Wren,Troglodytes,troglodytes
+Red Knot,Calidris,canutus
+Red-backed Shrike,Lanius,collurio
+Baird's Sandpiper,Calidris,bairdii
+Wild Turkey,Meleagris,gallopavo
+Western Sandpiper,Calidris,mauri
+Purple Sandpiper,Calidris,maritima
+Dunlin,Calidris,alpina
+Curlew Sandpiper,Calidris,ferruginea
+Pectoral Sandpiper,Calidris,melanotos
+Short-billed Dowitcher,Limnodromus,griseus
+Superb Fairywren,Malurus,cyaneus
+Common Greenshank,Tringa,nebularia
+Sacred Kingfisher,Todiramphus,sanctus
+Green Sandpiper,Tringa,ochropus
+Wood Sandpiper,Tringa,glareola
+Greater Yellowlegs,Tringa,melanoleuca
+Lesser Yellowlegs,Tringa,flavipes
+Eurasian Curlew,Numenius,arquata
+Eurasian Whimbrel,Numenius,phaeopus
+Great Cormorant,Phalacrocorax,carbo
+Tomtit,Petroica,macrocephala
+North Island Robin,Petroica,australis
+Tūī,Prosthemadera,novaeseelandiae
+Short-eared Owl,Asio,flammeus
+New Zealand Fantail,Rhipidura,fuliginosa
+American Woodcock,Scolopax,minor
+Ruddy Turnstone,Arenaria,interpres
+Black Turnstone,Arenaria,melanocephala
+New Zealand Fantail,Rhipidura,fuliginosa
+Black-tailed Godwit,Limosa,limosa
+Hudsonian Godwit,Limosa,haemastica
+Marbled Godwit,Limosa,fedoa
+Red-necked Phalarope,Phalaropus,lobatus
+Upland Sandpiper,Bartramia,longicauda
+Bar-tailed Godwit,Limosa,lapponica
+Northern Saw-whet Owl,Aegolius,acadicus
+Common Sandpiper,Actitis,hypoleucos
+Coconut Lorikeet,Trichoglossus,haematodus
+Northern Hawk-owl,Surnia,ulula
+Blue-gray Gnatcatcher,Polioptila,caerulea
+Chipping Sparrow,Spizella,passerina
+Red-whiskered Bulbul,Pycnonotus,jocosus
+Indigo Bunting,Passerina,cyanea
+Varied Bunting,Passerina,versicolor
+Noisy Miner,Manorina,melanocephala
+Crested Pigeon,Ocyphaps,lophotes
+Jabiru,Jabiru,mycteria
+Red-vented Bulbul,Pycnonotus,cafer
+Swan Goose,Anser,cygnoides
+European Green Woodpecker,Picus,viridis
+Black-footed Albatross,Phoebastria,nigripes
+Common Ostrich,Struthio,camelus
+Laysan Albatross,Phoebastria,immutabilis
+Northern Fulmar,Fulmarus,glacialis
+Grey Francolin,Francolinus,pondicerianus
+Broad-billed Hummingbird,Cynanthus,latirostris
+Black-necked Grebe,Podiceps,nigricollis
+Great Crested Grebe,Podiceps,cristatus
+Horned Grebe,Podiceps,auritus
+Great Spotted Woodpecker,Dendrocopos,major
+Red-necked Grebe,Podiceps,grisegena
+Little Grebe,Tachybaptus,ruficollis
+Mountain Plover,Charadrius,montanus
+Double-crested Cormorant,Phalacrocorax,auritus
+Great Cormorant,Phalacrocorax,carbo
+Brandt's Cormorant,Phalacrocorax,penicillatus
+Clark's Grebe,Aechmophorus,clarkii
+Great White Pelican,Pelecanus,onocrotalus
+American White Pelican,Pelecanus,erythrorhynchos
+Mourning Dove,Zenaida,macroura
+Masked Lapwing,Vanellus,miles
+Western Gull,Larus,occidentalis
+Slaty-tailed Trogon,Trogon,massena
+Thayer's Gull,Larus,thayeri
+Heermann's Gull,Larus,heermanni
+Yellow-footed Gull,Larus,livens
+Common Gull,Larus,canus
+Iceland Gull,Larus,glaucoides
+Ring-billed Gull,Larus,delawarensis
+Collared Trogon,Trogon,collaris
+White-winged Dove,Zenaida,asiatica
+Lesser Black-backed Gull,Larus,fuscus
+California Gull,Larus,californicus
+Tūī,Prosthemadera,novaeseelandiae
+Elegant Trogon,Trogon,elegans
+Glaucous-winged Gull,Larus,glaucescens
+Citreoline Trogon,Trogon,citreolus
+Pigeon Guillemot,Cepphus,columba
+Pied Stilt,Himantopus,leucocephalus
+Black Guillemot,Cepphus,grylle
+New Zealand Bellbird,Anthornis,melanura
+Marabou Stork,Leptoptilos,crumenifer
+Australian White Ibis,Threskiornis,moluccus
+Blue-gray Tanager,Thraupis,episcopus
+White-tailed Hawk,Geranoaetus,albicaudatus
+Arctic Tern,Sterna,paradisaea
+Common Tern,Sterna,hirundo
+Forster's Tern,Sterna,forsteri
+Great Grey Shrike,Lanius,excubitor
+Resplendent Quetzal,Pharomachrus,mocinno
+White-fronted Tern,Sterna,striata
+Parasitic Jaeger,Stercorarius,parasiticus
+Pomarine Jaeger,Stercorarius,pomarinus
+Grey Teal,Anas,gracilis
+Black-legged Kittiwake,Rissa,tridactyla
+Black Skimmer,Rynchops,niger
+Razorbill,Alca,torda
+Atlantic Puffin,Fratercula,arctica
+Tufted Puffin,Fratercula,cirrhata
+Common Blackbird,Turdus,merula
+Western Red-legged Thrush,Turdus,plumbeus
+Clay-colored Thrush,Turdus,grayi
+American Robin,Turdus,migratorius
+Mistle Thrush,Turdus,viscivorus
+Rhinoceros Auklet,Cerorhinca,monocerata
+Song Thrush,Turdus,philomelos
+Rufous-tailed Jacamar,Galbula,ruficauda
+Northern Jacana,Jacana,spinosa
+European Stonechat,Saxicola,rubicola
+Eurasian Hoopoe,Upupa,epops
+Rusty Blackbird,Euphagus,carolinus
+Pacific Loon,Gavia,pacifica
+Tropical Mockingbird,Mimus,gilvus
+Italian Sparrow,Passer,italiae
+Common Loon,Gavia,immer
+Red-throated Loon,Gavia,stellata
+Northern Wheatear,Oenanthe,oenanthe
+Magnificent Frigatebird,Fregata,magnificens
+Great Frigatebird,Fregata,minor
+Eurasian Hobby,Falco,subbuteo
+Prairie Falcon,Falco,mexicanus
+Aplomado Falcon,Falco,femoralis
+Peregrine Falcon,Falco,peregrinus
+Bat Falcon,Falco,rufigularis
+American Kestrel,Falco,sparverius
+Barred Owl,Strix,varia
+Merlin,Falco,columbarius
+Common Moorhen,Gallinula,chloropus
+Wilson's Warbler,Cardellina,pusilla
+Swainson's Thrush,Catharus,ustulatus
+New Zealand Falcon,Falco,novaeseelandiae
+Hermit Thrush,Catharus,guttatus
+Veery,Catharus,fuscescens
+Crested Caracara,Caracara,cheriway
+Laughing Falcon,Herpetotheres,cachinnans
+Lapland Longspur,Calcarius,lapponicus
+Yellow-headed Caracara,Milvago,chimachima
+White Stork,Ciconia,ciconia
+Wood Stork,Mycteria,americana
+Yellow-billed Stork,Mycteria,ibis
+Western Bluebird,Sialia,mexicana
+Saddle-billed Stork,Ephippiorhynchus,senegalensis
+Turkey Vulture,Cathartes,aura
+Townsend's Solitaire,Myadestes,townsendi
+Lesser Yellow-headed Vulture,Cathartes,burrovianus
+King Vulture,Sarcoramphus,papa
+Black Vulture,Coragyps,atratus
+Great Grey Owl,Strix,nebulosa
+African Openbill,Anastomus,lamelligerus
+Grey Plover,Pluvialis,squatarola
+California Condor,Gymnogyps,californianus
+Spotted Flycatcher,Muscicapa,striata
+Killdeer,Charadrius,vociferus
+Wilson's Plover,Charadrius,wilsonia
+Piping Plover,Charadrius,melodus
+Common Redstart,Phoenicurus,phoenicurus
+Black Redstart,Phoenicurus,ochruros
+Little Ringed Plover,Charadrius,dubius
+Turquoise-browed Motmot,Eumomota,superciliosa
+Garganey,Anas,querquedula
+Black-necked Stilt,Himantopus,mexicanus
+Black Oystercatcher,Haematopus,bachmani
+Eurasian Magpie,Pica,pica
+Eurasian Oystercatcher,Haematopus,ostralegus
+Variable Oystercatcher,Haematopus,unicolor
+Northern Lapwing,Vanellus,vanellus
+Spur-winged Lapwing,Vanellus,spinosus
+Blacksmith Lapwing,Vanellus,armatus
+Bluethroat,Luscinia,svecica
+Inca Dove,Columbina,inca
+Pied Avocet,Recurvirostra,avosetta
+Common Pheasant,Phasianus,colchicus
+American Golden Plover,Pluvialis,dominica
+American Dipper,Cinclus,mexicanus
+European Robin,Erithacus,rubecula
+Golden-fronted Woodpecker,Melanerpes,aurifrons
+Common Ringed Plover,Charadrius,hiaticula
+Western Reef Heron,Egretta,gularis
+Little Blue Heron,Egretta,caerulea
+Tricolored Heron,Egretta,tricolor
+Snowy Egret,Egretta,thula
+Little Egret,Egretta,garzetta
+Pacific Reef Heron,Egretta,sacra
+Blue Rock Thrush,Monticola,solitarius
+Cocoi Heron,Ardea,cocoi
+Grey Heron,Ardea,cinerea
+Great Blue Heron,Ardea,herodias
+Black-crowned Night Heron,Nycticorax,nycticorax
+Rufous-backed Thrush,Turdus,rufopalliatus
+Squacco Heron,Ardeola,ralloides
+Yellow-crowned Night Heron,Nyctanassa,violacea
+Grey-cowled Wood Rail,Aramides,cajaneus
+Western Cattle Egret,Bubulcus,ibis
+Green Heron,Butorides,virescens
+American Purple Gallinule,Porphyrio,martinicus
+American Bittern,Botaurus,lentiginosus
+Boat-billed Heron,Cochlearius,cochlearius
+Australasian Darter,Anhinga,novaehollandiae
+African Darter,Anhinga,rufa
+Canyon Towhee,Melozone,fusca
+Golden Eagle,Aquila,chrysaetos
+Wood Thrush,Hylocichla,mustelina
+Mexican Jay,Aphelocoma,wollweberi
+Sharp-shinned Hawk,Accipiter,striatus
+Eurasian Sparrowhawk,Accipiter,nisus
+Eurasian Goshawk,Accipiter,gentilis
+Reddish Egret,Egretta,rufescens
+Common Goldeneye,Bucephala,clangula
+Brown Noddy,Anous,stolidus
+Spotted Sandpiper,Actitis,macularius
+Purple Heron,Ardea,purpurea
+Collared Kingfisher,Todiramphus,chloris
+Whooping Crane,Grus,americana
+Black-winged Stilt,Himantopus,himantopus
+Mountain Pygmy Owl,Glaucidium,gnoma
+Swamp Harrier,Circus,approximans
+Western Marsh Harrier,Circus,aeruginosus
+Little Black Cormorant,Phalacrocorax,sulcirostris
+Zone-tailed Hawk,Buteo,albonotatus
+Striated Heron,Butorides,striata
+Roseate Spoonbill,Platalea,ajaja
+Short-tailed Hawk,Buteo,brachyurus
+Great Egret,Ardea,alba
+Swainson's Hawk,Buteo,swainsoni
+Red-legged Partridge,Alectoris,rufa
+Red-shouldered Hawk,Buteo,lineatus
+Red-tailed Hawk,Buteo,jamaicensis
+Snowy Plover,Charadrius,nivosus
+Wandering Tattler,Tringa,incana
+Willet,Tringa,semipalmata
+Bateleur,Terathopius,ecaudatus
+Wilson's Snipe,Gallinago,delicata
+Common Black Hawk,Buteogallus,anthracinus
+Bonaparte's Gull,Chroicocephalus,philadelphia
+Short-toed Snake Eagle,Circaetus,gallicus
+Silver Gull,Chroicocephalus,novaehollandiae
+Black-headed Gull,Chroicocephalus,ridibundus
+Laughing Gull,Leucophaeus,atricilla
+Franklin's Gull,Leucophaeus,pipixcan
+Sooty Tern,Onychoprion,fuscatus
+Least Tern,Sternula,antillarum
+Caspian Tern,Hydroprogne,caspia
+Royal Tern,Thalasseus,maximus
+Greater Crested Tern,Thalasseus,bergii
+White-tailed Kite,Elanus,leucurus
+Egyptian Goose,Alopochen,aegyptiaca
+Laughing Dove,Streptopelia,senegalensis
+Grey Warbler,Gerygone,igata
+Bald Eagle,Haliaeetus,leucocephalus
+Grass Wren,Cistothorus,platensis
+African Fish Eagle,Haliaeetus,vocifer
+Snowy Owl,Bubo,scandiacus
+Mottled Owl,Ciccaba,virgata
+Ruffed Grouse,Bonasa,umbellus
+Black-collared Hawk,Busarellus,nigricollis
+Snail Kite,Rostrhamus,sociabilis
+Red Kite,Milvus,milvus
+Eurasian Griffon Vulture,Gyps,fulvus
+European Pied Flycatcher,Ficedula,hypoleuca
+Blue-capped Motmot,Momotus,coeruliceps
+Semipalmated Plover,Charadrius,semipalmatus
+Brahminy Kite,Haliastur,indus
+White-backed Vulture,Gyps,africanus
+Mississippi Kite,Ictinia,mississippiensis
+Melodious Blackbird,Dives,dives
+Black-crested Titmouse,Baeolophus,atricristatus
+Tufted Titmouse,Baeolophus,bicolor
+Oak Titmouse,Baeolophus,inornatus
+Song Sparrow,Melospiza,melodia
+Eurasian Siskin,Spinus,spinus
+White Wagtail,Motacilla,alba
+Brown Creeper,Certhia,americana
+Southern Ground Hornbill,Bucorvus,leadbeateri
+Meadow Pipit,Anthus,pratensis
+American Pipit,Anthus,rubescens
+Mangrove Swallow,Tachycineta,albilinea
+Carolina Chickadee,Poecile,carolinensis
+Black-capped Chickadee,Poecile,atricapillus
+Mountain Chickadee,Poecile,gambeli
+Chestnut-backed Chickadee,Poecile,rufescens
+Coal Tit,Periparus,ater
+Green Honeycreeper,Chlorophanes,spiza
+Common Waxbill,Estrilda,astrild
+Eurasian Blue Tit,Cyanistes,caeruleus
+Yellow-bellied Sapsucker,Sphyrapicus,varius
+Cliff Swallow,Petrochelidon,pyrrhonota
+Pacific Wren,Troglodytes,pacificus
+Winter Wren,Troglodytes,hiemalis
+Eurasian Tree Sparrow,Passer,montanus
+House Sparrow,Passer,domesticus
+California Scrub Jay,Aphelocoma,californica
+Buff-bellied Hummingbird,Amazilia,yucatanensis
+Rufous-tailed Hummingbird,Amazilia,tzacatl
+Fork-tailed Drongo,Dicrurus,adsimilis
+Violet-crowned Hummingbird,Amazilia,violiceps
+Scaly-breasted Munia,Lonchura,punctulata
+Bare-throated Tiger Heron,Tigrisoma,mexicanum
+Australasian Swamphen,Porphyrio,melanotus
+Black Scoter,Melanitta,americana
+Clay-colored Sparrow,Spizella,pallida
+Cinnamon Hummingbird,Amazilia,rutila
+Zenaida Dove,Zenaida,aurita
+Dunnock,Prunella,modularis
+Common Kestrel,Falco,tinnunculus
+Varied Thrush,Ixoreus,naevius
+Ruby-throated Hummingbird,Archilochus,colubris
+Blue-throated Mountaingem,Lampornis,clemenciae
+Dusky-capped Flycatcher,Myiarchus,tuberculifer
+American Redstart,Setophaga,ruticilla
+Brown-crested Flycatcher,Myiarchus,tyrannulus
+Silvereye,Zosterops,lateralis
+White-crowned Sparrow,Zonotrichia,leucophrys
+Red-winged Blackbird,Agelaius,phoeniceus
+Great Tit,Parus,major
+Rufous-collared Sparrow,Zonotrichia,capensis
+Tennessee Warbler,Oreothlypis,peregrina
+Orange-crowned Warbler,Oreothlypis,celata
+Nashville Warbler,Oreothlypis,ruficapilla
+Mourning Warbler,Geothlypis,philadelphia
+Kentucky Warbler,Geothlypis,formosa
+Cape May Warbler,Setophaga,tigrina
+Northern Parula,Setophaga,americana
+Magnolia Warbler,Setophaga,magnolia
+Bay-breasted Warbler,Setophaga,castanea
+Blackburnian Warbler,Setophaga,fusca
+Mangrove Warbler,Setophaga,petechia
+Blackpoll Warbler,Setophaga,striata
+Palm Warbler,Setophaga,palmarum
+Pine Warbler,Setophaga,pinus
+Yellow-rumped Warbler,Setophaga,coronata
+Yellow-throated Warbler,Setophaga,dominica
+Violet Sabrewing,Campylopterus,hemileucurus
+Cassin's Vireo,Vireo,cassinii
+Black-throated Gray Warbler,Setophaga,nigrescens
+Townsend's Warbler,Setophaga,townsendi
+Hermit Warbler,Setophaga,occidentalis
+Golden-cheeked Warbler,Setophaga,chrysoparia
+Black-throated Green Warbler,Setophaga,virens
+Canada Warbler,Cardellina,canadensis
+Red Warbler,Cardellina,rubra
+Florida Scrub Jay,Aphelocoma,coerulescens
+Red-headed Woodpecker,Melanerpes,erythrocephalus
+Corn Bunting,Emberiza,calandra
+Redpoll,Acanthis,flammea
+Pine Siskin,Spinus,pinus
+Yellow-winged Tanager,Thraupis,abbas
+Lesser Goldfinch,Spinus,psaltria
+Lawrence's Goldfinch,Spinus,lawrencei
+American Goldfinch,Spinus,tristis
+African Sacred Ibis,Threskiornis,aethiopicus
+Atlantic White Tern,Gygis,alba
+Tree Swallow,Tachycineta,bicolor
+Kelp Gull,Larus,dominicanus
+Java Sparrow,Lonchura,oryzivora
+American Oystercatcher,Haematopus,palliatus
+European Greenfinch,Chloris,chloris
+Cooper's Hawk,Accipiter,cooperii
+Blue-headed Vireo,Vireo,solitarius
+Broad-tailed Hummingbird,Selasphorus,platycercus
+Red-billed Gull,Chroicocephalus,scopulinus
+Western Grebe,Aechmophorus,occidentalis
+Kererū,Hemiphaga,novaeseelandiae
+Sabine's Gull,Xema,sabini
+Keel-billed Toucan,Ramphastos,sulfuratus
+Laughing Kookaburra,Dacelo,novaeguineae
+Eurasian Coot,Fulica,atra
+Barn Swallow,Hirundo,rustica
+Costa's Hummingbird,Calypte,costae
+Anna's Hummingbird,Calypte,anna
+Northern Flicker,Colaptes,auratus
+Blue-footed Booby,Sula,nebouxii
+Oriental Magpie-robin,Copsychus,saularis
+Allen's Hummingbird,Selasphorus,sasin
+Rufous Hummingbird,Selasphorus,rufus
+Lucifer Sheartail,Calothorax,lucifer
+Common Bulbul,Pycnonotus,barbatus
+Glaucous-winged Gull,Larus,glaucescens
+Woodhouse's Scrub Jay,Aphelocoma,woodhouseii
+White-necked Jacobin,Florisuga,mellivora
+South Island Oystercatcher,Haematopus,finschi
+Spruce Grouse,Falcipennis,canadensis
+Black-chinned Hummingbird,Archilochus,alexandri
+Hen Harrier,Circus,cyaneus
+Eastern Great Egret,Ardea,alba
+Great Crested Flycatcher,Myiarchus,crinitus
+Ferruginous Hawk,Buteo,regalis
+White-throated Swift,Aeronautes,saxatalis
+Vaux's Swift,Chaetura,vauxi
+Chimney Swift,Chaetura,pelagica
+Chestnut-sided Warbler,Setophaga,pensylvanica
+Loggerhead Shrike,Lanius,ludovicianus
+Anhinga,Anhinga,anhinga
+Common Myna,Acridotheres,tristis
+Pygmy Nuthatch,Sitta,pygmaea
+African Jacana,Actophilornis,africanus
+Red-breasted Nuthatch,Sitta,canadensis
+Eurasian Nuthatch,Sitta,europaea
+Brown-headed Nuthatch,Sitta,pusilla
+Common Swift,Apus,apus
+European Starling,Sturnus,vulgaris
+Ovenbird,Seiurus,aurocapilla
+Western Yellow Wagtail,Motacilla,flava
+White-eyed Vireo,Vireo,griseus
+Long-billed Thrasher,Toxostoma,longirostre
+Sanderling,Calidris,alba
+California Thrasher,Toxostoma,redivivum
+Common Gallinule,Gallinula,galeata
+Stilt Sandpiper,Calidris,himantopus
+Rivoli's Hummingbird,Eugenes,fulgens
+Black-vented Oriole,Icterus,wagleri
+Scott's Oriole,Icterus,parisorum
+Broad-winged Hawk,Buteo,platypterus
+Common Snipe,Gallinago,gallinago
+Orchard Oriole,Icterus,spurius
+Least Sandpiper,Calidris,minutilla
+Gray Catbird,Dumetella,carolinensis
+Takahē,Porphyrio,hochstetteri
+White-rumped Sandpiper,Calidris,fuscicollis
+Wilson's Phalarope,Phalaropus,tricolor
+Northern Flicker,Colaptes,auratus
+Blue Mockingbird,Melanotis,caerulescens
+Yellow-faced Grassquit,Tiaris,olivaceus
+Sage Thrasher,Oreoscoptes,montanus
+Long-billed Dowitcher,Limnodromus,scolopaceus
+Solitary Sandpiper,Tringa,solitaria
+White-breasted Nuthatch,Sitta,carolinensis
+Common Redshank,Tringa,totanus
+Black-bellied Whistling Duck,Dendrocygna,autumnalis
+White-faced Whistling Duck,Dendrocygna,viduata
+Fulvous Whistling Duck,Dendrocygna,bicolor
+Black-backed Oriole,Icterus,abeillei
+Southern Lapwing,Vanellus,chilensis
+Trumpeter Swan,Cygnus,buccinator
+Whooper Swan,Cygnus,cygnus
+Tundra Swan,Cygnus,columbianus
+Mute Swan,Cygnus,olor
 Baltimore Oriole,Icterus,galbula
+Mallard,Anas,platyrhynchos
+Northern Pintail,Anas,acuta
+Eurasian Teal,Anas,crecca
+Cinnamon Teal,Anas,cyanoptera
+Mottled Duck,Anas,fulvigula
+Blue-winged Teal,Anas,discors
+Gadwall,Anas,strepera
+Northern Shoveler,Anas,clypeata
+Brown Teal,Anas,chlorotis
+Willie Wagtail,Rhipidura,leucophrys
+American Wigeon,Anas,americana
+Bufflehead,Bucephala,albeola
+Red-breasted Merganser,Mergus,serrator
+Common Merganser,Mergus,merganser
+Greylag Goose,Anser,anser
+Greater White-fronted Goose,Anser,albifrons
+Common Eider,Somateria,mollissima
+Ridgway's Rail,Rallus,obsoletus
+Crimson Rosella,Platycercus,elegans
+Velvet Scoter,Melanitta,fusca
+Black Kite,Milvus,migrans
+Gull-billed Tern,Gelochelidon,nilotica
+Morepork,Ninox,novaeseelandiae
+Surf Scoter,Melanitta,perspicillata
+Ring-necked Duck,Aythya,collaris
+Common Pochard,Aythya,ferina
+Tufted Duck,Aythya,fuligula
+Long-billed Curlew,Numenius,americanus
+Snow Goose,Chen,caerulescens
+Wrentit,Chamaea,fasciata
+Canada Goose,Branta,canadensis
+Elegant Tern,Thalasseus,elegans
+Nene,Branta,sandvicensis
+Redhead,Aythya,americana
+Wood Duck,Aix,sponsa
+Hooded Merganser,Lophodytes,cucullatus
+Harlequin Duck,Histrionicus,histrionicus
+Nanday Parakeet,Aratinga,nenday
+Green Parakeet,Psittacara,holochlorus
+Muscovy Duck,Cairina,moschata
+Red-crested Pochard,Netta,rufina
+Red-masked Parakeet,Psittacara,erythrogenys
+Say's Phoebe,Sayornis,saya
+Canvasback,Aythya,valisineria
+White-headed Woodpecker,Picoides,albolarvatus
+Blue-winged Warbler,Vermivora,cyanoptera
+American Crow,Corvus,caurinus
+Long-eared Owl,Asio,otus
+American Crow,Corvus,brachyrhynchos
+Long-tailed Duck,Clangula,hyemalis
+Australian Wood Duck,Chenonetta,jubata
+Sandwich Tern,Thalasseus,sandvicensis
+Galah,Eolophus,roseicapilla
+Golden-olive Woodpecker,Colaptes,rubiginosus
+Wild Turkey,Meleagris,gallopavo
+Grey Silky-flycatcher,Ptiliogonys,cinereus
+Swallow-tailed Kite,Elanoides,forficatus
+European Goldfinch,Carduelis,carduelis
+Mexican Cacique,Cassiculus,melanicterus
+Sooty Grouse,Dendragapus,fuliginosus
+American Bushtit,Psaltriparus,minimus
+Long-tailed Tit,Aegithalos,caudatus
+Silvereye,Zosterops,lateralis
+White-bellied Sea Eagle,Haliaeetus,leucogaster
+Common Murre,Uria,aalge
+Willet,Tringa,semipalmata
+Eurasian Skylark,Alauda,arvensis
+Crested Lark,Galerida,cristata
+Western House Martin,Delichon,urbicum
+Worm-eating Warbler,Helmitheros,vermivorum
+White-eared Hummingbird,Hylocharis,leucotis
+Northern Mockingbird,Mimus,polyglottos
+Australian Magpie,Gymnorhina,tibicen
+Common Kingfisher,Alcedo,atthis
+Spotted Dove,Streptopelia,chinensis
+Cedar Waxwing,Bombycilla,cedrorum
+Bohemian Waxwing,Bombycilla,garrulus
+Common Shelduck,Tadorna,tadorna
+South Island Robin,Petroica,australis
+Red-lored Amazon,Amazona,autumnalis
+Dusky Grouse,Dendragapus,obscurus
+Canyon Wren,Catherpes,mexicanus
+Ruddy Shelduck,Tadorna,ferruginea
+Cactus Wren,Campylorhynchus,brunneicapillus
+Veracruz Wren,Campylorhynchus,rufinucha
+New Zealand Fantail,Rhipidura,fuliginosa
+Black-tailed Gnatcatcher,Polioptila,melanura
+Brown Pelican,Pelecanus,occidentalis
+Abert's Towhee,Melozone,aberti
+California Towhee,Melozone,crissalis
+Carolina Wren,Thryothorus,ludovicianus
+Harris's Hawk,Parabuteo,unicinctus
+Domestic Duck,Anas,platyrhynchos
+Northern House Wren,Troglodytes,aedon
+Red-shouldered Hawk,Buteo,lineatus
+Barred Antshrike,Thamnophilus,doliatus
+Bewick's Wren,Thryomanes,bewickii
+Paradise Shelduck,Tadorna,variegata
+Slate-throated Whitestart,Myioborus,miniatus
+Australian Pied Cormorant,Phalacrocorax,varius
+Painted Redstart,Myioborus,pictus
+American Herring Gull,Larus,argentatus
+Louisiana Waterthrush,Parkesia,motacilla
+Nazca Booby,Sula,granti
+Scarlet Macaw,Ara,macao
+Stripe-headed Sparrow,Peucaea,ruficauda
+Buff-breasted Sandpiper,Calidris,subruficollis
+Greater Flamingo,Phoenicopterus,roseus
+Northern Gannet,Morus,bassanus
+Brown Pelican,Pelecanus,occidentalis
+Ferruginous Pygmy Owl,Glaucidium,brasilianum
+Ruddy Duck,Oxyura,jamaicensis
+Ash-throated Flycatcher,Myiarchus,cinerascens
+Green Kingfisher,Chloroceryle,americana
+Western Meadowlark,Sturnella,neglecta
+Yellow-throated Toucan,Ramphastos,ambiguus
+Red-crested Cardinal,Paroaria,coronata
+Common Buzzard,Buteo,buteo
+Sulphur-bellied Flycatcher,Myiodynastes,luteiventris
+Western Wood Pewee,Contopus,sordidulus
+Carrion Crow,Corvus,corone
+Red-crowned Parakeet,Cyanoramphus,novaezelandiae
+Eastern Wood Pewee,Contopus,virens
+Greater Pewee,Contopus,pertinax
+Olive-sided Flycatcher,Contopus,cooperi
+European Herring Gull,Larus,argentatus
+White-throated Kingfisher,Halcyon,smyrnensis
+Red-winged Starling,Onychognathus,morio
+Blue Bunting,Cyanocompsa,parellina
+Marsh Wren,Cistothorus,palustris
+Western Barn Owl,Tyto,alba
+Gartered Trogon,Trogon,caligatus
+Western Jackdaw,Corvus,monedula
+Fish Crow,Corvus,ossifragus
+African Penguin,Spheniscus,demersus
+Rook,Corvus,frugilegus
+House Crow,Corvus,splendens
+Brant,Branta,bernicla
+Glaucous Gull,Larus,hyperboreus
+Domestic Pigeon,Columba,livia
+Eurasian Jay,Garrulus,glandarius
+Domestic Goose,Anser,anser
+Northern Tufted Flycatcher,Mitrephanes,phaeocercus
+Pink-footed Shearwater,Ardenna,creatopus
+Great Shearwater,Ardenna,gravis
+Background,,

@@ -170,10 +170,18 @@ stale.
   exceptions, exactly one capture per edge.
 - [ ] **Trigger peripheral — C4 real sensor** — still open. No physical PIR /
   IR-beam is wired to the header; C3 proves the code, not the sensor.
-- [ ] **Real model weights** — both tiers currently run stand-ins (Tier 1: the
-  generated `stand_in_smoketest_224_uint8.tflite`; Tier 2: `tf_efficientnet_b4`
-  with a randomly-initialised 20-class head). Every label produced so far is
-  meaningless by construction. This is now the single biggest gap.
+- [x] **Real model weights — both tiers.** Tier 1 now runs Google AIY
+  `birds_V1` (MobileNetV2 / iNaturalist, 964 species + `background`); Tier 2
+  runs a ViT-L/14 fine-tuned on iNat21 (10,000 classes) projected onto the same
+  taxonomy by scientific name. **Both score 20/20 top-1** on the curated feeder
+  species — Tier 1 at 57.9 ms on the Pi, Tier 2 at 29.1 ms on the RTX 5080.
+  Accuracy was previously unmeasurable: every label was meaningless by
+  construction. Weights are fetched (`scripts/fetch_models.py`), not committed;
+  `scripts/validate_tier1.py` is the accuracy harness. See
+  `machine_learning/MODELS.md`.
+  - *Caveat:* the 20/20 is on Wikipedia lead images — clean, centred, well-lit
+    birds. It is an upper bound, not what a feeder camera will see. A real
+    field test is still the honest measure.
 - [x] **Backend + Postgres on the gaming PC** — `docker compose up` (after
   fixing the container, which had never been able to boot). Real multipart
   `POST /sightings` from the Pi lands a 300 KB camera JPEG in Postgres as
@@ -194,6 +202,11 @@ stale.
 > defects found and fixed — see `HARDWARE_TEST_PLAN.md` §7. The Pi's
 > `DEVICE_TOKEN` is **stale** against the current database, so uploads 401;
 > that is config, not code, but it is what surfaced both bugs.
+>
+> **Real weights, same day:** both tiers moved off their stand-ins and measured
+> at 20/20 — see §8. Phase 4 now has exactly two things left: a **physical
+> trigger sensor** (C4) and a **full field test**, and the field test is
+> blocked on re-provisioning the Pi's device token.
 
 ---
 
