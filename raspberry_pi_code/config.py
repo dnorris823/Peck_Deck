@@ -41,6 +41,9 @@ class Config:
     # Storage
     cache_dir: str = os.getenv("CACHE_DIR", "/var/lib/peck_deck/cache")
     max_cache_images: int = int(os.getenv("MAX_CACHE_IMAGES", "25"))
+    # Queued sightings are protected from image eviction, so this — not
+    # max_cache_images — is what bounds the cache during a long outage.
+    max_queued_sightings: int = int(os.getenv("MAX_QUEUED_SIGHTINGS", "200"))
 
     # ML models (default: relative to project root)
     model_path: str = os.getenv(

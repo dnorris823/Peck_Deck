@@ -8,7 +8,7 @@ none of it mocked on either side of the wire.
 """
 import asyncio
 
-from raspberry_pi_code.api_client import BackendClient
+from raspberry_pi_code.api_client import BackendClient, UploadOutcome
 
 from backend.main import app
 from integration_tests._dbutil import create_throwaway_device, sightings_for_device
@@ -46,7 +46,7 @@ def test_pi_client_uploads_sighting_over_http(ids, tmp_path):
                 delayed=False,
             )
         )
-        assert ok is True
+        assert ok is UploadOutcome.OK
 
     # The seam delivered: exactly one sighting, image bytes intact in Postgres.
     rows = sightings_for_device(device_id)
@@ -77,7 +77,7 @@ def test_pi_client_offline_sync_marks_delayed(ids, tmp_path):
                 delayed=True,
             )
         )
-        assert ok is True
+        assert ok is UploadOutcome.OK
 
     rows = sightings_for_device(device_id)
     assert len(rows) == 1
@@ -99,4 +99,6 @@ def test_pi_client_rejects_bad_device_token(ids, tmp_path):
                 tier_used="gpu",
             )
         )
-        assert ok is False
+        # Pinned to UNAUTHORIZED, not merely falsy: the Pi must be able to tell
+        # a refused token from an unreachable backend, or it retries forever.
+        assert ok is UploadOutcome.UNAUTHORIZED

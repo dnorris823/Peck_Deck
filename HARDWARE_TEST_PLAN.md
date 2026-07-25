@@ -255,11 +255,67 @@ arch list includes `sm_120`. Model loads on `cuda` with the 20-entry taxonomy.
 
 1. **Real model weights** — both tiers are stand-ins; every label so far is
    meaningless by construction. Biggest remaining gap.
-2. **A physical trigger sensor** (or a jumper for the C3 loopback test).
-3. **Backend + Postgres on the PC** with a real device token, so `POST /sightings`
-   and Tier 3 can be exercised at all.
+2. **A physical trigger sensor** — C3 loopback is now closed (§7); C4 is not.
+3. **A valid device token on the Pi** — the backend and Postgres are up, but
+   `raspberry_pi_code/.env` carries a `DEVICE_TOKEN` the current database does
+   not recognise, so every upload 401s.
+
+---
+
+## 7. Bring-up run — 2026-07-25 (branch `phase-4-trigger-loopback`)
+
+Trigger peripheral, via a breadboard loopback instead of a sensor:
+**BCM27 (header pin 13) → breadboard row → BCM17 (header pin 11)**.
+
+### Results
+
+| Suite | Result |
+|---|---|
+| Wiring pre-check | ✅ `pinctrl` shows BCM17 tracking BCM27 through `lo`/`hi`. Worth doing first — it separates a bad jumper from a bad test. |
+| **C3 loopback edge detection** | ✅ **9/9** via `scripts/gpio_loopback_test.py`. Both trigger classes fire on the correct edge, ignore the opposite one, collapse edges inside `bouncetime=200`, and keep spaced edges distinct. |
+| C4 real sensor | ⛔ Not run — no PIR / IR-beam hardware. C3 proves the code path, not the sensor. |
+| **G1 end-to-end dry run** | ✅ Loopback trigger → real IMX708 capture (~300 KB) → Tier 1 (0.07, under threshold → best-effort) → upload attempt → local queue. Exactly one capture per edge; the pipeline `debounce_seconds` gate holds. No unhandled exceptions. |
+| A4 thermal | ✅ 59.8 °C after the runs. `throttled=0xe0000` — sticky "has occurred" bits only; no live throttling. |
+
+### Defects found and fixed
+
+9. **A 401 was reported as "Backend unreachable."** `BackendClient.post_sighting`
+   collapsed every failure into `False`, so the pipeline could not tell a dead
+   network from a refused device token — and logged the wrong one. On this run
+   that pointed at the network while the backend was answering in 15 ms.
+   ✅ **FIXED** — `post_sighting` returns an `UploadOutcome`
+   (`OK` / `RETRY` / `UNAUTHORIZED` / `REJECTED`). `__bool__` keeps every
+   existing `if ok:` call site (notably `backend/simulator.py`) working
+   unchanged. A permanent 4xx is now dropped instead of retried forever, and a
+   401 abandons the rest of the sync pass rather than replaying the same bad
+   token against the whole backlog.
+10. **The image cache deleted images the offline queue still needed.**
+    `evict_if_needed()` trimmed by mtime with no knowledge of `queue.json`, so
+    any backlog deeper than `MAX_CACHE_IMAGES` (default 25) destroyed its own
+    oldest entries; `sync_offline_queue` then discarded them with "Queued image
+    missing". An outage long enough to matter was exactly the case that lost
+    data. ✅ **FIXED** — queued images are exempt from eviction, and the queue
+    carries its own bound (`MAX_QUEUED_SIGHTINGS`, default 200) so the cache
+    still cannot grow without limit. Dropping a queued sighting now logs at
+    ERROR, because it is a real loss.
+11. **Regression caught only on hardware.** With queued images protected, the
+    capture *currently being classified* — not yet in the queue — became the
+    only eviction candidate once the queue filled, and was deleted while Tier 1
+    was reading it. Showed up as `Tier 'local' failed` → `sighting discarded`
+    on the third trigger. Unit tests missed it; the live run did not.
+    ✅ **FIXED** — `evict_if_needed(protect=...)` shields the in-flight image.
+    Re-verified on the Pi: 4 triggers against `MAX_CACHE_IMAGES=2` leave 4
+    queued sightings and 4 images on disk, none missing.
+
+### Notes
+
+- `scripts/gpio_loopback_test.py` is the reusable C3 harness. It drives the
+  edges with `pinctrl` from outside the process under test, so the signal
+  travels the real RP1 path rather than being injected into the queue.
+- Keep `MAX_CACHE_IMAGES` small (2–3) when exercising queue behaviour; at the
+  default 25 the eviction bugs above need 25 captures to appear.
 
 ---
 *Notes captured from live probing of this device on 2026-07-17, updated with the
-2026-07-24 bring-up run. Update the blocker list in §2 as libraries/models/sensors
-are added.*
+2026-07-24 and 2026-07-25 bring-up runs. Update the blocker list in §2 as
+libraries/models/sensors are added.*

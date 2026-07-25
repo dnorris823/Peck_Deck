@@ -55,6 +55,13 @@ The Pi falls back from Tier 1 → 2 → 3 based on availability and confidence t
 - **Images in DB as bytea** — `image_data` column on Sightings; served via `GET /sightings/{id}/image` (auth required).
 - **Pi code is self-contained** — `raspberry_pi_code/` must run independently of the backend (it calls the API over HTTP).
 - **Pi sighting upload is a single multipart POST** — Pi sends image bytes + metadata together to `POST /sightings`.
+- **Upload failures are typed, not boolean** — `BackendClient.post_sighting`
+  returns an `UploadOutcome`, because "network down" (retry) and "token
+  refused" (re-provision) need opposite handling. Only `OK` is truthy, so
+  `if ok:` still reads correctly.
+- **The offline queue outranks the image cache** — a queued sighting's image is
+  never evicted, nor is the capture currently being classified. `MAX_CACHE_IMAGES`
+  bounds only *unqueued* images; `MAX_QUEUED_SIGHTINGS` bounds the backlog.
 - **Notifications are fire-and-forget** — `asyncio.create_task()` in the sighting controller; notification service opens its own DB session.
 - **A push subscription row *is* the push opt-in** — there is no `notify_push`
   column to keep in sync with it. Deleting the row is how push is turned off.
