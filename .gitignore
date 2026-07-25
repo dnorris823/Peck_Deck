@@ -24,3 +24,11 @@ frontend/dist/
 # Hardware-test stand-in ML assets (not the real model)
 machine_learning/stand_in_smoketest_224_uint8.tflite
 smoke_capture.jpg
+
+# Model weights — fetched, not vendored. `python scripts/fetch_models.py`
+machine_learning/*.tflite
+machine_learning/*.pth
+
+# Ground-truth photos cached by scripts/validate_tier1.py. Third-party images
+# under their own licences — re-fetched on demand, never vendored.
+.validation_photos/

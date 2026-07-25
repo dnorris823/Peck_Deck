@@ -14,7 +14,10 @@ class Settings:
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", "8001"))
     # timm model name, or "custom" to load from MODEL_PATH
-    MODEL_NAME: str = os.getenv("MODEL_NAME", "tf_efficientnet_b4.ns_jft_in1k")
+    MODEL_NAME: str = os.getenv(
+        "MODEL_NAME",
+        "hf-hub:timm/vit_large_patch14_clip_336.laion2b_ft_augreg_inat21",
+    )
     # path to .pth weights file; when set, loaded on top of the model architecture
     MODEL_PATH: str | None = os.getenv("MODEL_PATH")
     # taxonomy CSV — same format as the Pi's Tier 1 taxonomy.

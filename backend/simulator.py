@@ -40,7 +40,12 @@ from pathlib import Path
 logger = logging.getLogger("peckdeck.simulator")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-TAXONOMY_CSV = REPO_ROOT / "machine_learning" / "taxonomy.csv"
+# The curated backyard list, not the model's full 965-class label space. Both
+# are real species Tier 1 can predict — feeder_species.csv is a subset of
+# taxonomy.csv — but drawing from all 964 would put limpkins and cranes on the
+# dashboard, and species_weights() would hand "most common feeder bird" to
+# whatever happens to sit at index 0 of the model's label map.
+FEEDER_SPECIES_CSV = REPO_ROOT / "machine_learning" / "feeder_species.csv"
 
 DEFAULT_API_URL = os.getenv("PECK_API_URL", "http://localhost:8000")
 DEFAULT_OWNER_EMAIL = os.getenv("PECK_DEMO_EMAIL", "dom@peck.deck")
@@ -92,12 +97,13 @@ class SpeciesEntry:
     palette: list[str]
 
 
-def load_species(csv_path: Path = TAXONOMY_CSV) -> list[SpeciesEntry]:
-    """Read the Tier 1 model's own taxonomy so simulated species are real ones.
+def load_species(csv_path: Path = FEEDER_SPECIES_CSV) -> list[SpeciesEntry]:
+    """Read the curated backyard list so simulated species are plausible ones.
 
-    ``machine_learning/taxonomy.csv`` maps model output indices to names, which
-    makes it the right source: every species the simulator can produce is a
-    species the on-device model could actually predict.
+    ``machine_learning/feeder_species.csv`` is a subset of the model's
+    ``taxonomy.csv``, so every species the simulator produces is still one the
+    on-device model could actually predict — but it is also one that would
+    realistically turn up at a North American feeder.
     """
     with open(csv_path, newline="", encoding="utf-8") as fh:
         rows = list(csv.DictReader(fh))
