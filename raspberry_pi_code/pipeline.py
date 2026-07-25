@@ -3,7 +3,7 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
-from .api_client import BackendClient
+from .api_client import BackendClient, UploadOutcome
 from .camera.pi_camera import PiCamera
 from .classification.base import ClassificationResult, ClassifierBase
 from .classification.tier1_tflite import TFLiteClassifier
@@ -20,7 +20,9 @@ class Pipeline:
 
     def __init__(self, config: Config):
         self._cfg = config
-        self._cache = LocalCache(config.cache_dir, config.max_cache_images)
+        self._cache = LocalCache(
+            config.cache_dir, config.max_cache_images, config.max_queued_sightings
+        )
         self._client = BackendClient(
             config.backend_url,
             config.device_token,
@@ -73,7 +75,7 @@ class Pipeline:
                 self._cache.remove(sighting.id)
                 continue
 
-            ok = await self._client.post_sighting(
+            outcome = await self._client.post_sighting(
                 image_path=img,
                 timestamp=sighting.timestamp,
                 common_name=sighting.common_name,
@@ -82,8 +84,24 @@ class Pipeline:
                 tier_used=sighting.tier_used,
                 delayed=True,
             )
-            if ok:
+            if outcome is UploadOutcome.OK:
                 self._cache.remove(sighting.id)
+            elif outcome is UploadOutcome.REJECTED:
+                logger.error(
+                    "Backend permanently rejected queued sighting %s — dropping it "
+                    "rather than retrying forever",
+                    sighting.id,
+                )
+                self._cache.remove(sighting.id)
+            elif outcome is UploadOutcome.UNAUTHORIZED:
+                # Every remaining item carries the same token, so the rest of
+                # this pass would just be 401s. Stop and keep the backlog.
+                logger.error(
+                    "Device token rejected — abandoning this sync pass with %d "
+                    "sighting(s) still queued",
+                    len(pending),
+                )
+                return
             else:
                 logger.warning("Sync failed for sighting %s — will retry next cycle", sighting.id)
 
@@ -96,7 +114,7 @@ class Pipeline:
         async with PiCamera(self._cfg.image_width, self._cfg.image_height, self._cfg.jpeg_quality) as cam:
             image_path = await cam.capture(self._cache.image_path_for(event_id))
 
-        self._cache.evict_if_needed()
+        self._cache.evict_if_needed(protect=image_path)
 
         result = await self._classify(image_path)
         if result is None:
@@ -110,7 +128,7 @@ class Pipeline:
             result.tier_used,
         )
 
-        ok = await self._client.post_sighting(
+        outcome = await self._client.post_sighting(
             image_path=image_path,
             timestamp=timestamp,
             common_name=result.common_name,
@@ -120,8 +138,19 @@ class Pipeline:
             delayed=False,
         )
 
-        if not ok:
-            logger.warning("Backend unreachable — queuing sighting locally")
+        if outcome is UploadOutcome.REJECTED:
+            logger.error(
+                "Backend rejected sighting %s outright — discarding (retrying cannot help)",
+                event_id,
+            )
+            return
+
+        if outcome is not UploadOutcome.OK:
+            if outcome is UploadOutcome.UNAUTHORIZED:
+                logger.error("Device token rejected — queuing sighting, but it cannot "
+                             "upload until DEVICE_TOKEN is re-provisioned")
+            else:
+                logger.warning("Backend unreachable — queuing sighting locally")
             self._cache.enqueue(
                 QueuedSighting(
                     id=event_id,

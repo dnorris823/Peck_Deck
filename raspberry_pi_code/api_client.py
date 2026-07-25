@@ -1,9 +1,42 @@
 import logging
+from enum import Enum
 from pathlib import Path
 
 import aiohttp
 
 logger = logging.getLogger(__name__)
+
+
+class UploadOutcome(Enum):
+    """Why an upload finished the way it did.
+
+    A bare ``bool`` collapsed "the network is down" into the same answer as
+    "this device token is refused", so the pipeline queued a permanently
+    rejected sighting and retried it forever while logging *"backend
+    unreachable"* — sending the operator to debug a network that was fine.
+
+    ``__bool__`` keeps ``if ok:`` reading correctly at every call site.
+    """
+
+    OK = "ok"
+    RETRY = "retry"                # transient (network, 5xx, 429) — try again later
+    UNAUTHORIZED = "unauthorized"  # token refused — keep the data, re-provision the token
+    REJECTED = "rejected"          # the request itself is bad — retrying cannot help
+
+    def __bool__(self) -> bool:
+        return self is UploadOutcome.OK
+
+
+def _classify_status(status: int) -> UploadOutcome:
+    if status in (200, 201):
+        return UploadOutcome.OK
+    if status in (401, 403):
+        return UploadOutcome.UNAUTHORIZED
+    # 429 and 5xx are worth another attempt; other 4xx mean the payload or the
+    # route is wrong, and replaying it just poisons the offline queue.
+    if status == 429 or status >= 500:
+        return UploadOutcome.RETRY
+    return UploadOutcome.REJECTED
 
 
 class BackendClient:
@@ -44,10 +77,11 @@ class BackendClient:
         confidence: float,
         tier_used: str,
         delayed: bool = False,
-    ) -> bool:
+    ) -> UploadOutcome:
         """Upload image + sighting metadata in a single multipart POST.
 
-        Returns True on HTTP 200/201, False on any failure.
+        Returns an :class:`UploadOutcome`; it is falsy for every failure, so
+        callers that only care whether it worked can still just test it.
         """
         try:
             async with aiohttp.ClientSession(timeout=self._upload_timeout) as session:
@@ -70,13 +104,19 @@ class BackendClient:
                         data=form,
                         headers=self._auth(),
                     ) as resp:
-                        if resp.status not in (200, 201):
+                        outcome = _classify_status(resp.status)
+                        if outcome is UploadOutcome.UNAUTHORIZED:
+                            logger.error(
+                                "POST /sightings refused this device token (HTTP %d) — "
+                                "re-provision DEVICE_TOKEN; uploads cannot succeed until then",
+                                resp.status,
+                            )
+                        elif outcome is not UploadOutcome.OK:
                             logger.warning("POST /sightings returned HTTP %d", resp.status)
-                            return False
-                        return True
+                        return outcome
         except aiohttp.ClientError:
             logger.warning("POST /sightings failed: backend unreachable")
-            return False
+            return UploadOutcome.RETRY
         except Exception:
             logger.exception("Unexpected error posting sighting")
-            return False
+            return UploadOutcome.RETRY

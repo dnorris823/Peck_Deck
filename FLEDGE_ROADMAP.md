@@ -160,8 +160,16 @@ stale.
   fallback end-to-end across a real LAN hop.
 - [x] **GPIO sanity (C0–C2)** — `rpi-lgpio` shim confirmed on RP1; BCM17 output
   toggle and internal pull-up/pull-down readbacks all correct.
-- [ ] Trigger peripheral (C3 loopback / C4 real sensor) — needs a jumper or a
-  physical PIR / IR-beam sensor.
+- [x] **Trigger peripheral — C3 loopback** — BCM27 (header pin 13) jumpered to
+  BCM17 (pin 11) through a breadboard. `scripts/gpio_loopback_test.py` drives
+  edges with `pinctrl` from *outside* the process under test, so the edge
+  arrives through the same silicon path a sensor would use. **9/9 cases pass**:
+  correct polarity for both classes, opposite edge ignored, `bouncetime=200`
+  collapsing fast edges, and spaced edges staying distinct. G1 runs too —
+  loopback trigger → real IMX708 capture → Tier 1 → queue, no unhandled
+  exceptions, exactly one capture per edge.
+- [ ] **Trigger peripheral — C4 real sensor** — still open. No physical PIR /
+  IR-beam is wired to the header; C3 proves the code, not the sensor.
 - [ ] **Real model weights** — both tiers currently run stand-ins (Tier 1: the
   generated `stand_in_smoketest_224_uint8.tflite`; Tier 2: `tf_efficientnet_b4`
   with a randomly-initialised 20-class head). Every label produced so far is
@@ -181,6 +189,11 @@ stale.
 > hardware; what remains is *substance* (real weights, a trigger sensor, the
 > backend up). Four defects were found and fixed along the way — see
 > `HARDWARE_TEST_PLAN.md` §6.
+>
+> **Bring-up session 2026-07-25:** C3 loopback closed (9/9). Two offline-queue
+> defects found and fixed — see `HARDWARE_TEST_PLAN.md` §7. The Pi's
+> `DEVICE_TOKEN` is **stale** against the current database, so uploads 401;
+> that is config, not code, but it is what surfaced both bugs.
 
 ---
 
