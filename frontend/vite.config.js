@@ -13,6 +13,9 @@ export default defineConfig({
     restoreMocks: true,
     css: false,
   },
+  preview: {
+    allowedHosts: [".ts.net", ".litestar.dev", ".litestar.localhost"],
+  },
   server: {
     port: 5173,
     // Proxy API calls to the Litestar backend (docker compose exposes :8000).
