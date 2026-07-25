@@ -1,6 +1,6 @@
 # Peck Deck — Outdoor Deployment Guide
 
-**Site:** Spokane, WA (47.6 °N) · **Mounting:** freestanding yard pole + house/eave
+**Site:** Spokane, WA (47.6 °N) · **Mounting:** covered-deck house-wall mount (chosen, §8.3); yard pole / eave still documented
 **Power baseline:** Ring battery pack · **Build preference:** off-the-shelf parts
 **Status:** planning doc for FLEDGE Phase 4 field bring-up. Nothing here is built yet.
 
@@ -912,6 +912,61 @@ The eave gives you mains power and good WiFi while you're debugging everything
 else, so you're only solving one problem at a time. Move to the pole once the
 software and optics are settled and power is the only remaining variable.
 
+### 8.3 Side-of-house on a covered deck (the chosen mount)
+
+This is the **DECIDED** long-term home (§12 Q2): the enclosure bolted to the
+house wall under the roof of a raised, covered outdoor deck. It behaves like the
+eave mount (§8.2) — pre-shaded, good WiFi, mains likely within reach, no frost
+heave — with one difference that matters, covered below.
+
+```
+        \=================================\   <- deck cover / roof
+         \                                 \
+          \   [dome baffle]  <- against a drop-in from the cover above
+           \_____|___________________________
+           |     |                           |  <- house wall / siding
+           |  +==+========+                  |
+           |  | ENCLOSURE  |  <- lag-bolted to a stud, not just the siding
+           |  |  [O]--->   |                 |     camera looks NORTH (§5.1)
+           |  +==+======+==+                 |
+           |     |      |                     |
+           |  +--+------+--+                  |
+           |  | PERCH+FEED |  <- 10-16" from lens (§5.3)                 |
+           |  +------------+                  |
+           |                                  |
+        ===+==================================+===  <- deck floor / railing below
+
+        Pros: shaded and rain-covered for free; mains + WiFi trivial;
+              no frost heave; reachable for the weekly visit without a ladder
+        Cons: NOT squirrel-free (see below); house-proximity window-strike
+              risk (keep <3 ft or >30 ft from any window, §8.2)
+```
+
+**The squirrel caveat — the reason this isn't just "the eave, but easier":**
+mounting to a wall does **not** put the unit out of a squirrel's reach. House
+siding is a climbing surface — wood, vinyl, stucco, brick and fiber-cement are
+all rougher than tree bark, and squirrels go up them routinely; only a genuinely
+smooth, seamless vertical face stops them, and even then they route around it via
+downspouts, trim, and the **deck's own posts and railings**. On top of that, the
+deck cover overhead adds the §6.2 *drop-in* route. So this mount inherits the
+climbing route *and* the drop-in route, and a baffle addresses neither.
+
+The consequence is not alarming, because the doc's thesis holds: **a squirrel
+reaching the unit is not the failure — a squirrel chewing a cable is (§6.3), and
+scratching the optics is second (§6.4).** Since you can't keep them off a wall
+mount, defend the hardware, not the airspace around it:
+
+- **Cables in flexible metal conduit (§6.3), no exposed connectors.** This is the
+  single highest-value squirrel defence for a wall/deck mount — split loom is not
+  enough.
+- **Glass camera port, recessed and protected (§5.2)** — chosen already for
+  exactly this "squirrels will physically contact it" case.
+- **Screwed or latched lid; nothing dangling** (raccoons work this deck too —
+  §6.4 — and they open latches).
+- **Mount high on the wall and away from launch points** (railing, deck
+  furniture, the nearest branch). You can't make access zero, but you can make it
+  uncasual.
+
 ---
 
 ## 9. Software Changes This Implies
@@ -1022,21 +1077,39 @@ Deferred until the shakedown tells you it's needed:
 
 ## 12. Open Questions
 
-Things this document can't decide for you:
+Things this document can't decide for you. Tentative answers recorded as of
+2026-07-25 are marked **DECIDED**; the reasoning stays so the decision can be
+revisited.
 
 1. **Is "no external power at the feeder" (PRD §5.4) still a requirement, or an
    inherited assumption?** It's the constraint driving the most cost and
    complexity here. If the eave is acceptable long-term, §2.7 removes most of
    this document's difficulty. Worth an explicit decision either way.
+   *Still open — but note the §8.3 covered-deck mount almost certainly puts a
+   mains outlet within reach, which would resolve this in favour of "not a
+   requirement." Confirm the outlet before committing.*
 2. **Pole or eave as the permanent home?** They have opposite strengths, and §10
    suggests using both in sequence — but the long-term answer changes the
    battery, network, and baffle spend.
+   **DECIDED (tentative): a side-of-house mount on the raised, covered outdoor
+   deck** — a wall mount, not a freestanding pole. This is closest to the eave
+   case (§6.2): pre-shaded, good WiFi, mains likely available, no frost heave.
+   See the new §8.3 for the layout and the squirrel-access caveat (siding and
+   deck structure are both climbing routes, and the cover adds a drop-in route).
 3. **Perch switch or IR beam?** The perch switch is more reliable and cheaper but
    only catches perched birds. If you want ground feeders and hovering birds,
    that's a beam (or two).
+   **DECIDED: perch switch** (§4.3). Accepts the "perched birds only" filter.
+   No code change — `TRIGGER_TYPE=ir_beam`, wired as a falling edge into the
+   pull-up. Software change #1 in §9 (defaulting away from `pir`) still applies.
 4. **How often are you willing to walk out there?** Every power decision reduces
    to this number. Weekly is easy and cheap; monthly needs rung C; never needs
    mains or a well-sized solar array.
+   **DECIDED: weekly.** On battery this points to **rung B** (~4 days gated) as
+   the floor, or **rung C** (~6 days gated, ~4.5 in January) for real weekly
+   margin — but if the deck outlet in Q1 pans out, mains (rung E) makes the walk
+   a *maintenance* visit (desiccant, lens, queue check), not a battery swap, and
+   weekly is trivially met.
 5. **What's your real accuracy on wild birds?** Unknown until Stage 1. It may
    reorder these priorities entirely — if real-world top-1 is 70%, that's a bigger
    problem than any enclosure question.
