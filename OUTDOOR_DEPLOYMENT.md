@@ -776,6 +776,55 @@ over-engineer a weight threshold. Do make sure the perch and switch survive a
 500 g animal sitting on them, which a lever microswitch will as long as there's
 a hard stop limiting the deflection.
 
+### 6.5 Deterrence by seed and taste
+
+On the chosen covered-deck mount (§8.3) you can't deny squirrels physical access
+— siding and deck structure are climbing routes, and the cover is a drop-in
+route. So the useful game is making the feeder *boring* to squirrels while
+staying attractive to birds. Two levers do the work; surface sprays mostly don't.
+None of this replaces the hardware hardening in §6.3 — deterrence lowers how
+*often* a squirrel is on your camera, and the conduit is what saves you when one
+still is.
+
+**1. Seed choice — the biggest lever, and free.** Several seeds birds love are
+ones squirrels won't work for:
+
+- **Safflower** — cardinals, chickadees, titmice, nuthatches, house finches eat
+  it; squirrels find it bitter and mostly give up. **Bonus: starlings and
+  grackles dislike it too**, which directly helps the flock-flooding problem in
+  §4.5.
+- **Nyjer (thistle)** — goldfinches, house finches, siskins, redpolls love it;
+  squirrels almost entirely ignore it (tiny, oily, not worth the effort). Needs a
+  fine-port nyjer feeder. About as squirrel-proof as seed gets.
+- **White proso millet** — juncos and sparrows (the winter Spokane crowd, §1.3)
+  like it, with lower squirrel interest than sunflower or corn.
+- **Avoid** black-oil/striped sunflower, cracked corn, peanuts, and "deluxe"
+  mixes built around them — those bait squirrels straight onto your hardware.
+
+For this winter-focused deployment, **safflower or a safflower/nyjer split** hits
+the target species and is one of the poorer squirrel draws.
+
+**2. Capsaicin ("hot" seed) — the treatment that actually works.** Birds lack the
+capsaicin (TRPV1) response that mammals have, so hot-pepper heat is invisible to
+birds but repels squirrels. Sold as **pre-treated "hot" seed/suet** or a **liquid
+concentrate** you coat your own seed with. Caveats for this build:
+
+- **It's an irritant to *you*** — wear gloves, don't handle it upwind, and keep
+  it off the camera window on refills (a capsaicin film hazes the glass, §5.2/§5.4).
+- **Liquid coatings wash off** in rain; pre-treated seed lasts longer.
+- Costs more than plain safflower — many people run safflower as the everyday
+  deterrent and add hot seed only if squirrels persist.
+
+**3. Surface sprays — mostly skip.** Garden repellent sprays (predator-urine,
+putrescent-egg, peppermint-oil, capsaicin) wash off fast, can foul the area or
+deter birds, and must never go near the enclosure or optics. Put the capsaicin
+*in the food*, not on surfaces; peppermint oil in particular has weak evidence.
+
+**Ceiling, stated plainly:** no seed or spray makes a determined squirrel quit
+entirely, especially with easy deck access. Treat deterrence as traffic
+reduction layered on top of the real defence (§6.3), and remember a squirrel
+visit is not a failure here — §6.4, it self-logs as `background`.
+
 ---
 
 ## 7. Network
@@ -1087,10 +1136,11 @@ mains parts replace the power bank:
 | Aluminium plate + thermal pad | $12 | Pi heatsink → enclosure wall. §3.2 |
 | Lag bolts / French cleat + wall anchors for the wall mount | $10 | Into a stud, not just siding. §8.3 |
 | Dome baffle (mounted above, against drop-in squirrels) | $20 | §6.2, §8.3 — the cover is a drop-in route |
+| Safflower (+ nyjer for a finch feeder) | $15 | Bird-friendly, squirrel- and starling-poor seed. §6.5 |
 | Flexible metal conduit + fittings, 10 ft | $15 | Cable protection — the real squirrel defence. §6.3 |
 | Acrylic/glass disc + clear silicone (if opaque enclosure) | $10 | Camera window. Glass, since squirrels contact it. §5.2 |
 | Black adhesive felt / foam (lens light seal) | $6 | §5.2 — small part, large effect |
-| **Total** | **~$170** | |
+| **Total** | **~$185** | |
 
 Deferred until the shakedown tells you it's needed:
 
@@ -1101,6 +1151,7 @@ Deferred until the shakedown tells you it's needed:
 | 12 V 20 Ah LiFePO4 + low-temp-cutoff BMS + 5 A buck | $120 | Only relevant if you abandon mains for a yard pole after all |
 | Outdoor mesh node / directional antenna | $70 | Deck-mount RSSI survey comes back worse than −75 dBm |
 | USB SSD boot drive | $30 | After your first SD card corruption, or before it |
+| Capsaicin "hot" seed or liquid seed-coat concentrate | $15–20 | If safflower/nyjer alone don't discourage persistent squirrels. §6.5 |
 
 ---
 
