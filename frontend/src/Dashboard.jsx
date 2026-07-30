@@ -1,10 +1,12 @@
 // Dashboard — recent feed, stats, device status, activity heatmap
-import React from "react";
+import React, { useState } from "react";
 import { SightingImage } from "./SightingImage.jsx";
 import { Icon } from "./Icon.jsx";
 import { Empty } from "./Empty.jsx";
 import { Insights } from "./Insights.jsx";
 import { useData } from "./DataContext.jsx";
+import { useDemo } from "./Demo.jsx";
+import { apiSend } from "./api.js";
 import { fmtTime, fmtRelative } from "./data.js";
 
 function Sparkline({ data, color = "var(--forest)" }) {
@@ -188,6 +190,50 @@ function TopVisitors() {
   );
 }
 
+// Dev-tools affordance: fabricate one sighting and pull the new dataset in.
+// Rendered only when GET /meta says DEV_TOOLS is on — the backend 404s the route
+// otherwise, so this is signage rather than the control.
+//
+// The reload is the half that matters. DataContext fetches once on mount and
+// never polls, so a sighting that isn't followed by a refetch is invisible no
+// matter who created it, and the button would look broken while working.
+export function SimulateVisitButton() {
+  const { reload } = useData();
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+
+  async function simulate() {
+    setBusy(true);
+    setResult(null);
+    try {
+      const s = await apiSend("/dev/sighting", "POST", {});
+      await reload();
+      setResult({
+        ok: true,
+        text: `${s.common_name} · ${Math.round(s.confidence_score * 100)}% · ${s.classification_tier_used.toUpperCase()}`,
+      });
+    } catch (err) {
+      setResult({ ok: false, text: err.message });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="dev-trigger">
+      <button className="btn ghost sm" onClick={simulate} disabled={busy}
+        title="Dev tools: record a fabricated visit from a random catalogued species">
+        <Icon name="plus" className="" /> {busy ? "Simulating…" : "Simulate a visit"}
+      </button>
+      {result && (
+        <span className={`dev-trigger-note ${result.ok ? "" : "bad"}`} role="status">
+          {result.text}
+        </span>
+      )}
+    </div>
+  );
+}
+
 function greeting(now) {
   const h = now.getHours();
   if (h < 12) return "Good morning";
@@ -201,7 +247,9 @@ function abbrevName(name) {
 }
 
 export function Dashboard({ openSighting }) {
-  const { SIGHTINGS, DEVICES, DASHBOARD } = useData().data;
+  const { data, live } = useData();
+  const { SIGHTINGS, DEVICES, DASHBOARD } = data;
+  const { devTools } = useDemo();
   const now = new Date();
   const d = DASHBOARD;
   const sparkSightings = d.spark_sightings?.length ? d.spark_sightings : [0];
@@ -253,9 +301,15 @@ export function Dashboard({ openSighting }) {
           <div className="section-head">
             <div>
               <div className="section-title">Recent visits</div>
-              <div className="section-sub">Most recent · {DEVICES.length} station{DEVICES.length === 1 ? "" : "s"}</div>
+              <div className="section-sub">
+                {/* Whether the feed updates on its own. Without this the only
+                    way to tell a live stream from a dead one is to wait. */}
+                <span className={`live-dot ${live ? "on" : "off"}`} aria-hidden="true" />
+                {live ? "Live" : "Not live"} · {DEVICES.length} station{DEVICES.length === 1 ? "" : "s"}
+              </div>
             </div>
             <div className="row">
+              {devTools && <SimulateVisitButton />}
               <button className="btn ghost sm">Today</button>
               <button className="btn ghost sm">Week</button>
               <button className="btn sm">All</button>

@@ -1127,6 +1127,53 @@ input:focus, select:focus, textarea:focus { border-color: var(--ink); }
   .demo-banner { padding: 8px 16px; }
 }
 
+/* ---------- Live stream indicator ---------- */
+/* Whether GET /events is connected. Pulses only while live, and only when the
+   viewer hasn't asked for reduced motion. */
+.live-dot {
+  display: inline-block;
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
+  background: var(--ink-mute);
+}
+.live-dot.on {
+  background: var(--forest);
+  animation: live-pulse 2.4s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-dot.on { animation: none; }
+}
+
+/* ---------- Dev tools ---------- */
+/* "Simulate a visit" on the dashboard, shown only when the backend reports
+   DEV_TOOLS. The result note sits beside the button and reports what turned up
+   (or why nothing did), so the click has an answer even when the new sighting
+   scrolls in below the fold. */
+.dev-trigger { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.dev-trigger-note {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-mute);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dev-trigger-note.bad { color: var(--cardinal); text-transform: none; letter-spacing: 0; }
+
+/* The section head is already crowded on a phone; the note is the first thing
+   that can go, since the feed below it shows the same arrival. */
+@media (max-width: 720px) {
+  .dev-trigger-note { display: none; }
+}
+
 /* ---------- Login gate + boot/loading states ---------- */
 .login-bg {
   min-height: 100vh;

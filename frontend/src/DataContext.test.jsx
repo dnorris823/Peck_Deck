@@ -8,7 +8,15 @@ import { render, screen, waitFor } from "@testing-library/react";
 vi.mock("./data.js", () => ({
   fetchRaw: vi.fn(),
   mapAll: (raw) => raw,
+  fetchAggregates: vi.fn(),
+  applySighting: vi.fn(),
 }));
+
+// These tests are about the load/snapshot branches. Stub the live stream so they
+// don't open a real connection — and, more to the point, so a failed connect
+// doesn't leave a reconnect timer armed after the test ends. The streaming
+// behaviour has its own file (Stream.test.jsx).
+vi.mock("./events.js", () => ({ openSightingStream: () => () => {} }));
 
 import { fetchRaw } from "./data.js";
 import { DataProvider, useData } from "./DataContext.jsx";

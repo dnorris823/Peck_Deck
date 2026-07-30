@@ -23,6 +23,13 @@ os.environ["JWT_SECRET"] = "test-secret-key-at-least-32-bytes-long!"
 # doesn't override keys already in the environment, so "" wins.)
 os.environ["VAPID_PRIVATE_KEY"] = ""
 os.environ["VAPID_PUBLIC_KEY"] = ""
+# Same reasoning for the mode flags. A developer with DEV_TOOLS=1 in their .env
+# (the whole point of that flag is that you turn it on locally) would otherwise
+# flip the "off by default" assertions in test_dev_tools. Tests that need either
+# mode monkeypatch `settings` instead, which is why the code reads these
+# per-request rather than at registration time.
+os.environ["DEV_TOOLS"] = ""
+os.environ["DEMO_MODE"] = ""
 
 import asyncio  # noqa: E402
 

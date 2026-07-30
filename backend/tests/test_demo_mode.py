@@ -17,7 +17,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-import backend.sightings.controller as sighting_controller
+import backend.sightings.aftercare as sighting_aftercare
 from backend.config import settings
 from backend.database.connection import get_session_factory
 from backend.database.models import Base, Device, Sighting, Species, User
@@ -146,8 +146,8 @@ def test_device_upload_still_works(client, demo_mode, monkeypatch):
     async def _noop(*_a, **_k):
         return None
 
-    monkeypatch.setattr(sighting_controller.notification_service, "dispatch", _noop)
-    monkeypatch.setattr(sighting_controller, "enrich_species", _noop)
+    monkeypatch.setattr(sighting_aftercare.notification_service, "dispatch", _noop)
+    monkeypatch.setattr(sighting_aftercare, "enrich_species", _noop)
 
     token = asyncio.run(_fresh_device_token())
 

@@ -122,6 +122,57 @@ export async function fetchRaw() {
   return { species, counts, devices, users, sightings, heatmap, dashboard, me, prefs };
 }
 
+// The subset that a single new sighting invalidates. The streamed event carries
+// the sighting row itself, so the feed needs no refetch at all — but every
+// aggregate derived from it is now stale, and recomputing them in the browser
+// would mean a second implementation of the backend's aggregation drifting
+// against the first. Refetching these four costs ~9 KB against the ~37 KB of a
+// full reload.
+//
+// `species` is only pulled when the streamed sighting names one the client has
+// never seen: mapAll drops any sighting it can't join to a species, so a
+// first-ever visit would otherwise arrive and silently vanish.
+export async function fetchAggregates({ withSpecies = false } = {}) {
+  const [counts, heatmap, dashboard, devices, species] = await Promise.all([
+    apiGet("/stats/species-counts"),
+    apiGet("/stats/heatmap"),
+    apiGet("/stats/dashboard"),
+    apiGet("/devices"),
+    withSpecies ? apiGet("/species") : Promise.resolve(null),
+  ]);
+  const patch = { counts, heatmap, dashboard, devices };
+  return species ? { ...patch, species } : patch;
+}
+
+// How many sightings the client keeps. Matches the `limit` in fetchRaw, so a
+// streamed prepend can't grow the list past what a reload would produce.
+export const SIGHTING_WINDOW = 100;
+
+/**
+ * Insert a streamed sighting into the raw list, keeping it newest-first.
+ *
+ * Inserted by timestamp rather than prepended, because "newest id" and "newest
+ * datetime" are not the same thing here: the Pi's offline queue uploads
+ * backdated captures once it reconnects, so a visit from this morning can
+ * arrive with the highest id on the server. Prepending would file it above
+ * visits that actually happened later, and nothing would correct the order
+ * until a full reload.
+ */
+export function applySighting(rawSightings, sighting) {
+  if (rawSightings.some((s) => s.id === sighting.id)) return rawSightings;
+  // Parsed rather than compared as strings: these are raw ISO-8601 payloads,
+  // and lexicographic order only matches chronological order while every one
+  // of them carries the same UTC offset.
+  const arrived = Date.parse(sighting.datetime);
+  const at = rawSightings.findIndex((s) => Date.parse(s.datetime) < arrived);
+  const index = at === -1 ? rawSightings.length : at;
+  return [
+    ...rawSightings.slice(0, index),
+    sighting,
+    ...rawSightings.slice(index),
+  ].slice(0, SIGHTING_WINDOW);
+}
+
 export function mapAll(raw) {
   const { species, counts, devices, users, sightings, heatmap, dashboard, me, prefs } = raw;
 

@@ -18,7 +18,7 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
-import backend.sightings.controller as sighting_controller
+import backend.sightings.aftercare as sighting_aftercare
 from backend.config import settings
 from backend.database.models import Sighting
 from backend.fixtures import OWNER_PASSWORD
@@ -40,8 +40,8 @@ def _silence_side_effects(monkeypatch):
     async def _noop(*_a, **_k):
         return None
 
-    monkeypatch.setattr(sighting_controller.notification_service, "dispatch", _noop)
-    monkeypatch.setattr(sighting_controller, "enrich_species", _noop)
+    monkeypatch.setattr(sighting_aftercare.notification_service, "dispatch", _noop)
+    monkeypatch.setattr(sighting_aftercare, "enrich_species", _noop)
 
 
 def _run_cli(base_url: str, token: str, *args: str) -> int:

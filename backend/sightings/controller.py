@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from datetime import datetime
 from typing import Annotated
@@ -13,28 +12,15 @@ from litestar.response import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import device_guard, user_guard
-from ..notifications.service import notification_service
-from ..species.enrichment import enrich_species
-from ..species.operations import get_species
 from . import export as export_ops
+from .aftercare import schedule_aftercare
 from .operations import create_sighting, get_sighting, list_sightings
-from .schemas import SightingResponse
+from .schemas import SightingResponse, sighting_response
 
 logger = logging.getLogger("peckdeck.sightings")
 
 
-def _to_response(s) -> SightingResponse:
-    return SightingResponse(
-        id=s.id,
-        species_id=s.species_id,
-        device_id=s.device_id,
-        datetime=s.datetime.isoformat(),
-        classification_tier_used=s.classification_tier_used,
-        confidence_score=s.confidence_score,
-        weather_conditions=s.weather_conditions,
-        delayed=s.delayed,
-        has_image=s.image_data is not None,
-    )
+_to_response = sighting_response
 
 
 from dataclasses import dataclass, field
@@ -162,24 +148,9 @@ class SightingController(Controller):
             sighting.confidence_score, sighting.delayed,
         )
 
-        # Load species to check wiki_url while the session is still open
-        species = await get_species(db, sighting.species_id)
-
-        # Fire-and-forget background tasks — both open their own DB sessions,
-        # so they run safely after the request transaction commits.
-        asyncio.create_task(
-            notification_service.dispatch(sighting.id, sighting.device_id)
-        )
-        # Enrich once, on first sighting: anything still missing gets filled in
-        # (wiki URL, description, family, order). Skipped when already complete
-        # so a busy feeder doesn't hammer Wikipedia/GBIF on every visit.
-        if species is not None and not (
-            species.wiki_url and species.description and species.family
-        ):
-            sci = f"{species.genus} {species.species_name}".strip()
-            asyncio.create_task(
-                enrich_species(species.id, species.common_name, sci)
-            )
+        # Notifications + species enrichment. Shared with POST /dev/sighting so
+        # a fabricated visit exercises the same follow-up as a real one.
+        await schedule_aftercare(db, sighting)
 
         return _to_response(sighting)
 
