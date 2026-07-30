@@ -15,10 +15,12 @@ import pytest
 from backend.demo_images import plate_for, render_plate
 from backend.simulator import (
     TIER_PROFILE,
+    _MAX_CONSECUTIVE_FAILURES,
     backfill_timestamps,
     hour_weight,
     load_species,
     pick_tier,
+    run_live,
     species_weights,
 )
 
@@ -168,3 +170,38 @@ def test_cli_rejects_an_unknown_mode():
 
     with pytest.raises(SystemExit):
         build_parser().parse_args(["--mode", "chaos"])
+
+
+# ── Live mode's failure bound ────────────────────────────────────────────────
+# `run_live` counts *successes*, so the consecutive-failure bound is the only
+# thing stopping it spinning forever against a backend that has gone away. It
+# referenced `_MAX_CONSECUTIVE_FAILURES` without the constant ever being
+# defined, so the give-up path raised NameError instead of giving up — which is
+# how a live run actually ended when the API container restarted under it.
+def test_the_failure_bound_exists_and_is_sane():
+    assert isinstance(_MAX_CONSECUTIVE_FAILURES, int)
+    # Enough to ride out an API restart, few enough to notice a dead backend.
+    assert 2 <= _MAX_CONSECUTIVE_FAILURES <= 20
+
+
+def test_live_mode_gives_up_after_repeated_failures():
+    import asyncio
+
+    class _AlwaysFails:
+        name = "Broken Bench"
+
+        def __init__(self):
+            self.attempts = 0
+
+        async def visit(self, when, *, delayed=False):
+            self.attempts += 1
+            return False
+
+    feeder = _AlwaysFails()
+    posted = asyncio.run(
+        run_live([feeder], random.Random(0), interval=0.0, jitter=0.0, limit=None)
+    )
+
+    assert posted == 0
+    # Bounded — and it stopped, rather than raising on the way out.
+    assert feeder.attempts == _MAX_CONSECUTIVE_FAILURES
