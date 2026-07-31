@@ -179,9 +179,24 @@ stale.
   construction. Weights are fetched (`scripts/fetch_models.py`), not committed;
   `scripts/validate_tier1.py` is the accuracy harness. See
   `machine_learning/MODELS.md`.
-  - *Caveat:* the 20/20 is on Wikipedia lead images — clean, centred, well-lit
-    birds. It is an upper bound, not what a feeder camera will see. A real
-    field test is still the honest measure.
+  - *Caveat, now measured:* the 20/20 is on Wikipedia lead images — clean,
+    centred, well-lit birds. On 300 field photos (research-grade iNaturalist
+    observations of the same 20 species) it is **64.3% for Tier 1 and 85.0%
+    for Tier 2**, and on a small-in-frame bird 30.3% / 56.3%. Subject size
+    dominates every other degradation, which makes camera placement worth more
+    than tuning. See `machine_learning/MODELS.md` → *Measured accuracy*;
+    rebuild with `scripts/build_eval_set.py` + `degrade_eval_set.py` and
+    measure with `scripts/validate_tiers.py`. A real field test is still the
+    honest measure — even these photos are ones a person chose to take of a
+    bird they could see well.
+- [ ] **Per-tier confidence thresholds** — the same measurement found that
+  **18.2% of the Tier 1 answers the pipeline accepts at `CONFIDENCE_THRESHOLD=0.5`
+  are the wrong species**, and none of them escalate, so the app shows a wrong
+  bird as fact. Tier 2 accepts wrong answers at 5.3%. One global constant cannot
+  serve both: Tier 2 softmaxes over 10,000 classes to Tier 1's 965 so equal
+  scores mean different things, and Tier 1 escalates to a free LAN GPU while
+  Tier 2 escalates to a paid Claude call. The sweep in MODELS.md suggests ~0.85
+  for Tier 1 (silent errors 18.2% → 8.2%) and 0.5–0.6 for Tier 2.
 - [x] **Backend + Postgres on the gaming PC** — `docker compose up` (after
   fixing the container, which had never been able to boot). Real multipart
   `POST /sightings` from the Pi lands a 300 KB camera JPEG in Postgres as
@@ -207,6 +222,14 @@ stale.
 > at 20/20 — see §8. Phase 4 now has exactly two things left: a **physical
 > trigger sensor** (C4) and a **full field test**, and the field test is
 > blocked on re-provisioning the Pi's device token.
+>
+> **Field accuracy, 2026-07-30:** the 20/20 got a harder test — 300 iNaturalist
+> field photos plus nine degradations, 3,000 images through the real Pi clients.
+> Tier 1 **64.3%**, Tier 2 **85.0%**, and subject size dominates every other
+> factor. The consequential finding was calibration rather than accuracy:
+> **18.2% of what Tier 1 accepts at the 0.5 threshold is wrong**, silently,
+> because a confidently wrong tier never escalates. Per-tier thresholds are now
+> a tracked item above. No hardware was needed for any of it.
 
 ---
 
@@ -441,8 +464,9 @@ a phone. Phases 6, 7, and 8 are independent of each other; pick by mood.
 That order held: everything except Phase 4 is done. **Phase 4 is what's left**,
 and by now everything feeding into it is proven twice over — once by the tests,
 once by the simulator. The open items are all *substance* rather than plumbing: a
-trigger sensor wired to the header, real model weights for both tiers, a
-`CLAUDE_API_KEY` for the Tier 3 relay, and one real bird.
+trigger sensor wired to the header, per-tier confidence thresholds now that the
+single 0.5 has been measured and found wanting, a `CLAUDE_API_KEY` for the Tier 3
+relay, and one real bird.
 
 ---
 
