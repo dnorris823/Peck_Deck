@@ -13,7 +13,7 @@ Wikipedia URL backfill) are patched to network-free no-ops.
 import asyncio
 import secrets
 
-import backend.sightings.controller as sighting_controller
+import backend.sightings.aftercare as sighting_aftercare
 from backend.database.connection import get_session_factory
 from backend.database.models import Device, User
 
@@ -51,8 +51,8 @@ def _silence_side_effects(monkeypatch):
     async def _noop(*_a, **_k):
         return None
 
-    monkeypatch.setattr(sighting_controller.notification_service, "dispatch", _noop)
-    monkeypatch.setattr(sighting_controller, "enrich_species", _noop)
+    monkeypatch.setattr(sighting_aftercare.notification_service, "dispatch", _noop)
+    monkeypatch.setattr(sighting_aftercare, "enrich_species", _noop)
 
 
 def _upload(client, token, *, delayed, image=_JPEG):

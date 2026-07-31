@@ -1,5 +1,6 @@
-// Demo mode — reads GET /meta once and tells the app whether it is running as a
-// public, read-only demo instance (FLEDGE Phase 5).
+// Instance metadata — reads GET /meta once and tells the app what kind of
+// backend it is talking to: a public, read-only demo instance (FLEDGE Phase 5),
+// and whether dev tools are unlocked.
 //
 // Two surfaces come out of it: a banner across the shell, and the published
 // credentials on the login card. The *enforcement* is entirely server-side (see
@@ -8,7 +9,10 @@
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { fetchMeta } from "./api.js";
 
-const EMPTY = { demoMode: false, demoLogin: null };
+// `devTools` rides along here rather than in its own provider: it comes from the
+// same GET /meta payload, and a second fetch of the same document to answer a
+// second question about the same instance would be waste.
+const EMPTY = { demoMode: false, demoLogin: null, devTools: false };
 
 const Ctx = createContext(EMPTY);
 
@@ -19,7 +23,11 @@ export function DemoProvider({ children }) {
     let cancelled = false;
     fetchMeta().then((m) => {
       if (cancelled || !m) return;
-      setMeta({ demoMode: !!m.demo_mode, demoLogin: m.demo_login || null });
+      setMeta({
+        demoMode: !!m.demo_mode,
+        demoLogin: m.demo_login || null,
+        devTools: !!m.dev_tools,
+      });
     });
     return () => { cancelled = true; };
   }, []);

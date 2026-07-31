@@ -271,6 +271,12 @@ class VirtualFeeder:
 
 
 # ── Modes ────────────────────────────────────────────────────────────────────
+# Consecutive failed uploads before live mode gives up. The loop counts
+# *successes*, so without a bound it would spin forever against a backend that
+# has gone away or a token that has been revoked. Five at the default ~8s
+# interval is ~40s of tolerance — enough to ride out an API container restart,
+# short enough that a genuinely dead backend doesn't leave a process spinning.
+_MAX_CONSECUTIVE_FAILURES = 5
 async def run_burst(
     feeders: list[VirtualFeeder], rng: random.Random, count: int, days: int
 ) -> int:

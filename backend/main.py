@@ -17,7 +17,9 @@ from .classification.claude import get_classifier
 from .config import settings
 from .database.connection import dispose_db, init_db, provide_db
 from .demo import demo_readonly_middleware, maybe_seed_demo
+from .dev.controller import DevController
 from .devices.controller import DeviceController
+from .events.controller import EventController
 from .errors import http_exception_handler, unhandled_exception_handler
 from .notifications.controller import PushController
 from .observability import RequestContextMiddleware, configure_logging
@@ -65,7 +67,14 @@ def meta() -> dict:
     anything sensitive — it exposes only what an unauthenticated visitor needs
     in order to understand what they are looking at.
     """
-    body: dict = {"demo_mode": settings.DEMO_MODE, "environment": settings.ENVIRONMENT}
+    body: dict = {
+        "demo_mode": settings.DEMO_MODE,
+        "environment": settings.ENVIRONMENT,
+        # Lets the web app show the "Simulate a visit" button only where the
+        # backend would actually honour it. Signage, not a control — the route
+        # itself is what enforces this.
+        "dev_tools": settings.DEV_TOOLS,
+    }
     if settings.DEMO_MODE:
         # Only meaningful on a demo instance, where these are published
         # credentials for throwaway data — never emitted otherwise.
@@ -143,6 +152,7 @@ _OPENAPI_TAGS = [
     Tag(name="species", description="Species reference data"),
     Tag(name="stats", description="Dashboard aggregates"),
     Tag(name="notifications", description="Web push subscriptions"),
+    Tag(name="events", description="Server-sent stream of new sightings"),
     Tag(name="ops", description="Liveness, readiness, and classification relay"),
 ]
 
@@ -203,6 +213,10 @@ app = Litestar(
         SightingController,
         StatsController,
         PushController,
+        EventController,
+        # Registered always, 404s unless DEV_TOOLS is on, and absent from the
+        # OpenAPI document. See backend/dev/controller.py.
+        DevController,
     ],
     dependencies={"db": Provide(provide_db)},
     # Order matters: the request-context middleware is outermost, so a demo-mode
