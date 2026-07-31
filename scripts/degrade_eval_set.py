@@ -55,12 +55,22 @@ def distant(img: Image.Image, rng: random.Random) -> Image.Image:
     small = img.resize((max(1, int(w * scale)), max(1, int(h * scale))), Image.LANCZOS)
 
     bg = img.resize((int(w * 1.6), int(h * 1.6)), Image.LANCZOS)
-    bg = bg.crop((0, 0, w, h)).filter(ImageFilter.GaussianBlur(radius=max(w, h) / 90))
+    bg = bg.crop((0, 0, w, h)).filter(ImageFilter.GaussianBlur(radius=max(w, h) / 60))
     bg = ImageEnhance.Brightness(bg).enhance(1.05)
 
-    x = (w - small.width) // 2 + rng.randint(-w // 12, w // 12)
-    y = (h - small.height) // 2 + rng.randint(-h // 12, h // 12)
-    bg.paste(small, (max(0, x), max(0, y)))
+    x = max(0, (w - small.width) // 2 + rng.randint(-w // 12, w // 12))
+    y = max(0, (h - small.height) // 2 + rng.randint(-h // 12, h // 12))
+
+    # Feather the seam. A hard-edged paste puts a crisp rectangle in the frame,
+    # which is a cue no lens produces and which a CNN will happily latch onto --
+    # the variant would then be measuring "can it ignore a pasted border?"
+    # rather than "can it identify a small bird".
+    feather = max(4, int(min(small.size) * 0.08))
+    mask = Image.new("L", small.size, 0)
+    ImageDraw.Draw(mask).rectangle(
+        [feather, feather, small.width - feather, small.height - feather], fill=255
+    )
+    bg.paste(small, (x, y), mask.filter(ImageFilter.GaussianBlur(feather / 1.5)))
     return bg
 
 

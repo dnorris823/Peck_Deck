@@ -91,10 +91,18 @@ async def score(classifier, items: list[tuple[Path, str]], names: dict[str, str]
     conf_wrong: list[float] = []
     confidently_wrong = correct_escalated = 0
     confusion: Counter[str] = Counter()
+    # Per-species tallies, because an aggregate hides a species that is failing
+    # outright. Worth ruling out one cause first: 56 of the 965 taxonomy entries
+    # have no counterpart in Tier 2's label space and are structurally
+    # unpredictable -- but all 20 curated feeder species do map, so on this set
+    # a zero is a real error rather than a missing label.
+    per_species: dict[str, list[int]] = {}
 
     for path, truth in items:
         result = await classifier.classify(path)
         n += 1
+        tally = per_species.setdefault(truth, [0, 0])
+        tally[1] += 1
         if result is None:
             failed += 1
             continue
@@ -113,6 +121,7 @@ async def score(classifier, items: list[tuple[Path, str]], names: dict[str, str]
         conf = float(result.confidence)
         if exact:
             correct += 1
+            tally[0] += 1
             conf_correct.append(conf)
             if conf < THRESHOLD:
                 correct_escalated += 1
@@ -137,6 +146,10 @@ async def score(classifier, items: list[tuple[Path, str]], names: dict[str, str]
         "confidently_wrong_pct": round(100 * confidently_wrong / n, 1) if n else 0.0,
         "correct_but_escalated": correct_escalated,
         "top_confusions": confusion.most_common(5),
+        "per_species": {
+            s: {"correct": c, "n": t, "pct": round(100 * c / t, 1) if t else 0.0}
+            for s, (c, t) in sorted(per_species.items())
+        },
     }
 
 
@@ -161,6 +174,19 @@ def print_table(tier: str, rows: dict[str, dict]) -> None:
               f"{r['correct_but_escalated']:6d}")
     print("\nconf-bad>=thr = wrong answers the pipeline would ACCEPT (no escalation).")
     print("esc-ok        = correct answers it would escalate anyway (wasted tier hop).")
+
+    baseline = rows.get("clean")
+    if baseline:
+        weak = [(s, d) for s, d in baseline["per_species"].items() if d["pct"] < 50]
+        if weak:
+            print("\nWeakest species on the clean field set:")
+            for s, d in sorted(weak, key=lambda kv: kv[1]["pct"]):
+                print(f"  {d['pct']:5.1f}%  {s:28} {d['correct']}/{d['n']}")
+        worst = baseline["top_confusions"]
+        if worst:
+            print("\nMost common clean-set confusions:")
+            for pair, count in worst:
+                print(f"  {count:3d}x  {pair}")
 
 
 async def run() -> int:
