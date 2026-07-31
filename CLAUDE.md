@@ -47,13 +47,22 @@ Peck_Deck/
 ## Classification Tiers (priority order)
 1. **Tier 1 — Local TFLite** — runs on Pi, no network needed. Google AIY
    `birds_V1` (MobileNetV2/iNaturalist), 964 species + `background`.
-   Measured: 20/20 top-1, 57.9 ms on a Pi 5.
+   Measured: **64.3%** top-1 on field photos (20/20 on clean ones), 57.9 ms on a Pi 5.
 2. **Tier 2 — LAN GPU server** — Pi sends image to `inference_server/` at `POST /classify`.
    ViT-L/14 fine-tuned on iNat21 (10,000 classes), projected onto the shared
-   taxonomy. Measured: 20/20 top-1, 29.1 ms on the RTX 5080.
+   taxonomy. Measured: **85.0%** top-1 on field photos (20/20 on clean ones),
+   29.1 ms on the RTX 5080.
 3. **Tier 3 — Claude API** — Pi sends image to `backend POST /classify`; backend relays to Claude API (M6)
 
 The Pi falls back from Tier 1 → 2 → 3 based on availability and confidence thresholds.
+
+**The single `CONFIDENCE_THRESHOLD=0.5` is measured to be wrong** — 18.2% of the
+answers Tier 1 accepts at it are the wrong species, and a confidently wrong tier
+never escalates, so the app shows them as fact. Per-tier thresholds are an open
+item; the evidence and a sweep are in `machine_learning/MODELS.md` →
+*Measured accuracy*. Accuracy claims belong in that file: measure with
+`scripts/validate_tiers.py`, not `validate_tier1.py`, which is a 20-image
+wiring check on clean photos and reports 100% for both tiers.
 
 **Tiers 1 and 2 share one label space** — `machine_learning/taxonomy.csv`. Tier 1
 indexes into it directly; Tier 2 projects its own 10,000 classes onto it by
