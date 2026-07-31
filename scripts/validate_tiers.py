@@ -97,6 +97,7 @@ async def score(classifier, items: list[tuple[Path, str]], names: dict[str, str]
     # unpredictable -- but all 20 curated feeder species do map, so on this set
     # a zero is a real error rather than a missing label.
     per_species: dict[str, list[int]] = {}
+    samples: list[tuple[bool, float]] = []
 
     for path, truth in items:
         result = await classifier.classify(path)
@@ -119,6 +120,7 @@ async def score(classifier, items: list[tuple[Path, str]], names: dict[str, str]
             ).strip().lower() == expected_common.lower()
 
         conf = float(result.confidence)
+        samples.append((exact, round(conf, 4)))
         if exact:
             correct += 1
             tally[0] += 1
@@ -135,6 +137,10 @@ async def score(classifier, items: list[tuple[Path, str]], names: dict[str, str]
 
     mean = lambda xs: round(sum(xs) / len(xs), 3) if xs else None  # noqa: E731
     return {
+        # (was it right, how sure was it) per image, kept so a threshold can be
+        # chosen from the data instead of asserted. 0.5 was a guess; nothing has
+        # ever measured what it costs.
+        "samples": samples,
         "n": n,
         "failed": failed,
         "top1": correct,
@@ -151,6 +157,46 @@ async def score(classifier, items: list[tuple[Path, str]], names: dict[str, str]
             for s, (c, t) in sorted(per_species.items())
         },
     }
+
+
+def sweep(rows: dict[str, dict]) -> list[dict]:
+    """What each candidate CONFIDENCE_THRESHOLD would actually cost.
+
+    Pooled over every variant, because the threshold is a single constant that
+    has to serve whatever the feeder happens to see that morning.
+
+    The column that matters is `silent_error`: of the answers this tier would
+    ACCEPT at that threshold, how many are wrong. Those are the ones that reach
+    the user labelled as fact, with no escalation and nothing in the UI to
+    suggest doubt. `escalated` is the price paid for lowering it -- captures
+    handed to the next tier, and at Tier 2 the next tier is the Claude API,
+    which costs money per call.
+    """
+    samples = [s for r in rows.values() for s in r["samples"]]
+    out = []
+    for t in [round(0.05 * i, 2) for i in range(4, 19)]:
+        accepted = [(ok, c) for ok, c in samples if c >= t]
+        wrong = sum(1 for ok, _ in accepted if not ok)
+        out.append({
+            "threshold": t,
+            "accepted": len(accepted),
+            "accept_pct": round(100 * len(accepted) / len(samples), 1) if samples else 0.0,
+            "silent_errors": wrong,
+            "silent_error_pct": round(100 * wrong / len(accepted), 1) if accepted else 0.0,
+            "escalated_pct": round(100 * (len(samples) - len(accepted)) / len(samples), 1)
+            if samples else 0.0,
+        })
+    return out
+
+
+def print_sweep(rows: dict[str, dict]) -> None:
+    print("\n  threshold sweep (all variants pooled)")
+    print(f"  {'thr':>5} {'accepted':>9} {'escalated':>10} {'wrong & accepted':>17}")
+    print("  " + "-" * 45)
+    for r in sweep(rows):
+        mark = "  <- current" if abs(r["threshold"] - THRESHOLD) < 1e-9 else ""
+        print(f"  {r['threshold']:5.2f} {r['accept_pct']:8.1f}% {r['escalated_pct']:9.1f}% "
+              f"{r['silent_error_pct']:12.1f}%{mark}")
 
 
 def gpu_ready(url: str) -> bool:
@@ -243,7 +289,12 @@ async def run() -> int:
             print(f"  tier {tier}: {variant} ({len(items)})...", flush=True)
             rows[variant] = await score(clf, items, names)
         print_table(label, rows)
-        report["tiers"][tier] = {"classifier": label, "variants": rows}
+        print_sweep(rows)
+        report["tiers"][tier] = {
+            "classifier": label,
+            "variants": rows,
+            "threshold_sweep": sweep(rows),
+        }
 
     if args.out:
         Path(args.out).write_text(json.dumps(report, indent=2), encoding="utf-8")
