@@ -56,13 +56,20 @@ Peck_Deck/
 
 The Pi falls back from Tier 1 → 2 → 3 based on availability and confidence thresholds.
 
-**The single `CONFIDENCE_THRESHOLD=0.5` is measured to be wrong** — 18.2% of the
-answers Tier 1 accepts at it are the wrong species, and a confidently wrong tier
-never escalates, so the app shows them as fact. Per-tier thresholds are an open
-item; the evidence and a sweep are in `machine_learning/MODELS.md` →
-*Measured accuracy*. Accuracy claims belong in that file: measure with
-`scripts/validate_tiers.py`, not `validate_tier1.py`, which is a 20-image
-wiring check on clean photos and reports 100% for both tiers.
+**Escalation thresholds are per tier, and measured** — `DEFAULT_TIER_THRESHOLDS`
+in `raspberry_pi_code/config.py`: **local 0.85, gpu 0.60, cloud 0.50**. A single
+0.5 for all three accepted the wrong species 18.2% of the time on Tier 1, silently,
+because a confidently wrong tier never escalates. Per tier because the numbers
+aren't comparable (Tier 2 softmaxes over 10,000 classes to Tier 1's 965) and the
+escalations don't cost the same (Tier 1 → a free LAN GPU; Tier 2 → a paid Claude
+call). Override with `TIER1_/TIER2_/TIER3_CONFIDENCE_THRESHOLD`; the legacy global
+`CONFIDENCE_THRESHOLD` still wins where set, and logs a warning saying so.
+
+Accuracy claims belong in `machine_learning/MODELS.md` → *Measured accuracy*.
+Measure with `scripts/validate_tiers.py` (per tier) and
+`scripts/simulate_tier_chain.py` (the whole chain, for a threshold change) —
+**not** `validate_tier1.py`, which is a 20-image wiring check on clean photos and
+will report 100% for both tiers forever.
 
 **Tiers 1 and 2 share one label space** — `machine_learning/taxonomy.csv`. Tier 1
 indexes into it directly; Tier 2 projects its own 10,000 classes onto it by
@@ -349,3 +356,20 @@ tests), the device simulator + demo mode, analytics/export, the installable PWA
 with web push, and production readiness. Remaining work is tracked in
 `FLEDGE_ROADMAP.md`. **Phase 4 — physical hardware bring-up** (trigger sensor,
 real model weights) is the only phase still open.
+
+## Agent skills
+Configuration for the `mattpocock-skills` engineering skills (`/wayfinder`,
+`/triage`, `/to-tickets`, `/to-spec`, …). Nothing else reads these files.
+
+### Issue tracker
+Issues live in this repo's **GitHub Issues** (`dnorris823/Peck_Deck`), driven by
+the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+The five canonical roles, kept at their default names (`needs-triage`,
+`needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`) — the repo had no
+existing label vocabulary to map onto. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+**Single-context**: one `CONTEXT.md` at the root plus `docs/adr/`. Neither exists
+yet; `/domain-modeling` creates them lazily. See `docs/agents/domain.md`.

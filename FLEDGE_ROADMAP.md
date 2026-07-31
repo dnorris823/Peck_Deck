@@ -189,14 +189,17 @@ stale.
     measure with `scripts/validate_tiers.py`. A real field test is still the
     honest measure — even these photos are ones a person chose to take of a
     bird they could see well.
-- [ ] **Per-tier confidence thresholds** — the same measurement found that
-  **18.2% of the Tier 1 answers the pipeline accepts at `CONFIDENCE_THRESHOLD=0.5`
-  are the wrong species**, and none of them escalate, so the app shows a wrong
-  bird as fact. Tier 2 accepts wrong answers at 5.3%. One global constant cannot
-  serve both: Tier 2 softmaxes over 10,000 classes to Tier 1's 965 so equal
-  scores mean different things, and Tier 1 escalates to a free LAN GPU while
-  Tier 2 escalates to a paid Claude call. The sweep in MODELS.md suggests ~0.85
-  for Tier 1 (silent errors 18.2% → 8.2%) and 0.5–0.6 for Tier 2.
+- [x] **Per-tier confidence thresholds** — the same measurement found that
+  **18.2% of the Tier 1 answers the pipeline accepted at `CONFIDENCE_THRESHOLD=0.5`
+  were the wrong species**, none of which escalated, so the app showed a wrong
+  bird as fact. One global constant could not serve all three tiers: Tier 2
+  softmaxes over 10,000 classes to Tier 1's 965 so equal scores mean different
+  things, and Tier 1 escalates to a free LAN GPU while Tier 2 escalates to a paid
+  Claude call. Now `DEFAULT_TIER_THRESHOLDS` = local 0.85 / gpu 0.60 / cloud 0.50,
+  overridable per tier. Replaying the chain over the 3,000 measured images
+  (`scripts/simulate_tier_chain.py`): **silent errors 16.0% → 6.9%** and final
+  top-1 **65.0% → 68.3%** — the captures Tier 1 stops claiming go to a tier that
+  is better at them, so the honesty costs no accuracy.
 - [x] **Backend + Postgres on the gaming PC** — `docker compose up` (after
   fixing the container, which had never been able to boot). Real multipart
   `POST /sightings` from the Pi lands a 300 KB camera JPEG in Postgres as
@@ -464,9 +467,8 @@ a phone. Phases 6, 7, and 8 are independent of each other; pick by mood.
 That order held: everything except Phase 4 is done. **Phase 4 is what's left**,
 and by now everything feeding into it is proven twice over — once by the tests,
 once by the simulator. The open items are all *substance* rather than plumbing: a
-trigger sensor wired to the header, per-tier confidence thresholds now that the
-single 0.5 has been measured and found wanting, a `CLAUDE_API_KEY` for the Tier 3
-relay, and one real bird.
+trigger sensor wired to the header, a `CLAUDE_API_KEY` for the Tier 3 relay, and
+one real bird.
 
 ---
 
