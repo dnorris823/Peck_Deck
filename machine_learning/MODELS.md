@@ -13,6 +13,7 @@ python scripts/build_eval_set.py       # 300 iNaturalist field photos
 python scripts/degrade_eval_set.py     # 9 feeder-camera degradations of each
 python -m inference_server             # Tier 2 must be up to be measured
 python scripts/validate_tiers.py --out report.json
+python scripts/simulate_tier_chain.py report.json   # compare threshold settings
 ```
 
 ## The two CSVs are not interchangeable
@@ -158,11 +159,31 @@ independent reasons:
   call. Tier 1 should escalate eagerly and Tier 2 reluctantly, which a single
   constant cannot express.
 
-Reading the table as a recommendation: raising **Tier 1 to ~0.85** cuts its
-silent-error rate from 18.2% to 8.2%, and what it gives up is captures handed to
-a free, more accurate, more honest local tier. Leaving **Tier 2 near 0.5–0.6**
-holds silent errors at 3.8–5.3% without spending on Claude. *Not implemented* —
-it changes classification behaviour on the Pi and deserves its own change.
+**Now implemented** — `DEFAULT_TIER_THRESHOLDS` in `raspberry_pi_code/config.py`
+ships **0.85 for Tier 1, 0.60 for Tier 2, 0.50 for Tier 3**, overridable per tier
+via `TIER1_/TIER2_/TIER3_CONFIDENCE_THRESHOLD`.
+
+The numbers above score each tier alone; what a user actually gets is whatever
+the *chain* settles on. `scripts/simulate_tier_chain.py` replays the real
+escalation logic over the same 3,000 images:
+
+| Tier 1 / Tier 2 | Accepted | Wrong and accepted | Final top-1 |
+|---|---:|---:|---:|
+| 0.50 / 0.50 *(old)* | 65.8% | **16.0%** (315) | 65.0% |
+| **0.85 / 0.60** *(shipped)* | 53.9% | **6.9%** (112) | **68.3%** |
+| 0.85 / 0.50 | 58.1% | 7.9% (137) | 68.9% |
+| 0.90 / 0.60 | 51.7% | 5.6% (87) | 68.7% |
+
+**Silent errors fall by 64% and accuracy goes up**, because the captures Tier 1
+stops claiming are handed to a tier that is better at them. There is no accuracy
+cost to pay for the honesty; the only cost is LAN round trips.
+
+The last two rows are the honest tension. `0.85 / 0.50` is fractionally more
+accurate (68.9%) but accepts 25 more wrong answers; the shipped pair prefers
+fewer silent errors, on the grounds that a wrong species stated as fact is worse
+than a right one arrived at through one more hop. Tier 3 is absent from this
+replay, so where `CLAUDE_API_KEY` *is* set the accuracy column is a floor — a
+real Tier 3 call can only improve on the best-effort answer it replaces.
 
 ### What this measurement still is not
 

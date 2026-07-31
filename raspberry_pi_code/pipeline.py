@@ -9,7 +9,7 @@ from .classification.base import ClassificationResult, ClassifierBase
 from .classification.tier1_tflite import TFLiteClassifier
 from .classification.tier2_gpu import GPUServerClassifier
 from .classification.tier3_cloud import CloudClassifier
-from .config import Config
+from .config import DEFAULT_TIER_THRESHOLDS, Config
 from .storage.local_cache import LocalCache, QueuedSighting
 
 logger = logging.getLogger(__name__)
@@ -42,6 +42,24 @@ class Pipeline:
         self._cache.setup()
         if not self._tier1.load():
             logger.warning("Tier 1 classifier unavailable — will fall through to Tier 2/3")
+
+        # Log what the chain will actually enforce. The thresholds decide which
+        # answers reach the user unchallenged, and until now nothing said out
+        # loud what they were.
+        logger.info(
+            "Escalation thresholds: local=%.2f gpu=%.2f cloud=%.2f",
+            *(self._cfg.threshold_for(t) for t in ("local", "gpu", "cloud")),
+        )
+        if self._cfg.uses_legacy_global_threshold():
+            logger.warning(
+                "CONFIDENCE_THRESHOLD=%.2f is set and is overriding the measured "
+                "per-tier defaults %s. At 0.5, 18.2%% of the answers Tier 1 accepts "
+                "are the wrong species, and they never escalate. Prefer "
+                "TIER1_/TIER2_/TIER3_CONFIDENCE_THRESHOLD; see "
+                "machine_learning/MODELS.md.",
+                self._cfg.confidence_threshold,
+                DEFAULT_TIER_THRESHOLDS,
+            )
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -176,12 +194,15 @@ class Pipeline:
     async def _classify(self, image_path: Path) -> ClassificationResult | None:
         """Walk the tier chain, falling through on failure *or* low confidence.
 
-        A tier that answers below ``confidence_threshold`` doesn't win outright —
+        A tier that answers below **its own** threshold doesn't win outright —
         the next tier gets a shot. The best low-confidence answer is kept as a
         fallback so a weak guess still beats discarding the sighting entirely.
+
+        Thresholds are per tier (see ``DEFAULT_TIER_THRESHOLDS``) because a raw
+        confidence means different things coming from different tiers.
         """
-        threshold = self._cfg.confidence_threshold
         best: ClassificationResult | None = None
+        best_ratio = 0.0
 
         for clf in self._classifiers_for_preference():
             result = await clf.classify(image_path)
@@ -190,23 +211,32 @@ class Pipeline:
                 logger.warning("Tier '%s' failed — trying next", clf.tier_name)
                 continue
 
+            threshold = self._cfg.threshold_for(clf.tier_name)
             if result.confidence >= threshold:
                 return result
 
             logger.info(
-                "Tier '%s' confidence %.2f below threshold %.2f — trying next",
+                "Tier '%s' confidence %.2f below its threshold %.2f — trying next",
                 clf.tier_name,
                 result.confidence,
                 threshold,
             )
-            if best is None or result.confidence > best.confidence:
-                best = result
+            # Rank leftovers by how close each came to *its own* bar, not by raw
+            # confidence. Comparing raw numbers across tiers is what per-tier
+            # thresholds exist to stop: 0.55 from Tier 2 (bar 0.60) is a stronger
+            # answer than 0.60 from Tier 1 (bar 0.85), and Tier 2 is the more
+            # accurate tier besides.
+            ratio = result.confidence / threshold if threshold > 0 else float("inf")
+            if best is None or ratio > best_ratio:
+                best, best_ratio = result, ratio
 
         if best is not None:
             logger.warning(
-                "No tier met the confidence threshold — using best effort: %s (%.2f) [tier=%s]",
+                "No tier met its confidence threshold — using best effort: %s (%.2f, "
+                "%.0f%% of its tier's bar) [tier=%s]",
                 best.common_name,
                 best.confidence,
+                100 * best_ratio,
                 best.tier_used,
             )
         return best
