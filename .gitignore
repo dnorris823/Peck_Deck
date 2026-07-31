@@ -32,3 +32,10 @@ machine_learning/*.pth
 # Ground-truth photos cached by scripts/validate_tier1.py. Third-party images
 # under their own licences — re-fetched on demand, never vendored.
 .validation_photos/
+
+# Field evaluation set: CC-licensed iNaturalist photos plus their derived
+# degradations (scripts/build_eval_set.py, scripts/degrade_eval_set.py).
+# Other people's photographs, cached for local measurement — rebuild, don't commit.
+# The measured results live in machine_learning/MODELS.md; the provenance of
+# every photo is in the tree's own manifest.json.
+.eval_photos/
