@@ -6,6 +6,7 @@ from typing import NamedTuple
 
 import numpy as np
 
+from ..tflite_loader import import_tflite
 from .base import ClassificationResult, ClassifierBase
 
 logger = logging.getLogger(__name__)
@@ -70,25 +71,9 @@ class TFLiteClassifier(ClassifierBase):
             logger.error("Taxonomy CSV not found: %s", self._taxonomy_path)
             return False
 
-        # Three names for the same runtime. `tflite_runtime` is what the Pi has;
-        # `ai_edge_litert` is its official successor and the only one of the three
-        # with a Windows wheel, which is what lets the accuracy harness
-        # (scripts/validate_tiers.py) run Tier 1 off the Pi; `tensorflow.lite`
-        # is the heavyweight fallback. All three expose `Interpreter` the same way.
-        try:
-            import tflite_runtime.interpreter as tflite
-        except ImportError:
-            try:
-                import ai_edge_litert.interpreter as tflite  # type: ignore[no-redef]
-            except ImportError:
-                try:
-                    import tensorflow.lite as tflite  # type: ignore[no-redef]
-                except ImportError:
-                    logger.error(
-                        "No TFLite runtime found — install one of tflite-runtime, "
-                        "ai-edge-litert, or tensorflow"
-                    )
-                    return False
+        tflite = import_tflite()
+        if tflite is None:
+            return False
 
         self._interp = tflite.Interpreter(model_path=self._model_path)
         self._interp.allocate_tensors()
