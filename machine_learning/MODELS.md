@@ -4,7 +4,7 @@ Weights are **fetched, not committed** — they are third-party binaries with
 their own licences. `machine_learning/*.tflite` and `*.pth` are gitignored.
 
 ```bash
-python scripts/fetch_models.py     # Tier 1 weights (~3.5 MB), digest-checked
+python scripts/fetch_models.py     # Tier 1 + bird detector weights, digest-checked
 python scripts/build_taxonomy.py   # regenerate taxonomy.csv from the label map
 python scripts/validate_tier1.py   # Tier 1 sanity check on 20 clean photos
 
@@ -79,6 +79,46 @@ A model with no published `label_names` falls back to the legacy path: the head
 is resized to the taxonomy and, without a `MODEL_PATH`, randomly initialised.
 That path now logs a loud warning, because it is exactly the configuration that
 produced meaningless labels through Phases 4a–4b.
+
+## Camera trigger detector (Pi)
+
+**EfficientDet-Lite0**, COCO-trained, with TFLite post-processing built in. It
+does not name the species. It answers one question: is there a bird in the
+frame. Tier 2 names the species after the capture.
+
+| | |
+|---|---|
+| Source | Kaggle Models, `tensorflow/efficientdet/tfLite/lite0-detection-metadata/1` |
+| File | `machine_learning/efficientdet_lite0_detection.tflite`, from `fetch_models.py` |
+| Input | `[1,320,320,3]` uint8 |
+| Outputs | boxes `[1,25,4]`, classes `[1,25]`, scores `[1,25]`, count `[1]`, all float32 |
+| Bird class | 15 (the embedded `labelmap.txt` starts at person = 0) |
+| Speed | 11.7 ms/frame on the gaming PC CPU. Not yet measured on the Pi 5 |
+
+Per-frame bird recall on the 300-photo field set and its degradations. The
+numbers come from `BirdDetector.detect` on each photo, with the score threshold
+swept. Each row is one frame per photo.
+
+| Variant | @0.3 | @0.4 | **@0.5** | @0.6 |
+|---|---:|---:|---:|---:|
+| `clean` | 76.3% | 68.7% | **62.0%** | 50.7% |
+| `off_center` | 79.0% | 75.0% | **64.3%** | 55.0% |
+| `motion_blur` | 72.0% | 64.7% | **57.0%** | 43.7% |
+| `low_light` | 65.3% | 60.3% | **53.3%** | 42.0% |
+| `distant` | 53.7% | 44.3% | **35.7%** | 24.3% |
+| `field_combo` | 29.0% | 23.7% | **18.0%** | 11.3% |
+
+Blank frames (black, grey, white, a gradient, random noise) score 0.012 at most.
+
+`CAMERA_DETECTION_THRESHOLD` defaults to 0.5. Per-frame recall understates
+per-visit recall, because the trigger checks several frames a second for as long
+as the bird moves. A false positive costs more than one missed frame, since it
+uploads a sighting of an empty feeder. This set has no hand or squirrel photos,
+so the false-positive rate on real scenes is not measured yet.
+
+Feeding the frame as BGR instead of RGB costs about 5 points (`clean` 62.0% to
+57.3% at 0.5). `PiCamera` asks picamera2 for `BGR888`, which is its name for an
+`[R, G, B]` array.
 
 ## Measured accuracy
 
