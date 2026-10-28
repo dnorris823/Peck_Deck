@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .api_client import BackendClient, UploadOutcome
+from .camera.base import CameraBase
 from .camera.pi_camera import PiCamera
 from .classification.base import ClassificationResult, ClassifierBase
 from .classification.tier1_tflite import TFLiteClassifier
@@ -18,8 +19,25 @@ logger = logging.getLogger(__name__)
 class Pipeline:
     """Orchestrates trigger → capture → classify → upload/queue for each bird visit."""
 
-    def __init__(self, config: Config):
+    def __init__(
+        self,
+        config: Config,
+        camera: CameraBase | None = None,
+        debounce_seconds: float | None = None,
+    ):
+        """
+        ``camera`` is the long-lived camera that ``main.py`` opens and shares
+        with the trigger. Without one, each capture opens its own camera.
+
+        ``debounce_seconds`` defaults to ``config.debounce_seconds``. A trigger
+        that applies its own repeat rule, like the camera trigger's quiet gap,
+        passes 0, so only one rule decides what counts as a new visit.
+        """
         self._cfg = config
+        self._camera = camera
+        self._debounce_seconds = (
+            config.debounce_seconds if debounce_seconds is None else debounce_seconds
+        )
         self._cache = LocalCache(
             config.cache_dir, config.max_cache_images, config.max_queued_sightings
         )
@@ -70,7 +88,7 @@ class Pipeline:
 
         async with self._capture_lock:
             now = asyncio.get_running_loop().time()
-            if now - self._last_capture < self._cfg.debounce_seconds:
+            if now - self._last_capture < self._debounce_seconds:
                 logger.debug("Debounce active — skipping trigger")
                 return
             self._last_capture = now
@@ -129,8 +147,14 @@ class Pipeline:
         event_id = self._cache.new_event_id()
         timestamp = datetime.now(timezone.utc).isoformat()
 
-        async with PiCamera(self._cfg.image_width, self._cfg.image_height, self._cfg.jpeg_quality) as cam:
-            image_path = await cam.capture(self._cache.image_path_for(event_id))
+        target = self._cache.image_path_for(event_id)
+        if self._camera is not None:
+            image_path = await self._camera.capture(target)
+        else:
+            async with PiCamera(
+                self._cfg.image_width, self._cfg.image_height, self._cfg.jpeg_quality
+            ) as cam:
+                image_path = await cam.capture(target)
 
         self._cache.evict_if_needed(protect=image_path)
 
