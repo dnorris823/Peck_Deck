@@ -101,10 +101,15 @@ async def _run() -> None:
         )
 
     async with camera, trigger:
-        sync_task = asyncio.create_task(
-            _sync_loop(pipeline, config.sync_interval_seconds),
-            name="offline-sync",
-        )
+        background = [
+            asyncio.create_task(
+                _sync_loop(pipeline, config.sync_interval_seconds),
+                name="offline-sync",
+            ),
+            # Classify and upload run here, one capture at a time, so a slow
+            # Tier 2 never holds the camera from the next visit.
+            asyncio.create_task(pipeline.run_classifier(), name="classify"),
+        ]
         try:
             while True:
                 await trigger.next_event()
@@ -113,8 +118,9 @@ async def _run() -> None:
                     name="capture",
                 )
         finally:
-            sync_task.cancel()
-            await asyncio.gather(sync_task, return_exceptions=True)
+            for task in background:
+                task.cancel()
+            await asyncio.gather(*background, return_exceptions=True)
 
 
 def main() -> None:

@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -25,6 +26,15 @@ _UNCLASSIFIED = ClassificationResult(
 )
 
 TIER_PREFERENCES = ("gpu", "auto", "cloud", "local")
+
+
+@dataclass(frozen=True)
+class Capture:
+    """A photo taken for one visit, waiting for classify and upload."""
+
+    event_id: str
+    timestamp: str  # ISO 8601 UTC, when the photo was taken
+    image_path: Path
 
 
 class Pipeline:
@@ -74,7 +84,13 @@ class Pipeline:
         # loop.time() is time since boot on Linux, so 0.0 here would debounce
         # every trigger in the first DEBOUNCE_SECONDS after boot.
         self._last_capture: float = float("-inf")
+        # Covers the camera only. Classify and upload run in run_classifier, so
+        # a slow Tier 2 delays the answer but never costs the next visit its photo.
         self._capture_lock = asyncio.Lock()
+        self._work: asyncio.Queue[Capture] = asyncio.Queue(config.classify_queue_size)
+        # Captures waiting in _work or under classification. They are not in the
+        # offline queue yet, so eviction has to be told to keep them.
+        self._in_flight: set[Path] = set()
 
     def setup(self) -> None:
         self._cache.setup()
@@ -105,17 +121,36 @@ class Pipeline:
     # ── Public API ────────────────────────────────────────────────────────────
 
     async def handle_trigger(self) -> None:
-        if self._capture_lock.locked():
-            logger.debug("Capture already in progress — skipping trigger")
-            return
+        """Take the photo for one visit and hand it to ``run_classifier``.
 
+        A trigger that fires during another capture waits for the camera. It
+        used to be skipped, and the old lock covered classify and upload too, so
+        an unreachable Tier 2 dropped every visit for 40 s at a time.
+        """
         async with self._capture_lock:
             now = asyncio.get_running_loop().time()
             if now - self._last_capture < self._debounce_seconds:
                 logger.debug("Debounce active — skipping trigger")
                 return
             self._last_capture = now
-            await self._capture_and_process()
+            capture = await self._capture()
+        self._submit(capture)
+
+    async def run_classifier(self) -> None:
+        """Classify and upload captures one at a time, in visit order. Runs forever.
+
+        One worker keeps Tier 2 to one request at a time, and keeps sightings
+        reaching the backend in the order the birds came.
+        """
+        while True:
+            capture = await self._work.get()
+            try:
+                await self._process(capture)
+            except Exception:
+                logger.exception("Processing failed for event %s", capture.event_id)
+            finally:
+                self._in_flight.discard(capture.image_path)
+                self._work.task_done()
 
     async def sync_offline_queue(self) -> None:
         """Flush queued sightings to the backend when connectivity is restored."""
@@ -166,7 +201,7 @@ class Pipeline:
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
-    async def _capture_and_process(self) -> None:
+    async def _capture(self) -> Capture:
         event_id = self._cache.new_event_id()
         timestamp = datetime.now(timezone.utc).isoformat()
 
@@ -179,7 +214,33 @@ class Pipeline:
             ) as cam:
                 image_path = await cam.capture(target)
 
-        self._cache.evict_if_needed(protect=image_path)
+        self._in_flight.add(image_path)
+        self._cache.evict_if_needed(protect=self._in_flight)
+        return Capture(event_id, timestamp, image_path)
+
+    def _submit(self, capture: Capture) -> None:
+        """Queue a capture for ``run_classifier``. A full queue keeps the photo."""
+        try:
+            self._work.put_nowait(capture)
+            return
+        except asyncio.QueueFull:
+            pass
+
+        # The worker is far behind, most likely on Tier 2 timeouts. Put the
+        # photo in the offline queue unclassified rather than lose the visit.
+        # The sync loop uploads it as "Unknown".
+        logger.warning(
+            "Classify queue is full (%d waiting). Sending event %s to the offline "
+            "queue unclassified",
+            self._work.qsize(),
+            capture.event_id,
+        )
+        self._enqueue_offline(capture, _UNCLASSIFIED)
+        self._in_flight.discard(capture.image_path)
+
+    async def _process(self, capture: Capture) -> None:
+        event_id = capture.event_id
+        image_path = capture.image_path
 
         result = await self._classify(image_path)
         if result is None:
@@ -200,7 +261,7 @@ class Pipeline:
 
         outcome = await self._client.post_sighting(
             image_path=image_path,
-            timestamp=timestamp,
+            timestamp=capture.timestamp,
             common_name=result.common_name,
             scientific_name=result.scientific_name,
             confidence=result.confidence,
@@ -221,17 +282,20 @@ class Pipeline:
                              "upload until DEVICE_TOKEN is re-provisioned")
             else:
                 logger.warning("Backend unreachable — queuing sighting locally")
-            self._cache.enqueue(
-                QueuedSighting(
-                    id=event_id,
-                    timestamp=timestamp,
-                    image_path=str(image_path),
-                    common_name=result.common_name,
-                    scientific_name=result.scientific_name,
-                    confidence=result.confidence,
-                    tier_used=result.tier_used,
-                )
+            self._enqueue_offline(capture, result)
+
+    def _enqueue_offline(self, capture: Capture, result: ClassificationResult) -> None:
+        self._cache.enqueue(
+            QueuedSighting(
+                id=capture.event_id,
+                timestamp=capture.timestamp,
+                image_path=str(capture.image_path),
+                common_name=result.common_name,
+                scientific_name=result.scientific_name,
+                confidence=result.confidence,
+                tier_used=result.tier_used,
             )
+        )
 
     def _classifiers_for_preference(self) -> list[ClassifierBase]:
         pref = self._cfg.tier_preference

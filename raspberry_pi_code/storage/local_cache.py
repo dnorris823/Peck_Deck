@@ -1,6 +1,7 @@
 import json
 import logging
 import uuid
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -44,7 +45,7 @@ class LocalCache:
     def image_path_for(self, event_id: str) -> Path:
         return self._images / f"{event_id}.jpg"
 
-    def evict_if_needed(self, protect: Path | str | None = None) -> None:
+    def evict_if_needed(self, protect: Iterable[Path | str] = ()) -> None:
         """Delete the oldest cached image(s) if the cache is over the limit.
 
         Images still referenced by the offline queue are **never** evicted.
@@ -54,14 +55,13 @@ class LocalCache:
         the very backlog it had just created. The queue is bounded separately,
         by ``max_queued``, so the cache still cannot grow without limit.
 
-        ``protect`` is the capture currently being classified. It is not in the
-        queue yet, so without it the in-flight image is the *only* eviction
-        candidate once the queue is full — the classifier then reads a file
-        that was deleted a moment earlier and the sighting is lost.
+        ``protect`` holds the captures waiting for or under classification.
+        They are not in the queue yet, so without it an in-flight image is the
+        *only* eviction candidate once the queue is full — the classifier then
+        reads a file that was deleted a moment earlier and the sighting is lost.
         """
         queued = {Path(r["image_path"]).name for r in self._read()}
-        if protect is not None:
-            queued.add(Path(protect).name)
+        queued.update(Path(p).name for p in protect)
         images = sorted(self._images.glob("*.jpg"), key=lambda p: p.stat().st_mtime)
         excess = len(images) - self._max
 

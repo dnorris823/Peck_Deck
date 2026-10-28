@@ -48,8 +48,9 @@ derivable by reading the code or running `ls`, it does not belong here.
   down" retries and "token refused" re-provisions, so they cannot share a return
   value. Only `OK` is truthy, so `if ok:` still reads correctly.
 - **The offline queue outranks the image cache.** A queued sighting's image is
-  never evicted, and neither is the capture being classified. `MAX_CACHE_IMAGES`
-  bounds unqueued images only. `MAX_QUEUED_SIGHTINGS` bounds the backlog.
+  never evicted, and neither is a capture waiting for or under classification.
+  `MAX_CACHE_IMAGES` bounds unqueued images only. `MAX_QUEUED_SIGHTINGS` bounds
+  the backlog.
 - **The Pi camera has one owner.** `main.py` opens one `PiCamera` and passes it to
   both the trigger and the pipeline. picamera2 refuses a second open while the
   camera trigger streams, so new Pi code takes that instance and never opens its
