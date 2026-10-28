@@ -76,14 +76,17 @@ Peck Deck is a smart bird feeder system that automatically detects bird visits, 
 
 ### 5.1 Trigger & Capture
 
-- A dedicated trigger peripheral (e.g., PIR sensor, IR beam break) signals the Pi when a bird is present.
+- The Pi watches the feeder with its camera and decides one thing: bird or no bird. A cheap motion check runs first, and a small detector (YOLO nano or similar) confirms a bird.
+- There is no separate trigger peripheral. The old PIR and IR beam triggers are still in the code until the camera trigger replaces them.
 - On trigger, the Pi camera captures one high-resolution still image (primary classification input).
 - **Video clips are deferred from the initial implementation.** A future release will add short clips (< 5 seconds). The Sightings data model includes a `video_path` field to avoid a schema migration later.
 - A short debounce window (configurable, default 30s) prevents duplicate captures for the same visit.
 
 ### 5.2 Classification Tiers
 
-The Pi attempts classification in order. If a tier fails or is disabled, it falls back to the next.
+Every capture with a bird goes to Tier 2 on the gaming PC. Tier 2 is the main classifier. Tier 3 stays available but is off by default. Tier 1 is no longer the first stop.
+
+The code today still runs the tiers in order, 1 then 2 then 3, falling back on availability and confidence. Changing that is a code task in `README.md`.
 
 #### Tier 1 — Local (On-Device, Pi)
 - Model: INatVision TFLite (quantized, runs on Pi CPU)
@@ -120,7 +123,7 @@ The Pi attempts classification in order. If a tier fails or is disabled, it fall
 
 ### 5.4 Power & Connectivity
 
-- Entire feeder unit runs on battery (no mains power at feeder location).
+- The first deployment is indoors at a window, on mains power. The outdoor and battery plans are in `docs/archive/OUTDOOR_DEPLOYMENT.md`.
 - Network: WiFi only. The Pi connects to the home WiFi network.
 - See Section 5.3 for the offline queuing and sync strategy.
 
@@ -352,11 +355,8 @@ The resolved URL and a short description (from the API when available) are store
 
 ## 11. Open Questions
 
-> These remain open pending hardware decisions by the maintainer. They are
-> resolved during the hardware bring-up pass (FLEDGE_ROADMAP.md → Phase 4).
-
-1. **Trigger peripheral model** — What specific peripheral is being used? This affects debounce timing and Pi GPIO integration details. *(Open — confirm at hardware bring-up.)*
-2. **Feeder solar charging** — Is solar charging planned for the battery, or strict finite battery life between charges? *(Open — confirm at hardware bring-up.)*
+1. **Detector thresholds.** Pick the motion and detector thresholds from real footage at the window.
+2. **Outdoor power.** Battery, solar or mains for an outdoor feeder. Not needed until the feeder moves outside.
 
 ---
 

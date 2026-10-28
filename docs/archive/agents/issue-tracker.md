@@ -4,6 +4,11 @@ Issues and PRDs for this repo live as GitHub issues on
 [`dnorris823/Peck_Deck`](https://github.com/dnorris823/Peck_Deck). Use the `gh`
 CLI for all operations.
 
+**Read `docs/agents/writing.md` before writing an issue body, a comment, or a
+resolution.** Issue text is the largest body of prose this repo produces, so the
+conventions matter most here. Name a ticket by its title with the link on the
+name. Never write a bare `#42`.
+
 ## Conventions
 
 - **Create an issue**: `gh issue create --title "..." --body "..."`. Use a heredoc for multi-line bodies.

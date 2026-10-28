@@ -121,7 +121,7 @@ thing — what matters is how many pixels land on the bird.
 
 That is a mounting decision, not a modelling one. A camera placed so a chickadee
 fills a good part of the frame is worth more than any amount of tuning, and it is
-cheaper. See `OUTDOOR_DEPLOYMENT.md` for where the camera actually goes.
+cheaper. See `docs/archive/OUTDOOR_DEPLOYMENT.md` for where the camera actually goes.
 
 ### Calibration — the part that changes product behaviour
 
