@@ -36,13 +36,13 @@ def create_throwaway_device(prefix: str = "contract") -> tuple[str, int]:
                     name=f"{prefix} owner",
                     email=f"{prefix}_{secrets.token_hex(4)}@test.dev",
                     password_hash="x", role="owner",
-                    notify_email=False, notify_sms=False,
+                    notify_email=False,
                 )
                 db.add(u)
                 await db.flush()
                 token = secrets.token_urlsafe(16)
                 dev = Device(name=f"{prefix} device", owner_id=u.id,
-                             classification_tier="auto", token=token)
+                             token=token)
                 db.add(dev)
                 await db.flush()
                 return token, dev.id

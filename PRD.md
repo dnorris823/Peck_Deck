@@ -16,7 +16,7 @@ Peck Deck is a smart bird feeder system that automatically detects bird visits, 
 
 - Automatically detect and photograph birds visiting the feeder without user intervention.
 - Accurately identify bird species using one of three classification tiers (local, LAN GPU, cloud).
-- Notify registered users via email and/or SMS within seconds of a confirmed sighting.
+- Notify registered users via email and/or web push within seconds of a confirmed sighting.
 - Provide a polished web app for browsing sighting history, managing users, and configuring the system.
 - Run entirely from battery on the feeder hardware, with no external power required at the feeder.
 
@@ -46,13 +46,13 @@ Peck Deck is a smart bird feeder system that automatically detects bird visits, 
 │  Raspberry Pi 5                │ ◀─ Classification ─│  GPU Inference Server (RTX 5080) │
 │  ↓                             │                    │  React Web App                   │
 │  Camera Module                 │                    │  Notification Service            │
-│  ↓                             │                    │  (Email + SMS)                   │
+│  ↓                             │                    │  (Email + Push)                  │
 │  Classification (local TFLite) │                    └──────────────────────────────────┘
 │  ↓                             │                                  │
 │  Upload sighting + image       │                                  ▼
 └────────────────────────────────┘                    ┌─────────────────────┐
                                                       │  Registered Users   │
-                                                      │  (Email / SMS)      │
+                                                      │  (Email / Push)     │
                                                       └─────────────────────┘
 ```
 
@@ -68,7 +68,7 @@ Peck Deck is a smart bird feeder system that automatically detects bird visits, 
 | PostgreSQL Database | Gaming PC | Persists users, devices, species, sightings |
 | Inference Server | Gaming PC | GPU-accelerated classification (RTX 5080) |
 | React Web App | Gaming PC | User-facing UI served from backend |
-| Notification Service | Gaming PC | Sends email (SMTP/SendGrid) and SMS (Twilio) |
+| Notification Service | Gaming PC | Sends email (SendGrid) and web push |
 
 ---
 
@@ -145,9 +145,7 @@ alongside the API; the test suite uses SQLite (aiosqlite) as a throwaway backend
 | name | str | Display name |
 | email | str | Unique, used for login and notifications |
 | password_hash | str | bcrypt |
-| phone | str | Optional, E.164 format for SMS |
 | notify_email | bool | Default true |
-| notify_sms | bool | Default false |
 | role | enum | `owner` \| `viewer` |
 
 #### Devices
@@ -158,7 +156,6 @@ alongside the API; the test suite uses SQLite (aiosqlite) as a throwaway backend
 | city | str | |
 | state | str | |
 | owner_id | int | FK → Users |
-| classification_tier | enum | `local` \| `gpu` \| `cloud` \| `auto` |
 | feed_type | str | Optional (e.g., sunflower seeds) |
 
 #### DeviceUsers (junction)
@@ -240,11 +237,7 @@ Sender: Configured SMTP account or SendGrid API key.
 
 ### 7.2 SMS Notification
 
-Sender: Twilio phone number.
-
-**SMS contains (concise):**
-- `🐦 Peck Deck: [Common Name] at [Device Name] — sighting #[N]. [Wikipedia URL]`
-- Media URL to the captured image (MMS if supported).
+*Removed. SMS needed a paid Twilio number and added little over web push.*
 
 ### 7.3 Web Push Notification
 
@@ -266,7 +259,7 @@ consent, and it is granted from Settings → Notifications on the device that wa
 alerts. Requires the service worker, so it is unavailable on a dev server.
 
 ### 7.4 Notification Rules
-- Users can toggle email and SMS notifications independently in their profile
+- Users can toggle email notifications in their profile
   settings; web push is toggled per browser (see §7.3).
 - A minimum interval between notifications per device (configurable, default 60s) prevents spam during a long visit.
 - Notification failures are logged but do not block the sighting from being saved.
@@ -295,7 +288,7 @@ alerts. Requires the service worker, so it is unavailable on a dev server.
 
 #### Devices
 - List of registered feeders.
-- Per-device settings: name, location, classification tier preference, feed type.
+- Per-device settings: name, location, feed type.
 - Add/remove users who receive notifications for this device.
 
 #### User Management (Owner only)
@@ -303,10 +296,9 @@ alerts. Requires the service worker, so it is unavailable on a dev server.
 - View and manage existing users' notification preferences and roles.
 
 #### Settings
-- Classification tier preference (global default).
-- Email, SMS, and browser-push notification toggles (push is per browser — §7.3).
-- API key management (Claude API key for Tier 3, SendGrid key, Twilio credentials).
-- Account details (name, email, phone, password change).
+- Email and browser-push notification toggles (push is per browser — §7.3).
+- API key management (Claude API key for Tier 3, SendGrid key).
+- Account details (name, email, password change).
 
 ---
 
@@ -347,7 +339,7 @@ The resolved URL and a short description (from the API when available) are store
 
 - All API endpoints except `/login` require a valid JWT.
 - Passwords stored as bcrypt hashes only.
-- API keys (Claude, SendGrid, Twilio) and the VAPID push signing key stored in environment variables or a secrets file on the gaming PC, never committed to version control.
+- API keys (Claude, SendGrid) and the VAPID push signing key stored in environment variables or a secrets file on the gaming PC, never committed to version control.
 - Pi authenticates to the backend API using a device-specific token (not a user JWT).
 - Media files stored in a local directory not directly served without auth.
 
@@ -367,7 +359,7 @@ The resolved URL and a short description (from the API when available) are store
 | M1 — Hardware + Local Inference | Pi captures images on trigger, classifies with TFLite, logs to local file |
 | M2 — Backend API + Database | Full CRUD API running on gaming PC, Pi posts sightings via API |
 | M3 — GPU Inference Server | Tier 2 classification server running on gaming PC |
-| M4 — Notification Service | Email + SMS notifications on new sightings |
+| M4 — Notification Service | Email notifications on new sightings (SMS later removed) |
 | M5 — Web App | React frontend: dashboard, gallery, species library, settings |
 | M6 — Cloud Classification | Claude API Tier 3 integration |
 | M7 — Polish & Hardening | Error handling, offline queuing, battery optimization, UI polish |

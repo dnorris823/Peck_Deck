@@ -48,7 +48,6 @@ function mapDevice(d) {
     name: d.name,
     city: d.city || "—",
     state: d.state || "",
-    tier: d.classification_tier,
     feed: d.feed_type || "—",
     status: d.status,
     battery: d.battery == null ? 0 : d.battery,
@@ -66,9 +65,7 @@ function mapUser(u, i) {
     name: u.name,
     email: u.email,
     role: u.role,
-    phone: u.phone || "—",
     notify_email: u.notify_email,
-    notify_sms: u.notify_sms,
     av: initials(u.name),
     avBg: AV_COLORS[i % AV_COLORS.length],
   };
@@ -95,17 +92,14 @@ function mapMe(u) {
     name: u.name,
     email: u.email,
     role: u.role,
-    phone: u.phone || "",
     notify_email: u.notify_email,
-    notify_sms: u.notify_sms,
   };
 }
 
 // ── Loader ────────────────────────────────────────────────────────────────
-// Fetch and mapping are separate so the offline snapshot can store the *raw*
-// payloads and re-map them through this same function on a cached load. One
-// mapper, two sources — a second one would drift (dates in particular: mapping
-// produces Date objects that a JSON round trip would flatten to strings).
+// Fetch and mapping are separate so a streamed sighting can patch the *raw*
+// payloads and re-map them through this same function. Mapping is not
+// reversible (it produces Date objects), so the raw set has to be kept.
 export async function fetchRaw() {
   const [species, counts, devices, users, sightings, heatmap, dashboard, me, prefs] =
     await Promise.all([
@@ -202,7 +196,7 @@ export async function loadAll() {
 
 // ── Settings mutations ────────────────────────────────────────────────────
 // Persist account/notification fields on the current user. Accepts any subset
-// of {name, phone, notify_email, notify_sms}; returns the updated (mapped) user.
+// of {name, email, notify_email}; returns the updated (mapped) user.
 export async function saveMe(userId, patch) {
   const updated = await apiSend(`/users/${userId}`, "PUT", patch);
   return mapMe(updated);
@@ -214,12 +208,12 @@ export async function savePreferences(patch) {
 }
 
 // ── CRUD mutations (Users / Devices / Species) ────────────────────────────
-// Register a new user (public endpoint — needs name+email+password, optional role/phone).
+// Register a new user (public endpoint — needs name+email+password, optional role).
 export async function createUser(body) {
   return apiSend("/users", "POST", body);
 }
 
-// Update an existing user's editable fields (name/phone/notify/email).
+// Update an existing user's editable fields (name/notify/email).
 export async function updateUser(userId, patch) {
   return apiSend(`/users/${userId}`, "PUT", patch);
 }
@@ -235,23 +229,9 @@ export async function createDevice(body) {
   return apiSend("/devices", "POST", body);
 }
 
-// Update an existing device's editable fields (name/city/state/tier/feed_type).
-export async function updateDevice(deviceId, patch) {
-  return apiSend(`/devices/${deviceId}`, "PUT", patch);
-}
-
 // Add a species to the library.
 export async function createSpecies(body) {
   return apiSend("/species", "POST", body);
-}
-
-// ── Insights (Phase 6) ────────────────────────────────────────────────────
-// Fetched on demand rather than in loadAll(): the range and device filters
-// change it, and the dashboard should paint before analytics arrive.
-export async function loadInsights({ days = 30, deviceId = null } = {}) {
-  const params = new URLSearchParams({ days: String(days) });
-  if (deviceId != null) params.set("device_id", String(deviceId));
-  return apiGet(`/stats/insights?${params}`);
 }
 
 // Build the authenticated export URL. Returned as a blob rather than a plain

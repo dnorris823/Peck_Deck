@@ -1,6 +1,6 @@
 """Camera trigger: motion check, bird detector, visit rule, and wiring.
 
-Every test uses fakes. No camera, no TFLite runtime, no GPIO. The desk test on
+Every test uses fakes. No camera, no TFLite runtime. The desk test on
 the Pi covers the hardware.
 """
 import asyncio
@@ -20,8 +20,6 @@ from raspberry_pi_code.trigger.camera_trigger import (
     MotionDetector,
     VisitTracker,
 )
-from raspberry_pi_code.trigger.ir_beam_trigger import IRBeamTrigger
-from raspberry_pi_code.trigger.pir_trigger import PIRTrigger
 
 PERSON = 0
 CAT = 16
@@ -492,14 +490,10 @@ def test_camera_is_the_default_trigger_type():
     assert Config().trigger_type == "camera"
 
 
-@pytest.mark.parametrize(
-    ("trigger_type", "cls"),
-    [("camera", CameraTrigger), ("pir", PIRTrigger), ("ir_beam", IRBeamTrigger)],
-)
-def test_build_trigger_picks_the_named_class(trigger_type, cls):
-    trigger = _build_trigger(Config(trigger_type=trigger_type), FakeCamera())
+def test_build_trigger_builds_the_camera_trigger():
+    trigger = _build_trigger(Config(trigger_type="camera"), FakeCamera())
 
-    assert type(trigger) is cls
+    assert type(trigger) is CameraTrigger
 
 
 def test_camera_trigger_gets_the_configured_settings():
@@ -517,20 +511,14 @@ def test_camera_trigger_gets_the_configured_settings():
     assert trigger._detector._threshold == 0.66
 
 
-@pytest.mark.parametrize("bad", ["", "Camera", "pir ", "motion"])
+@pytest.mark.parametrize("bad", ["", "Camera", "pir", "ir_beam", "motion"])
 def test_unknown_trigger_type_refuses_to_start(bad):
     with pytest.raises(ValueError, match="TRIGGER_TYPE"):
         _build_trigger(Config(trigger_type=bad), FakeCamera())
 
 
-def test_only_the_camera_trigger_debounces_itself():
-    camera = FakeCamera()
-    by_type = {
-        t: _build_trigger(Config(trigger_type=t), camera).debounces_itself
-        for t in ("camera", "pir", "ir_beam")
-    }
-
-    assert by_type == {"camera": True, "pir": False, "ir_beam": False}
+def test_the_camera_trigger_debounces_itself():
+    assert _build_trigger(Config(trigger_type="camera"), FakeCamera()).debounces_itself
 
 
 def _counting_pipeline(tmp_path, **kwargs) -> tuple[Pipeline, list]:

@@ -14,8 +14,8 @@ handful of path commands the mark uses (M/L/C/Z) are flattened to a polygon here
 and drawn at 8x, then downsampled — which antialiases far better than Pillow's
 own path drawing.
 
-Needs Pillow (`backend/requirements-dev.txt`), like the simulator's placeholder
-images. Nothing at runtime imports this.
+Needs Pillow (`backend/requirements-dev.txt`).
+Nothing at runtime imports this.
 """
 import re
 import sys

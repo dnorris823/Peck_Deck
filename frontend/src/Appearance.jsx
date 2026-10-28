@@ -5,14 +5,11 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from "
 
 const STORAGE_KEY = "peckdeck_appearance";
 
-// `showLiveAlerts` isn't surfaced in Settings yet, but lives here so all
-// appearance state has a single home.
 export const DEFAULT_APPEARANCE = {
   theme: "day",          // day | dusk
   accent: "cardinal",    // cardinal | forest | yolk | plum
   displayFont: "newsreader", // newsreader | instrument | playfair | eb
   density: "comfortable",    // compact | comfortable | spacious
-  showLiveAlerts: true,
 };
 
 const ACCENTS = {

@@ -26,17 +26,14 @@ async def create_user(
     name: str,
     email: str,
     password: str,
-    phone: str | None,
     role: str,
 ) -> User:
     user = User(
         name=name,
         email=email,
         password_hash=hash_password(password),
-        phone=phone,
         role=role,
         notify_email=True,
-        notify_sms=False,
     )
     db.add(user)
     await db.flush()
@@ -48,19 +45,13 @@ async def update_user(
     user: User,
     *,
     name: str | None,
-    phone: str | None,
     notify_email: bool | None,
-    notify_sms: bool | None,
     email: str | None = None,
 ) -> User:
     if name is not None:
         user.name = name
-    if phone is not None:
-        user.phone = phone
     if notify_email is not None:
         user.notify_email = notify_email
-    if notify_sms is not None:
-        user.notify_sms = notify_sms
     if email is not None:
         user.email = email
     await db.flush()
@@ -97,20 +88,11 @@ async def update_preferences(
     *,
     quiet_interval_seconds: int | None,
     notify_new_species_only: bool | None,
-    default_tier: str | None,
-    escalation_threshold: int | None,
-    debounce_seconds: int | None,
 ) -> UserPreferences:
     if quiet_interval_seconds is not None:
         prefs.quiet_interval_seconds = quiet_interval_seconds
     if notify_new_species_only is not None:
         prefs.notify_new_species_only = notify_new_species_only
-    if default_tier is not None:
-        prefs.default_tier = default_tier
-    if escalation_threshold is not None:
-        prefs.escalation_threshold = escalation_threshold
-    if debounce_seconds is not None:
-        prefs.debounce_seconds = debounce_seconds
     await db.flush()
     return prefs
 

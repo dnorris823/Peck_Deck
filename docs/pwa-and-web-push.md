@@ -2,12 +2,12 @@
 
 Moved out of `CLAUDE.md`. The short warnings stay there; this is the detail.
 
-The web app installs to a phone home screen, opens offline to cached content, and
-can deliver a new-sighting alert as a browser notification.
+The web app installs to a phone home screen, opens its shell without a network,
+and can deliver a new-sighting alert as a browser notification.
 
 ```bash
 # The service worker only registers in a production build, so this is how the
-# PWA (install prompt, offline reload, push) is exercised locally:
+# PWA (install prompt, push) is exercised locally:
 cd frontend && npm run build && npm run preview   # :4173, /api proxied
 
 # Generate a VAPID keypair for push, then put it in .env (see .env.example)
@@ -17,11 +17,29 @@ python scripts/generate_vapid_keys.py
 python scripts/generate_pwa_icons.py
 ```
 
+## HTTPS is required
+
+A service worker, and so web push, only works in a secure context. That means
+HTTPS, or `localhost`. A phone that opens `http://192.168.x.x:4173` gets neither
+the install prompt nor push. The app still works there, without alerts.
+
+Nothing in this repo serves the web app over HTTPS. `docker compose` runs only
+`api` and `db`, and the frontend runs from `npm run build && npm run preview`.
+`frontend/vite.config.js` already allows `*.ts.net` hosts, so the intended route
+is Tailscale. Put the gaming PC and the phone on one tailnet and publish the
+preview port with Tailscale Serve. That gives a `https://<machine>.<tailnet>.ts.net`
+URL with a real certificate. Open that URL on the phone.
+
+On iOS, push also needs the app added to the Home Screen (iOS 16.4 or later).
+
+Status: the test suite covers push with fake push services only. Send one real
+alert to a real phone before relying on it.
+
 | Piece | Where | Notes |
 |---|---|---|
 | Manifest + icons | `frontend/public/` | Icons are generated from the sidebar's own brand mark and committed. |
-| Service worker | `frontend/public/sw.js` | Hand-written: network-first shell, cache-first hashed assets, network-first-with-fallback API reads. Never caches a non-GET or a non-200, so a 401 can't outlive the session. No `skipWaiting` — a new worker takes over on the next visit. |
-| Offline reads | `frontend/src/offline.js` | Last raw API payloads in localStorage, re-mapped through `mapAll` on open. Cleared on sign-out. **Reads only** — no write queue. |
+| Service worker | `frontend/public/sw.js` | Hand-written. Network-first app shell, cache-first hashed assets, and the push and notification-click handlers. It never caches an API response, a non-GET or a non-200. No `skipWaiting`, so a new worker takes over on the next visit. |
+| Offline banner | `frontend/src/Offline.jsx` | Says "You're offline" and offers a retry. The page shows what it already loaded. |
 | Push transport | `backend/notifications/push_sender.py` | RFC 8291 encryption + RFC 8292 VAPID on `cryptography` + `aiohttp`. Not `pywebpush`, which is synchronous and would need a thread per send. |
 | Push routes | `GET /push/config`, `POST`/`DELETE /push/subscriptions` | Config reports `enabled:false` when no keys are set, and the web app hides the opt-in. |
 
@@ -32,7 +50,4 @@ Notes that will bite otherwise:
   at delivery time, on every send.
 - **Keep the keypair stable.** Browsers bake the public key into their
   subscription; rotating it silently invalidates every existing subscription.
-- **Push subscription writes are blocked in `DEMO_MODE`** and deliberately not on
-  the allowlist — every demo visitor shares one account, so one subscription
-  would push every later sighting to all the others' browsers.
 - A 404/410 from a push service prunes the subscription; a 429/500 leaves it.

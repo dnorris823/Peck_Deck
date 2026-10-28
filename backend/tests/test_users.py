@@ -53,9 +53,6 @@ def test_preferences_defaults_then_update(client, viewer_headers):
     assert res.json() == {
         "quiet_interval_seconds": 60,
         "notify_new_species_only": False,
-        "default_tier": "auto",
-        "escalation_threshold": 70,
-        "debounce_seconds": 30,
     }
 
     upd = client.put(
@@ -64,13 +61,10 @@ def test_preferences_defaults_then_update(client, viewer_headers):
         json={
             "quiet_interval_seconds": 120,
             "notify_new_species_only": True,
-            "default_tier": "gpu",
-            "escalation_threshold": 85,
-            "debounce_seconds": 60,
         },
     )
     assert upd.status_code == 200
-    assert upd.json()["default_tier"] == "gpu"
+    assert upd.json()["quiet_interval_seconds"] == 120
 
     # Persisted across a fresh read.
     again = client.get("/users/me/preferences", headers=viewer_headers)
@@ -80,20 +74,17 @@ def test_preferences_defaults_then_update(client, viewer_headers):
 
 def test_preferences_partial_update(client, owner_headers):
     client.put(
-        "/users/me/preferences", headers=owner_headers, json={"default_tier": "local"}
+        "/users/me/preferences", headers=owner_headers, json={"notify_new_species_only": True}
     )
     # Only the provided field changes; others keep their defaults.
     body = client.get("/users/me/preferences", headers=owner_headers).json()
-    assert body["default_tier"] == "local"
-    assert body["escalation_threshold"] == 70
+    assert body["notify_new_species_only"] is True
+    assert body["quiet_interval_seconds"] == 60
 
 
 def test_preferences_validation(client, owner_headers):
     for bad in (
-        {"default_tier": "quantum"},
-        {"escalation_threshold": 10},
         {"quiet_interval_seconds": 5},
-        {"debounce_seconds": -1},
     ):
         res = client.put("/users/me/preferences", headers=owner_headers, json=bad)
         assert res.status_code == 400, bad

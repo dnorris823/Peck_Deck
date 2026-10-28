@@ -12,7 +12,7 @@ vi.mock("./data.js", () => ({
   applySighting: vi.fn(),
 }));
 
-// These tests are about the load/snapshot branches. Stub the live stream so they
+// These tests are about the load branches. Stub the live stream so they
 // don't open a real connection — and, more to the point, so a failed connect
 // doesn't leave a reconnect timer armed after the test ends. The streaming
 // behaviour has its own file (Stream.test.jsx).
@@ -20,11 +20,10 @@ vi.mock("./events.js", () => ({ openSightingStream: () => () => {} }));
 
 import { fetchRaw } from "./data.js";
 import { DataProvider, useData } from "./DataContext.jsx";
-import { clearSnapshot, saveSnapshot } from "./offline.js";
 
 // Tiny probe component that renders the context's current state as text.
 function Probe() {
-  const { data, loading, error, stale } = useData();
+  const { data, loading, error } = useData();
   if (loading && !data) return <div>loading</div>;
   if (error) return <div>error: {error}</div>;
   // After an auth error the loader resolves with no data; the real app unmounts
@@ -33,14 +32,12 @@ function Probe() {
   return (
     <div>
       <div>loaded: {data.SPECIES.length} species</div>
-      {stale && <div>stale</div>}
     </div>
   );
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  clearSnapshot();
 });
 
 describe("DataProvider", () => {
@@ -53,7 +50,6 @@ describe("DataProvider", () => {
     );
     expect(screen.getByText("loading")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText("loaded: 2 species")).toBeInTheDocument());
-    expect(screen.queryByText("stale")).not.toBeInTheDocument();
   });
 
   it("surfaces a non-auth error in the error state", async () => {
@@ -86,69 +82,5 @@ describe("DataProvider", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(() => render(<Probe />)).toThrow(/must be used within a DataProvider/);
     spy.mockRestore();
-  });
-
-  // ── Offline-tolerant reads (Phase 7) ──────────────────────────────────────
-  it("paints the snapshot immediately, before the network answers", async () => {
-    saveSnapshot({ SPECIES: [{ id: 1 }] });
-    let resolve;
-    fetchRaw.mockReturnValue(new Promise((r) => { resolve = r; }));
-
-    render(
-      <DataProvider onAuthError={vi.fn()}>
-        <Probe />
-      </DataProvider>
-    );
-
-    // The point of the snapshot: content on the very first render, not a spinner.
-    expect(screen.getByText("loaded: 1 species")).toBeInTheDocument();
-    expect(screen.getByText("stale")).toBeInTheDocument();
-
-    resolve({ SPECIES: [{ id: 1 }, { id: 2 }, { id: 3 }] });
-    await waitFor(() => expect(screen.getByText("loaded: 3 species")).toBeInTheDocument());
-    expect(screen.queryByText("stale")).not.toBeInTheDocument();
-  });
-
-  it("keeps showing cached data (flagged stale) when the refresh fails", async () => {
-    saveSnapshot({ SPECIES: [{ id: 1 }, { id: 2 }] });
-    fetchRaw.mockRejectedValue(new Error("Can't reach the server."));
-
-    render(
-      <DataProvider onAuthError={vi.fn()}>
-        <Probe />
-      </DataProvider>
-    );
-
-    await waitFor(() => expect(screen.getByText("stale")).toBeInTheDocument());
-    // Cached content beats an error page when there is something to show.
-    expect(screen.getByText("loaded: 2 species")).toBeInTheDocument();
-    expect(screen.queryByText(/error:/)).not.toBeInTheDocument();
-  });
-
-  it("saves a snapshot after a successful load", async () => {
-    fetchRaw.mockResolvedValue({ SPECIES: [{ id: 7 }] });
-    render(
-      <DataProvider onAuthError={vi.fn()}>
-        <Probe />
-      </DataProvider>
-    );
-    await waitFor(() => expect(screen.getByText("loaded: 1 species")).toBeInTheDocument());
-
-    expect(JSON.parse(localStorage.getItem("peckdeck_snapshot")).raw)
-      .toEqual({ SPECIES: [{ id: 7 }] });
-  });
-
-  it("discards the snapshot when the session has expired", async () => {
-    // It holds the previous user's records — it must not survive their session.
-    saveSnapshot({ SPECIES: [{ id: 1 }] });
-    fetchRaw.mockRejectedValue(Object.assign(new Error("expired"), { isAuthError: true }));
-
-    render(
-      <DataProvider onAuthError={vi.fn()}>
-        <Probe />
-      </DataProvider>
-    );
-
-    await waitFor(() => expect(localStorage.getItem("peckdeck_snapshot")).toBeNull());
   });
 });

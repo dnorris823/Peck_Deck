@@ -163,13 +163,6 @@ def main() -> None:
         known = ", ".join(repr(d.get("name")) for d in devices) or "none visible"
         print(f"provision: no device named {name!r} — registering. Visible: {known}")
         status, device = request("POST", f"{api}/devices", token=jwt, body={"name": name})
-        if status == 403:
-            fail(
-                f"registration refused (403). POST /devices is deliberately not on the "
-                f"DEMO_MODE allowlist, so against a demo instance this can only match an "
-                f"existing device — and none is named {name!r}. Create it in the web app, "
-                f"or set DEVICE_NAME to one of: {known}"
-            )
         if status != 201:
             fail(f"POST /devices failed ({status}): {device}")
         print(f"provision: registered new device {name!r} (id {device['id']})")
@@ -179,8 +172,7 @@ def main() -> None:
         fail(f"device {device.get('id')} came back without a token")
 
     # Prove the token is accepted before writing it. The heartbeat is the cheapest
-    # device-authenticated call there is, and it is on the DEMO_MODE allowlist, so
-    # this works everywhere the Pi itself would.
+    # device-authenticated call there is.
     status, body = request("POST", f"{api}/devices/{device['id']}/heartbeat", token=token, body={})
     if status != 200:
         fail(f"token was refused by the heartbeat check ({status}): {body}")

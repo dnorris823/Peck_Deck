@@ -6,7 +6,6 @@ their own licences. `machine_learning/*.tflite` and `*.pth` are gitignored.
 ```bash
 python scripts/fetch_models.py     # Tier 1 + bird detector weights, digest-checked
 python scripts/build_taxonomy.py   # regenerate taxonomy.csv from the label map
-python scripts/validate_tier1.py   # Tier 1 sanity check on 20 clean photos
 
 # Field accuracy + calibration for both tiers (see "Measured accuracy" below)
 python scripts/build_eval_set.py       # 300 iNaturalist field photos
@@ -27,13 +26,12 @@ python scripts/simulate_tier_chain.py report.json   # compare threshold settings
 `tier1_tflite.py` does `self._taxa[argmax]`, so a row inserted in the wrong
 place mislabels every sighting while still looking entirely plausible. Regenerate
 it with `build_taxonomy.py` whenever the model changes, and re-run
-`validate_tier1.py` — a misaligned taxonomy scores near zero there, which is the
+`validate_tiers.py` — a misaligned taxonomy scores near zero there, which is the
 only cheap way to catch it.
 
-`feeder_species.csv` exists because the simulator and demo draw from it. Drawing
-from all 964 would put limpkins and cranes on the dashboard, and
-`species_weights()` would hand "most common feeder bird" to whatever happens to
-sit at index 0 of the model's label map.
+`feeder_species.csv` is the ground truth for the evaluation scripts. Scoring
+against all 964 species would put limpkins and cranes in a backyard-feeder
+benchmark.
 
 ## Tier 1 — on-device (Pi)
 
@@ -122,8 +120,8 @@ Feeding the frame as BGR instead of RGB costs about 5 points (`clean` 62.0% to
 
 ## Measured accuracy
 
-Both tiers score **20/20** on `validate_tier1.py`, which uses each species'
-Wikipedia lead image. That is a genuine result and a useless one for predicting
+Both tiers scored **20/20** on the old Wikipedia lead-image check (since
+removed). That was a genuine result and a useless one for predicting
 field behaviour: an encyclopedia lead image is a bird photographer's keeper shot,
 and a feeder camera gets a third-of-frame bird behind a perch, mid-wingbeat, in
 whatever light dawn offers.

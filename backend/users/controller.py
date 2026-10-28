@@ -30,7 +30,6 @@ from .schemas import (
     UserResponse,
 )
 
-_ALLOWED_TIERS = {"local", "gpu", "cloud", "auto"}
 # Roles a client may ask for. Anything else is rejected rather than silently
 # stored — role is what the guards key off, so an unexpected value is a bug.
 _ALLOWED_ROLES = {"owner", "viewer"}
@@ -40,9 +39,6 @@ def _prefs_response(prefs) -> PreferencesResponse:
     return PreferencesResponse(
         quiet_interval_seconds=prefs.quiet_interval_seconds,
         notify_new_species_only=prefs.notify_new_species_only,
-        default_tier=prefs.default_tier,
-        escalation_threshold=prefs.escalation_threshold,
-        debounce_seconds=prefs.debounce_seconds,
     )
 
 
@@ -51,9 +47,7 @@ def _to_response(user) -> UserResponse:
         id=user.id,
         name=user.name,
         email=user.email,
-        phone=user.phone,
         notify_email=user.notify_email,
-        notify_sms=user.notify_sms,
         role=user.role,
     )
 
@@ -108,7 +102,7 @@ class UserController(Controller):
         This was unauthenticated, and `RegisterUser.role` is client-supplied —
         so anyone who could reach the API could POST role="owner" and mint
         themselves a full-privilege account, then enumerate every user's email
-        and phone number. It is an invite flow driven from the settings screen
+        address. It is an invite flow driven from the settings screen
         (frontend `UsersSettings.jsx`), so it requires an owner.
         """
         if data.role not in _ALLOWED_ROLES:
@@ -124,7 +118,6 @@ class UserController(Controller):
             name=data.name,
             email=data.email,
             password=data.password,
-            phone=data.phone,
             role=data.role,
         )
         return _to_response(user)
@@ -147,23 +140,11 @@ class UserController(Controller):
     async def put_preferences(
         self, data: UpdatePreferences, request: Request, db: NamedDependency[AsyncSession]
     ) -> PreferencesResponse:
-        if data.default_tier is not None and data.default_tier not in _ALLOWED_TIERS:
-            raise HTTPException(status_code=400, detail="Invalid default_tier")
-        if data.escalation_threshold is not None and not (
-            40 <= data.escalation_threshold <= 95
-        ):
-            raise HTTPException(
-                status_code=400, detail="escalation_threshold must be 40–95"
-            )
         if data.quiet_interval_seconds is not None and not (
             10 <= data.quiet_interval_seconds <= 600
         ):
             raise HTTPException(
                 status_code=400, detail="quiet_interval_seconds must be 10–600"
-            )
-        if data.debounce_seconds is not None and data.debounce_seconds < 0:
-            raise HTTPException(
-                status_code=400, detail="debounce_seconds must be non-negative"
             )
         prefs = await get_or_create_preferences(db, request.state.user_id)
         prefs = await update_preferences(
@@ -171,9 +152,6 @@ class UserController(Controller):
             prefs,
             quiet_interval_seconds=data.quiet_interval_seconds,
             notify_new_species_only=data.notify_new_species_only,
-            default_tier=data.default_tier,
-            escalation_threshold=data.escalation_threshold,
-            debounce_seconds=data.debounce_seconds,
         )
         return _prefs_response(prefs)
 
@@ -204,9 +182,7 @@ class UserController(Controller):
             db,
             user,
             name=data.name,
-            phone=data.phone,
             notify_email=data.notify_email,
-            notify_sms=data.notify_sms,
             email=data.email,
         )
         return _to_response(user)

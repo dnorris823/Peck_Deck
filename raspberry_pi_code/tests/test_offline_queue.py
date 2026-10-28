@@ -42,7 +42,7 @@ def test_status_classification(status, expected):
 
 
 def test_only_ok_is_truthy():
-    """Existing ``if ok:`` call sites (the simulator) must keep working."""
+    """Existing ``if ok:`` call sites must keep working."""
     assert UploadOutcome.OK
     assert not UploadOutcome.RETRY
     assert not UploadOutcome.UNAUTHORIZED

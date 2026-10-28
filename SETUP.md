@@ -12,8 +12,8 @@ Work through these in order — later sections depend on earlier ones.
 3. Leave `DEVICE_TOKEN` alone — `scripts/provision_device.py` writes it, and rewrites it
    whenever it goes stale. See §6.
 4. Leave `TRIGGER_TYPE` at its default, `camera`. The camera trigger watches the feed
-   and needs no extra hardware. `pir` and `ir_beam` still work if a GPIO sensor is
-   wired. Any other value stops the service at start with an error.
+   and needs no extra hardware. It is the only trigger. Any other value stops the
+   service at start with an error.
 
 ---
 
@@ -75,7 +75,7 @@ python3 -m venv .venv
 source .venv/bin/activate
 
 # Pi-specific packages
-pip install RPi.GPIO tflite-runtime
+pip install tflite-runtime
 
 # Project Python dependencies
 pip install -r raspberry_pi_code/requirements.txt

@@ -11,7 +11,7 @@ from .classification.base import ClassificationResult, ClassifierBase
 from .classification.tier1_tflite import TFLiteClassifier
 from .classification.tier2_gpu import GPUServerClassifier
 from .classification.tier3_cloud import CloudClassifier
-from .config import DEFAULT_TIER_THRESHOLDS, Config
+from .config import Config
 from .storage.local_cache import LocalCache, QueuedSighting
 
 logger = logging.getLogger(__name__)
@@ -107,16 +107,6 @@ class Pipeline:
             "Escalation thresholds: local=%.2f gpu=%.2f cloud=%.2f",
             *(self._cfg.threshold_for(t) for t in ("local", "gpu", "cloud")),
         )
-        if self._cfg.uses_legacy_global_threshold():
-            logger.warning(
-                "CONFIDENCE_THRESHOLD=%.2f is set and is overriding the measured "
-                "per-tier defaults %s. At 0.5, 18.2%% of the answers Tier 1 accepts "
-                "are the wrong species, and they never escalate. Prefer "
-                "TIER1_/TIER2_/TIER3_CONFIDENCE_THRESHOLD; see "
-                "machine_learning/MODELS.md.",
-                self._cfg.confidence_threshold,
-                DEFAULT_TIER_THRESHOLDS,
-            )
 
     # ── Public API ────────────────────────────────────────────────────────────
 

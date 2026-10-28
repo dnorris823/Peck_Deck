@@ -73,23 +73,3 @@ def test_update_device_requires_owner(client, viewer_headers):
                      json={"feed_type": "hacked"}, headers=viewer_headers)
     assert res.status_code == 403
 
-
-def test_register_device_inherits_default_tier(client):
-    headers = _fresh_owner(client)
-    # Set the user's default_tier preference…
-    client.put("/users/me/preferences", headers=headers, json={"default_tier": "cloud"})
-    # …then register a device without a tier — it should inherit "cloud".
-    res = client.post("/devices", headers=headers, json={"name": "Inherit Dev"})
-    assert res.status_code == 201
-    assert res.json()["classification_tier"] == "cloud"
-
-
-def test_register_device_explicit_tier_wins(client):
-    headers = _fresh_owner(client)
-    client.put("/users/me/preferences", headers=headers, json={"default_tier": "cloud"})
-    res = client.post(
-        "/devices", headers=headers,
-        json={"name": "Explicit Dev", "classification_tier": "gpu"},
-    )
-    assert res.status_code == 201
-    assert res.json()["classification_tier"] == "gpu"

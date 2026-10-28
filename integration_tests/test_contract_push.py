@@ -124,18 +124,18 @@ def vapid(monkeypatch):
 
 
 async def _seed_subscriber(endpoint: str, p256dh: str, auth: str) -> tuple[int, int, str]:
-    """A recipient with email/SMS off and one push subscription."""
+    """A recipient with email off and one push subscription."""
     async with get_session_factory()() as db:
         async with db.begin():
             user = User(
                 name="Push Contract", email=f"pc_{secrets.token_hex(4)}@test.dev",
-                password_hash="x", role="owner", notify_email=False, notify_sms=False,
+                password_hash="x", role="owner", notify_email=False,
             )
             db.add(user)
             await db.flush()
             device = Device(
                 name="Wire Feeder", owner_id=user.id, city="Burlington", state="VT",
-                classification_tier="auto", token=secrets.token_urlsafe(12),
+                token=secrets.token_urlsafe(12),
             )
             species = Species(
                 common_name=f"WireBird {secrets.token_hex(3)}",

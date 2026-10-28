@@ -30,7 +30,6 @@ async def _fresh_device_token() -> str:
                 password_hash="x",
                 role="owner",
                 notify_email=False,
-                notify_sms=False,
             )
             db.add(u)
             await db.flush()
@@ -38,7 +37,6 @@ async def _fresh_device_token() -> str:
             d = Device(
                 name="Upload Device",
                 owner_id=u.id,
-                classification_tier="auto",
                 token=token,
             )
             db.add(d)

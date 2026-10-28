@@ -2,20 +2,12 @@
 import React, { useRef, useState } from "react";
 import { Icon } from "./Icon.jsx";
 import { useData } from "./DataContext.jsx";
-import { Modal, TextInput, SelectInput, FormNote, useDialog } from "./Modal.jsx";
+import { Modal, TextInput, FormNote, useDialog } from "./Modal.jsx";
 import { Empty } from "./Empty.jsx";
-import { createDevice, updateDevice } from "./data.js";
-
-const TIER_OPTIONS = [
-  ["", "Inherit my default"],
-  ["auto", "Auto"],
-  ["local", "Tier 1 — Local"],
-  ["gpu", "Tier 2 — LAN GPU"],
-  ["cloud", "Tier 3 — Cloud"],
-];
+import { createDevice } from "./data.js";
 
 function RegisterDeviceModal({ onClose, onDone }) {
-  const [form, setForm] = useState({ name: "", city: "", state: "", feed_type: "", classification_tier: "" });
+  const [form, setForm] = useState({ name: "", city: "", state: "", feed_type: "" });
   const [token, setToken] = useState(null); // device token, shown once after create
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -27,7 +19,6 @@ function RegisterDeviceModal({ onClose, onDone }) {
     setError(null);
     try {
       const body = { name: form.name, city: form.city || null, state: form.state || null, feed_type: form.feed_type || null };
-      if (form.classification_tier) body.classification_tier = form.classification_tier;
       const device = await createDevice(body);
       setToken(device.token); // reveal once; the Pi needs it to authenticate
       await onDone();
@@ -67,8 +58,6 @@ function RegisterDeviceModal({ onClose, onDone }) {
       <TextInput label="City" value={form.city} onChange={set("city")} />
       <TextInput label="State" value={form.state} onChange={set("state")} />
       <TextInput label="Bait / feed type" help="Optional." value={form.feed_type} onChange={set("feed_type")} />
-      <SelectInput label="Classifier tier" value={form.classification_tier} onChange={set("classification_tier")}
-        options={TIER_OPTIONS} />
       <FormNote error={error} />
     </Modal>
   );
@@ -130,7 +119,6 @@ function StationFigure({ d }) {
 
 function DeviceListCard({ d, onClick }) {
   const dotCls = d.status === "online" ? "on" : d.status === "warn" ? "warn" : "off";
-  const tierLabels = { local: "Local · TFLite", gpu: "LAN · RTX 5080", cloud: "Cloud · Claude", auto: "Auto" };
   return (
     <div className="card" style={{ overflow: "hidden", cursor: "pointer" }} onClick={() => onClick(d)}>
       <div style={{ aspectRatio: "1.6", borderBottom: "1px solid var(--hairline)" }}>
@@ -148,10 +136,6 @@ function DeviceListCard({ d, onClick }) {
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 12, color: "var(--ink-soft)" }}>
-          <div>
-            <div className="label">Classifier</div>
-            <div style={{ marginTop: 3, color: "var(--ink)" }}>{tierLabels[d.tier]}</div>
-          </div>
           <div>
             <div className="label">Bait</div>
             <div style={{ marginTop: 3, color: "var(--ink)" }}>{d.feed}</div>
@@ -177,39 +161,15 @@ function DeviceListCard({ d, onClick }) {
 }
 
 function DeviceDetail({ d, onClose }) {
-  const { data, reload } = useData();
+  const { data } = useData();
   const USERS = data.USERS;
-  const tierLabels = {
-    local: { name: "Tier 1 — Local", desc: "On-device TFLite, no network needed" },
-    gpu: { name: "Tier 2 — LAN GPU", desc: "Forwards to RTX 5080 inference server" },
-    cloud: { name: "Tier 3 — Cloud", desc: "Hard cases sent to Claude" },
-    auto: { name: "Auto", desc: "Local first, escalate when confidence < 70%" },
-  };
-  const [tier, setTier] = useState(d.tier);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
   const panelRef = useRef(null);
   useDialog(onClose, panelRef);
 
-  const dirty = tier !== d.tier;
-  // Recipients are configured per-user (notify_email/notify_sms in Users), so we
+  // Recipients are configured per-user (notify_email in Users), so we
   // show the owners/viewers who currently receive alerts — read-only until the
   // per-device recipient endpoint lands (there's no GET for it yet).
-  const recipients = USERS.filter(u => u.notify_email || u.notify_sms);
-
-  async function save() {
-    if (!dirty) { onClose(); return; }
-    setBusy(true);
-    setError(null);
-    try {
-      await updateDevice(d.id, { classification_tier: tier });
-      await reload();
-      onClose();
-    } catch (e) {
-      setError(e.message);
-      setBusy(false);
-    }
-  }
+  const recipients = USERS.filter(u => u.notify_email);
 
   return (
     <div className="modal-bg" onClick={onClose}>
@@ -224,25 +184,6 @@ function DeviceDetail({ d, onClose }) {
           </div>
 
           <div className="settings-section" style={{ marginTop: 24 }}>
-            <div className="label" style={{ marginBottom: 12 }}>Classification preference</div>
-            <div className="tier-stack">
-              {Object.entries(tierLabels).map(([key, t], i) => (
-                <div key={key} className={`tier-card ${tier === key ? "selected" : ""}`}
-                  role="radio" aria-checked={tier === key} tabIndex={0}
-                  onClick={() => setTier(key)}
-                  onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setTier(key); } }}>
-                  <div className="tier-num">{i + 1}</div>
-                  <div>
-                    <div className="tier-name">{t.name}</div>
-                    <div className="tier-desc">{t.desc}</div>
-                  </div>
-                  <span className="tier-badge">{key.toUpperCase()}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="settings-section">
             <div className="label" style={{ marginBottom: 12 }}>Notification recipients</div>
             {recipients.length > 0 ? (
               <div className="card">
@@ -255,7 +196,7 @@ function DeviceDetail({ d, onClose }) {
                     </div>
                     <span className={`role-badge role-${u.role}`}>{u.role}</span>
                     <span className="label" style={{ fontSize: 10 }}>
-                      {u.notify_email && "✉"} {u.notify_sms && "✆"}
+                      {u.notify_email && "✉"}
                     </span>
                   </div>
                 ))}
@@ -268,12 +209,8 @@ function DeviceDetail({ d, onClose }) {
             </div>
           </div>
 
-          {error && <FormNote error={error} />}
           <div className="row" style={{ marginTop: 28, justifyContent: "flex-end" }}>
-            <button className="btn" onClick={onClose} disabled={busy}>Cancel</button>
-            <button className="btn primary" onClick={save} disabled={busy}>
-              {busy ? "Saving…" : dirty ? "Save changes" : "Done"}
-            </button>
+            <button className="btn primary" onClick={onClose}>Done</button>
           </div>
         </div>
       </div>

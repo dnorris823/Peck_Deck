@@ -30,13 +30,13 @@ DEMO_PASSWORD = "peckdeck"
 
 USERS = [
     {"name": "Dominic Norris", "email": "dom@peck.deck", "role": "owner",
-     "phone": "+1 (802) 555-0142", "notify_email": True, "notify_sms": True},
+     "notify_email": True},
     {"name": "Margaret Norris", "email": "meg@peck.deck", "role": "viewer",
-     "phone": "+1 (802) 555-0119", "notify_email": True, "notify_sms": False},
+     "notify_email": True},
     {"name": "Theo Cole", "email": "theo@cole.studio", "role": "viewer",
-     "phone": None, "notify_email": True, "notify_sms": False},
+     "notify_email": True},
     {"name": "Pat Halloran", "email": "pat.h@audubon.local", "role": "viewer",
-     "phone": "+1 (802) 555-0188", "notify_email": False, "notify_sms": True},
+     "notify_email": False},
 ]
 
 SPECIES = [
@@ -92,13 +92,13 @@ SPECIES = [
 
 DEVICES = [
     {"name": "Backyard Maple", "city": "Burlington", "state": "VT",
-     "classification_tier": "auto", "feed_type": "Black-oil sunflower",
+     "feed_type": "Black-oil sunflower",
      "battery": 0.78, "signal": "good", "last_seen_secs": 32, "weight": 5},
     {"name": "Front Porch", "city": "Burlington", "state": "VT",
-     "classification_tier": "gpu", "feed_type": "Nyjer thistle",
+     "feed_type": "Nyjer thistle",
      "battery": 0.42, "signal": "good", "last_seen_secs": 60, "weight": 3},
     {"name": "Cabin Window", "city": "Stowe", "state": "VT",
-     "classification_tier": "local", "feed_type": "Suet cake",
+     "feed_type": "Suet cake",
      "battery": 0.18, "signal": "weak", "last_seen_secs": 14 * 60, "weight": 1},
 ]
 
@@ -141,8 +141,7 @@ async def seed_demo_data(db, *, rng_seed: int = 42) -> int:
         user = User(
             name=u["name"], email=u["email"],
             password_hash=hash_password(DEMO_PASSWORD),
-            phone=u["phone"], role=u["role"],
-            notify_email=u["notify_email"], notify_sms=u["notify_sms"],
+            role=u["role"], notify_email=u["notify_email"],
         )
         db.add(user)
         users.append(user)
@@ -168,7 +167,7 @@ async def seed_demo_data(db, *, rng_seed: int = 42) -> int:
     for d in DEVICES:
         dev = Device(
             name=d["name"], city=d["city"], state=d["state"],
-            owner_id=owner.id, classification_tier=d["classification_tier"],
+            owner_id=owner.id,
             feed_type=d["feed_type"], token=secrets.token_urlsafe(32),
             battery=d["battery"], signal=d["signal"],
             last_seen=now - timedelta(seconds=d["last_seen_secs"]),

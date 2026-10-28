@@ -48,15 +48,17 @@ class _StubClassifier(ClassifierBase):
 def _pipeline(tmp_path, threshold: float | None = 0.5, **overrides) -> Pipeline:
     """A pipeline with every tier on the same bar unless told otherwise.
 
-    ``threshold`` goes in as the legacy global, which is exactly the knob these
-    tests want: one number for all three tiers, so a test about fallthrough
-    order isn't also a test about which default applies to which tier.
+    ``threshold`` sets all three tiers to one number, so a test about
+    fallthrough order isn't also a test about which default applies to which
+    tier. ``None`` leaves the measured defaults in place.
     """
+    bars = {}
+    if threshold is not None:
+        bars = {f"tier{i}_confidence_threshold": threshold for i in (1, 2, 3)}
     cfg = Config(
         cache_dir=str(tmp_path / "cache"),
-        confidence_threshold=threshold,
         device_token="test-token",
-        **overrides,
+        **{**bars, **overrides},
     )
     return Pipeline(cfg)
 
@@ -196,7 +198,7 @@ def test_legacy_global_still_governs_every_tier(tmp_path):
     assert tier2.calls == 0
 
 
-def test_a_per_tier_override_beats_the_legacy_global(tmp_path):
+def test_a_per_tier_override_beats_the_shared_bar(tmp_path):
     tier1 = _StubClassifier("local", 0.55)
     tier2 = _StubClassifier("gpu", 0.99)
 

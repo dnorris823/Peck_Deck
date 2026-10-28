@@ -29,7 +29,7 @@ smoke_capture.jpg
 machine_learning/*.tflite
 machine_learning/*.pth
 
-# Ground-truth photos cached by scripts/validate_tier1.py. Third-party images
+# Ground-truth photos cached by the validation scripts. Third-party images
 # under their own licences — re-fetched on demand, never vendored.
 .validation_photos/
 

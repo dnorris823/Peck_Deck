@@ -148,8 +148,7 @@ class SightingController(Controller):
             sighting.confidence_score, sighting.delayed,
         )
 
-        # Notifications + species enrichment. Shared with POST /dev/sighting so
-        # a fabricated visit exercises the same follow-up as a real one.
+        # Notifications, species enrichment and the live stream.
         await schedule_aftercare(db, sighting)
 
         return _to_response(sighting)

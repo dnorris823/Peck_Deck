@@ -53,7 +53,6 @@ async def _to_response(db: AsyncSession, device) -> DeviceResponse:
         city=device.city,
         state=device.state,
         owner_id=device.owner_id,
-        classification_tier=device.classification_tier,
         feed_type=device.feed_type,
         token=device.token,
         battery=device.battery,
@@ -86,18 +85,12 @@ class DeviceController(Controller):
     async def register(
         self, data: RegisterDevice, request: Request, db: NamedDependency[AsyncSession]
     ) -> DeviceResponse:
-        # When the request omits a tier, inherit the owner's default_tier pref.
-        tier = data.classification_tier
-        if tier is None:
-            prefs = await get_or_create_preferences(db, request.state.user_id)
-            tier = prefs.default_tier
         device = await create_device(
             db,
             name=data.name,
             city=data.city,
             state=data.state,
             owner_id=request.state.user_id,
-            classification_tier=tier,
             feed_type=data.feed_type,
         )
         return await _to_response(db, device)
@@ -116,7 +109,6 @@ class DeviceController(Controller):
             name=data.name,
             city=data.city,
             state=data.state,
-            classification_tier=data.classification_tier,
             feed_type=data.feed_type,
         )
         return await _to_response(db, device)

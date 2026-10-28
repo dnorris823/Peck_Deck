@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  checkRequired, checkEmail, checkPhone, checkPassword,
+  checkRequired, checkEmail, checkPassword,
   collect, hasErrors, MIN_PASSWORD_LENGTH,
 } from "./validate.js";
 
@@ -25,18 +25,6 @@ describe("checkEmail", () => {
   it("treats empty as required by default, optional when asked", () => {
     expect(checkEmail("")).toMatch(/required/);
     expect(checkEmail("", { required: false })).toBeNull();
-  });
-});
-
-describe("checkPhone", () => {
-  it("is optional by default", () => {
-    expect(checkPhone("")).toBeNull();
-  });
-  it("accepts E.164 and rejects other formats", () => {
-    expect(checkPhone("+15125550123")).toBeNull();
-    expect(checkPhone("5125550123")).toMatch(/E\.164/);
-    expect(checkPhone("+0123")).toMatch(/E\.164/); // leading zero after +
-    expect(checkPhone("+1 512 555 0123")).toMatch(/E\.164/); // spaces
   });
 });
 

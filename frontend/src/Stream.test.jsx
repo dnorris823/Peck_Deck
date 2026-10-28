@@ -21,7 +21,6 @@ vi.mock("./api.js", () => ({ apiGet: vi.fn() }));
 import { fetchRaw, fetchAggregates } from "./data.js";
 import { applySighting } from "./data.js";
 import { DataProvider, useData } from "./DataContext.jsx";
-import { clearSnapshot } from "./offline.js";
 
 vi.mock("./data.js", async (importOriginal) => {
   const actual = await importOriginal();
@@ -60,7 +59,6 @@ function renderProvider(onAuthError = vi.fn()) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  clearSnapshot();
   for (const k of Object.keys(handlers)) delete handlers[k];
   fetchRaw.mockResolvedValue(structuredClone(BASE));
 });

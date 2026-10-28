@@ -1,7 +1,7 @@
 """Web push transport — FLEDGE Phase 7.
 
-The fourth notification channel, alongside SendGrid email and Twilio SMS. Unlike
-those two there is no vendor: a browser hands out a push-service URL of its own
+The second notification channel, alongside SendGrid email. Unlike email there is
+no vendor: a browser hands out a push-service URL of its own
 choosing, and this module speaks the two IETF specs that make such a URL usable:
 
 * **RFC 8291** — message encryption. The payload is encrypted *for the browser*
@@ -18,7 +18,7 @@ I/O path in the backend.
 
 Configuration is a single VAPID keypair (``scripts/generate_vapid_keys.py``).
 With no private key configured this module reports itself disabled and sends
-nothing — the same "not configured, skip quietly" contract as email and SMS.
+nothing — the same "not configured, skip quietly" contract as email.
 """
 import base64
 import json
@@ -240,7 +240,7 @@ def encrypt_payload(
 
 # ── Send ─────────────────────────────────────────────────────────────────────
 async def send_push(target: PushTarget, payload: dict) -> PushResult:
-    """Deliver one notification. Never raises — mirrors send_email/send_sms."""
+    """Deliver one notification. Never raises — mirrors send_email."""
     if not push_enabled():
         logger.debug("VAPID not configured — skipping push")
         return PushResult(ok=False, error="not_configured")

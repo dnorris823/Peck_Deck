@@ -2,59 +2,32 @@
 // exposes them to the pages. The app renders a global loading/error gate so
 // pages can assume `data` is present.
 //
-// Phase 7 adds an offline path: the last successful set of payloads is kept in
-// localStorage, so the app paints cached content immediately on open and keeps
-// showing it (flagged `stale`) when a refresh can't reach the server. `error` is
-// now only for the case where there is *nothing* to show.
-//
-// It then held that first load forever — no polling, no push — so a running
-// feeder changed nothing on screen until someone reloaded the page. A live
-// stream (GET /events) now applies new sightings as they happen: the event
-// carries the sighting row, so the feed costs no refetch and only the derived
-// aggregates are re-read. See frontend/src/events.js.
+// A live stream (GET /events) then applies new sightings as they happen: the
+// event carries the sighting row, so the feed costs no refetch and only the
+// derived aggregates are re-read. See frontend/src/events.js.
 import React, {
   createContext, useCallback, useContext, useEffect, useRef, useState,
 } from "react";
 import { applySighting, fetchAggregates, fetchRaw, mapAll } from "./data.js";
 import { openSightingStream } from "./events.js";
-import { clearSnapshot, loadSnapshot, saveSnapshot } from "./offline.js";
 
 const Ctx = createContext(null);
 
-// Read the snapshot once, synchronously, during the first render — waiting for
-// an effect would flash the boot screen before the cached content appears.
-function hydrate() {
-  const snapshot = loadSnapshot();
-  if (!snapshot) return null;
-  try {
-    return { data: mapAll(snapshot.raw), raw: snapshot.raw, savedAt: snapshot.savedAt };
-  } catch {
-    // A payload the current mapper can't read is worse than none.
-    clearSnapshot();
-    return null;
-  }
-}
-
 export function DataProvider({ children, onAuthError }) {
-  const [initial] = useState(hydrate);
-  const [data, setData] = useState(initial?.data ?? null);
+  const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  // Set when what's on screen came from the snapshot rather than this session's
-  // network call: either the first paint before the refresh lands, or a refresh
-  // that failed while cached data was already up.
-  const [stale, setStale] = useState(initial ? { savedAt: initial.savedAt } : null);
   // Whether the event stream is currently connected. Purely informational — the
   // app is fully usable without it, it just stops updating on its own.
   const [live, setLive] = useState(false);
   // Whether anything is currently displayable. Tracked in a ref because
   // `reload` is memoized and would otherwise close over a stale `data`, and
   // because deciding inside a setState updater would run twice in strict mode.
-  const hasData = useRef(initial != null);
+  const hasData = useRef(false);
   // The last raw payloads. Kept because a streamed sighting patches the raw
   // set and re-maps it — mapping is not reversible, so the mapped `data` alone
   // is not enough to build the next one from.
-  const rawRef = useRef(initial?.raw ?? null);
+  const rawRef = useRef(null);
   // Mapped fields written by `patch` (e.g. the current user after Settings
   // saves). They have to survive a re-map: before the stream existed, `patch`
   // was the last word until the next reload, but a streamed sighting now
@@ -65,8 +38,6 @@ export function DataProvider({ children, onAuthError }) {
     rawRef.current = raw;
     setData({ ...mapAll(raw), ...overridesRef.current });
     hasData.current = true;
-    setStale(null);
-    saveSnapshot(raw);
   }, []);
 
   const reload = useCallback(async () => {
@@ -81,16 +52,11 @@ export function DataProvider({ children, onAuthError }) {
       commit(raw);
     } catch (err) {
       if (err.isAuthError) {
-        // The snapshot belongs to the session that just ended.
-        clearSnapshot();
         hasData.current = false;
         rawRef.current = null;
         setData(null);
         onAuthError?.();
-      } else if (hasData.current) {
-        // Cached content beats an error page; the banner says it isn't live.
-        setStale((s) => s ?? { savedAt: Date.now() });
-      } else {
+      } else if (!hasData.current) {
         setError(err.message);
       }
     } finally {
@@ -132,7 +98,6 @@ export function DataProvider({ children, onAuthError }) {
       onResync: reload,
       onStatus: setLive,
       onAuthError: () => {
-        clearSnapshot();
         hasData.current = false;
         rawRef.current = null;
         setData(null);
@@ -150,7 +115,7 @@ export function DataProvider({ children, onAuthError }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ data, loading, error, stale, live, reload, patch }}>
+    <Ctx.Provider value={{ data, loading, error, live, reload, patch }}>
       {children}
     </Ctx.Provider>
   );
