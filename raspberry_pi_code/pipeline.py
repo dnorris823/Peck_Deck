@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from .api_client import BackendClient, UploadOutcome
+from .camera.base import CameraBase
 from .camera.pi_camera import PiCamera
 from .classification.base import ClassificationResult, ClassifierBase
 from .classification.tier1_tflite import TFLiteClassifier
@@ -14,12 +15,47 @@ from .storage.local_cache import LocalCache, QueuedSighting
 
 logger = logging.getLogger(__name__)
 
+# What a capture carries when every tier in the chain failed. The backend files
+# it under an "Unknown" species, which is also what Tier 3 returns for no bird.
+_UNCLASSIFIED = ClassificationResult(
+    common_name="Unknown",
+    scientific_name="",
+    confidence=0.0,
+    tier_used="none",
+)
+
+TIER_PREFERENCES = ("gpu", "auto", "cloud", "local")
+
 
 class Pipeline:
     """Orchestrates trigger → capture → classify → upload/queue for each bird visit."""
 
-    def __init__(self, config: Config):
+    def __init__(
+        self,
+        config: Config,
+        camera: CameraBase | None = None,
+        debounce_seconds: float | None = None,
+    ):
+        """
+        ``camera`` is the long-lived camera that ``main.py`` opens and shares
+        with the trigger. Without one, each capture opens its own camera.
+
+        ``debounce_seconds`` defaults to ``config.debounce_seconds``. A trigger
+        that applies its own repeat rule, like the camera trigger's quiet gap,
+        passes 0, so only one rule decides what counts as a new visit.
+        """
+        # An unknown value refuses to start. It used to fall through to the
+        # "auto" order, so a typo turned on paid Tier 3 calls.
+        if config.tier_preference not in TIER_PREFERENCES:
+            raise ValueError(
+                f"Unknown TIER_PREFERENCE {config.tier_preference!r}. "
+                f"Expected one of: {', '.join(TIER_PREFERENCES)}"
+            )
         self._cfg = config
+        self._camera = camera
+        self._debounce_seconds = (
+            config.debounce_seconds if debounce_seconds is None else debounce_seconds
+        )
         self._cache = LocalCache(
             config.cache_dir, config.max_cache_images, config.max_queued_sightings
         )
@@ -43,7 +79,10 @@ class Pipeline:
     def setup(self) -> None:
         self._cache.setup()
         if not self._tier1.load():
-            logger.warning("Tier 1 classifier unavailable — will fall through to Tier 2/3")
+            logger.warning(
+                "Tier 1 classifier unavailable. The chain skips it (TIER_PREFERENCE=%s)",
+                self._cfg.tier_preference,
+            )
 
         # Log what the chain will actually enforce. The thresholds decide which
         # answers reach the user unchallenged, and until now nothing said out
@@ -72,7 +111,7 @@ class Pipeline:
 
         async with self._capture_lock:
             now = asyncio.get_running_loop().time()
-            if now - self._last_capture < self._cfg.debounce_seconds:
+            if now - self._last_capture < self._debounce_seconds:
                 logger.debug("Debounce active — skipping trigger")
                 return
             self._last_capture = now
@@ -131,15 +170,26 @@ class Pipeline:
         event_id = self._cache.new_event_id()
         timestamp = datetime.now(timezone.utc).isoformat()
 
-        async with PiCamera(self._cfg.image_width, self._cfg.image_height, self._cfg.jpeg_quality) as cam:
-            image_path = await cam.capture(self._cache.image_path_for(event_id))
+        target = self._cache.image_path_for(event_id)
+        if self._camera is not None:
+            image_path = await self._camera.capture(target)
+        else:
+            async with PiCamera(
+                self._cfg.image_width, self._cfg.image_height, self._cfg.jpeg_quality
+            ) as cam:
+                image_path = await cam.capture(target)
 
         self._cache.evict_if_needed(protect=image_path)
 
         result = await self._classify(image_path)
         if result is None:
-            logger.error("All classifiers failed for event %s — sighting discarded", event_id)
-            return
+            # The trigger already decided this is a visit, so keep it. A tier
+            # outage must not lose sightings. It uploads, or queues, as "Unknown".
+            logger.error(
+                "All classifiers failed for event %s. Uploading it with no species",
+                event_id,
+            )
+            result = _UNCLASSIFIED
 
         logger.info(
             "Classified: %s (%.0f%%) [tier=%s]",
@@ -191,6 +241,7 @@ class Pipeline:
             return [self._tier2, self._tier1]
         if pref == "cloud":
             return [self._tier3, self._tier2, self._tier1]
+        # "auto". __init__ has already refused anything else.
         return [self._tier1, self._tier2, self._tier3]
 
     async def _classify(self, image_path: Path) -> ClassificationResult | None:

@@ -14,8 +14,8 @@ and sends notifications.
 4. The web app shows sightings live and sends push, email or SMS notifications.
 
 Tier 3 sends hard cases through the backend to Claude. It stays in the code, off
-by default. Tier 1 runs a small TFLite classifier on the Pi. It is no longer the
-first stop.
+by default. Tier 1 runs a small TFLite classifier on the Pi. It is the fallback
+when Tier 2 fails. `SETUP.md` §7 has the tier orders and how to turn Tier 3 on.
 
 ## What is built
 
