@@ -35,7 +35,9 @@ class Pipeline:
             config.backend_url, config.device_token, config.tier3_request_timeout
         )
 
-        self._last_capture: float = 0.0
+        # loop.time() is time since boot on Linux, so 0.0 here would debounce
+        # every trigger in the first DEBOUNCE_SECONDS after boot.
+        self._last_capture: float = float("-inf")
         self._capture_lock = asyncio.Lock()
 
     def setup(self) -> None:
