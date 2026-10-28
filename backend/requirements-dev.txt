@@ -1,8 +1,7 @@
 # Test/dev-only dependencies (the app itself is in requirements.txt).
 # aiosqlite lets the suite run against a throwaway SQLite DB (no Postgres needed).
-# Pillow draws the device simulator's placeholder capture images
-# (backend/demo_images.py). Dev-only on purpose: the API container never imports
-# that module, so the image stays lean.
+# Pillow is used by scripts/generate_pwa_icons.py and scripts/degrade_eval_set.py.
+# Dev-only on purpose: the API container never imports it.
 -r requirements.txt
 pytest>=8.0
 httpx>=0.27

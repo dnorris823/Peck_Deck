@@ -16,7 +16,6 @@ history, not instructions.
 | Topic | File |
 |---|---|
 | Live updates over SSE | `docs/live-updates-sse.md` |
-| Simulator and demo mode | `docs/simulator-and-demo-mode.md` |
 | PWA and web push | `docs/pwa-and-web-push.md` |
 | Backups, migrations, health, OpenAPI, test suites | `docs/operations.md` |
 | Running anything locally | `CONTRIBUTING.md` |
@@ -92,8 +91,7 @@ because a confidently wrong tier never escalates. They differ per tier for two
 reasons. The numbers are not comparable, since Tier 2 softmaxes over 10,000
 classes against Tier 1's 965. And the escalations cost differently, since Tier 1
 escalates to a free LAN GPU while Tier 2 escalates to a paid Claude call. Override
-with `TIER1_/TIER2_/TIER3_CONFIDENCE_THRESHOLD`. The legacy global
-`CONFIDENCE_THRESHOLD` still wins where it is set, and logs a warning saying so.
+with `TIER1_/TIER2_/TIER3_CONFIDENCE_THRESHOLD`.
 
 **Tiers 1 and 2 share one label space**, `machine_learning/taxonomy.csv`. Tier 1
 indexes into it directly. Tier 2 projects its own 10,000 classes onto it by
@@ -103,9 +101,7 @@ hand-edit it.
 
 Accuracy claims belong in `machine_learning/MODELS.md` under *Measured accuracy*.
 Measure one tier with `scripts/validate_tiers.py` and the whole chain with
-`scripts/simulate_tier_chain.py`. **Do not use `validate_tier1.py`.** It is a
-20-image wiring check on clean photos, and it will report 100% for both tiers
-forever.
+`scripts/simulate_tier_chain.py`. A misaligned taxonomy scores near zero there.
 
 ## Security
 
@@ -141,9 +137,6 @@ Full detail is in the linked docs. These are the ones that cause silent damage.
   `Authorization` header, and every route here is Bearer JWT.
 - In-process fan-out assumes a single API process. With two, a browser on process A
   never sees a sighting written by process B, silently.
-- **The allowlist in `backend/demo.py` is the whole security boundary for demo
-  mode.** It runs as ASGI middleware, before any guard, so it decides on method and
-  path alone. A new device-facing route has to be added there too.
 - **The VAPID public key is derived from the private key**, never read from
   `VAPID_PUBLIC_KEY`. A mismatched pair fails only at delivery time, on every send.
   Never rotate the keypair, because browsers bake the public key into their
@@ -155,5 +148,4 @@ Full detail is in the linked docs. These are the ones that cause silent damage.
 
 `GET /health` checks nothing, deliberately, so a database blip never restarts a
 healthy container. `GET /ready` checks the database and the migration revision, and
-the compose healthcheck targets it. `GET /meta` is public and reports `demo_mode`.
-Detail in `docs/operations.md`.
+the compose healthcheck targets it. Detail in `docs/operations.md`.

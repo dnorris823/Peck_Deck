@@ -33,7 +33,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 OUT_CSV = REPO_ROOT / "machine_learning" / "taxonomy.csv"
 # The curated backyard list. Where it overlaps the model's label space its
 # common names win: they are the North American (AOS) names the seed data and
-# the demo already use, and Wikipedia prefers the global IOC name — which would
+# the seed data already use, and Wikipedia prefers the global IOC name — which would
 # silently rename "European Starling" to "Common Starling" across the app.
 FEEDER_CSV = REPO_ROOT / "machine_learning" / "feeder_species.csv"
 

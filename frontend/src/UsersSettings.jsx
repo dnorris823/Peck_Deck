@@ -12,13 +12,13 @@ import {
   saveMe, savePreferences, createUser, updateUser, changePassword,
 } from "./data.js";
 import {
-  checkRequired, checkEmail, checkPhone, checkPassword, collect, hasErrors,
+  checkRequired, checkEmail, checkPassword, collect, hasErrors,
 } from "./validate.js";
 
 // Admin-creates-with-temp-password: there's no SendGrid email-invite flow yet,
 // so the owner sets a temporary password and shares it out of band.
 function InviteUserModal({ onClose, onDone }) {
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "viewer", phone: "" });
+  const [form, setForm] = useState({ name: "", email: "", password: "", role: "viewer" });
   const [error, setError] = useState(null);
   const [fieldErr, setFieldErr] = useState({});
   const [busy, setBusy] = useState(false);
@@ -29,7 +29,6 @@ function InviteUserModal({ onClose, onDone }) {
       name: checkRequired(form.name, "Name"),
       email: checkEmail(form.email),
       password: checkPassword(form.password, { label: "Temporary password" }),
-      phone: checkPhone(form.phone),
     });
   }
 
@@ -42,7 +41,7 @@ function InviteUserModal({ onClose, onDone }) {
     try {
       await createUser({
         name: form.name.trim(), email: form.email.trim(), password: form.password,
-        role: form.role, phone: form.phone.trim() || null,
+        role: form.role,
       });
       await onDone();
       onClose();
@@ -66,8 +65,6 @@ function InviteUserModal({ onClose, onDone }) {
       <TextInput label="Email" type="email" value={form.email} onChange={set("email")} error={fieldErr.email} />
       <TextInput label="Temporary password" type="password" value={form.password} onChange={set("password")}
         help="At least 8 characters." error={fieldErr.password} />
-      <TextInput label="Phone" help="Optional. E.164 format for SMS." value={form.phone} onChange={set("phone")}
-        error={fieldErr.phone} />
       <SelectInput label="Role" value={form.role} onChange={set("role")}
         options={[["viewer", "Viewer"], ["owner", "Owner"]]} />
       <FormNote error={error} />
@@ -75,12 +72,12 @@ function InviteUserModal({ onClose, onDone }) {
   );
 }
 
-// Edit is limited to the fields UpdateUser accepts (name/phone/notify/email).
+// Edit is limited to the fields UpdateUser accepts (name/notify/email).
 // Role changes need a dedicated route and stay read-only here.
 function EditUserModal({ user, onClose, onDone }) {
   const [form, setForm] = useState({
-    name: user.name, phone: user.phone === "—" ? "" : user.phone, email: user.email,
-    notify_email: user.notify_email, notify_sms: user.notify_sms,
+    name: user.name, email: user.email,
+    notify_email: user.notify_email,
   });
   const [error, setError] = useState(null);
   const [fieldErr, setFieldErr] = useState({});
@@ -91,7 +88,6 @@ function EditUserModal({ user, onClose, onDone }) {
     const errs = collect({
       name: checkRequired(form.name, "Name"),
       email: checkEmail(form.email),
-      phone: checkPhone(form.phone),
     });
     setFieldErr(errs);
     if (hasErrors(errs)) { setError(null); return; }
@@ -99,8 +95,8 @@ function EditUserModal({ user, onClose, onDone }) {
     setError(null);
     try {
       await updateUser(user.id, {
-        name: form.name.trim(), phone: form.phone.trim() || null, email: form.email.trim(),
-        notify_email: form.notify_email, notify_sms: form.notify_sms,
+        name: form.name.trim(), email: form.email.trim(),
+        notify_email: form.notify_email,
       });
       await onDone();
       onClose();
@@ -121,17 +117,12 @@ function EditUserModal({ user, onClose, onDone }) {
     >
       <TextInput label="Name" value={form.name} onChange={set("name")} error={fieldErr.name} />
       <TextInput label="Email" type="email" value={form.email} onChange={set("email")} error={fieldErr.email} />
-      <TextInput label="Phone" help="E.164 format for SMS." value={form.phone} onChange={set("phone")} error={fieldErr.phone} />
       <SelectInput label="Role" value={user.role} onChange={() => {}}
         options={[["viewer", "Viewer"], ["owner", "Owner"]]} />
       <div className="field-help" style={{ marginTop: -6 }}>Role changes aren't supported here yet.</div>
       <label className="row" style={{ gap: 8, alignItems: "center" }}>
         <input type="checkbox" checked={form.notify_email} onChange={e => set("notify_email")(e.target.checked)} />
         <span>Email notifications</span>
-      </label>
-      <label className="row" style={{ gap: 8, alignItems: "center" }}>
-        <input type="checkbox" checked={form.notify_sms} onChange={e => set("notify_sms")(e.target.checked)} />
-        <span>SMS notifications</span>
       </label>
       <FormNote error={error} />
     </Modal>
@@ -167,16 +158,13 @@ export function UsersPage() {
             <div>
               <div style={{ fontSize: 14, fontWeight: 500 }}>{u.name}</div>
               <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>
-                {u.email} · {u.phone}
+                {u.email}
               </div>
             </div>
             <span className={`role-badge role-${u.role}`}>{u.role}</span>
             <span className="label" style={{ fontSize: 10, display: "flex", gap: 10 }}>
               <span style={{ color: u.notify_email ? "var(--forest)" : "var(--ink-mute)" }}>
                 ✉ {u.notify_email ? "ON" : "OFF"}
-              </span>
-              <span style={{ color: u.notify_sms ? "var(--forest)" : "var(--ink-mute)" }}>
-                ✆ {u.notify_sms ? "ON" : "OFF"}
               </span>
             </span>
             <button className="btn ghost sm" onClick={() => setEditing(u)}>Edit</button>
@@ -193,7 +181,6 @@ export function UsersPage() {
 const SETTINGS_SECTIONS = [
   { id: "account", label: "Account" },
   { id: "notifications", label: "Notifications" },
-  { id: "classification", label: "Classification" },
   { id: "integrations", label: "API keys" },
   { id: "appearance", label: "Appearance" },
 ];
@@ -236,7 +223,7 @@ function SaveStatus({ status }) {
 /**
  * Browser push channel row — FLEDGE Phase 7.
  *
- * Unlike email and SMS this is not a user column: the subscription belongs to
+ * Unlike email this is not a user column: the subscription belongs to
  * *this browser*, so the toggle reads its live state from the service worker
  * rather than from `data.ME`. Which also means it must handle four different
  * kinds of "off": unsupported browser, no service worker (dev), no server keys,
@@ -291,7 +278,7 @@ function PushChannelRow() {
   else if (state.status === "server-disabled") note = "No VAPID keys on the server — see .env.example.";
   else if (denied && !sub) note = "Blocked in your browser's site settings.";
   else if (sub) note = "Alerts arrive even with the app closed.";
-  else note = "Instant alerts on this device — no email or phone number needed.";
+  else note = "Instant alerts on this device, no email needed.";
 
   return (
     <div className="toggle-row">
@@ -311,13 +298,6 @@ function PushChannelRow() {
     </div>
   );
 }
-
-const TIERS = [
-  ["local", "Tier 1 — Local", "iNatVision TFLite on the Pi. Offline-friendly.", "PI ONLY"],
-  ["gpu", "Tier 2 — LAN GPU", "Forwarded to RTX 5080. Higher accuracy.", "WIFI"],
-  ["cloud", "Tier 3 — Cloud", "Anthropic Claude multimodal. Hard cases.", "INTERNET"],
-  ["auto", "Auto", "Try local first. Escalate when confidence falls below threshold.", "RECOMMENDED"],
-];
 
 // Self password change — current password is required (verified server-side).
 function ChangePasswordModal({ userId, onClose }) {
@@ -372,7 +352,6 @@ export function SettingsPage() {
 
   // Account text fields buffer locally and persist on blur.
   const [name, setName] = useState(me.name);
-  const [phone, setPhone] = useState(me.phone);
   const [email, setEmail] = useState(me.email);
   const [acctErr, setAcctErr] = useState({});
 
@@ -388,7 +367,6 @@ export function SettingsPage() {
 
   // Sliders buffer locally for smooth dragging, then commit on release.
   const [quiet, setQuiet] = useState(prefs.quiet_interval_seconds);
-  const [thresh, setThresh] = useState(prefs.escalation_threshold);
 
   async function saveUser(patchObj) {
     setStatus({ kind: "saving" });
@@ -452,13 +430,6 @@ export function SettingsPage() {
                   onBlur={() => commitField("email", email, me.email, checkEmail(email))} />
                 {acctErr.email && <div className="field-help" style={{ color: "var(--cardinal)" }}>{acctErr.email}</div>}
               </Field>
-              <Field label="Phone" help="E.164 format. Required for SMS.">
-                <input type="text" value={phone} aria-label="Phone"
-                  aria-invalid={acctErr.phone ? "true" : undefined}
-                  onChange={e => setPhone(e.target.value)}
-                  onBlur={() => commitField("phone", phone, me.phone, checkPhone(phone))} />
-                {acctErr.phone && <div className="field-help" style={{ color: "var(--cardinal)" }}>{acctErr.phone}</div>}
-              </Field>
               <Field label="Password">
                 <button className="btn" onClick={() => setChangingPassword(true)}>Change password…</button>
               </Field>
@@ -483,14 +454,6 @@ export function SettingsPage() {
                         <div className="toggle-row-sub">Inline thumbnail + species card + Wikipedia link</div>
                       </div>
                       <span className="label">VIA SENDGRID</span>
-                    </div>
-                    <div className="toggle-row">
-                      <Toggle on={me.notify_sms} onChange={v => saveUser({ notify_sms: v })} />
-                      <div className="toggle-row-text">
-                        <div className="toggle-row-title">SMS — {me.phone || "no phone on file"}</div>
-                        <div className="toggle-row-sub">Concise text + MMS image where supported</div>
-                      </div>
-                      <span className="label">VIA TWILIO</span>
                     </div>
                     <PushChannelRow />
                   </div>
@@ -521,60 +484,6 @@ export function SettingsPage() {
             </div>
           )}
 
-          {section === "classification" && (
-            <div className="settings-section">
-              <div className="between">
-                <h3>Classification</h3>
-                <SaveStatus status={status} />
-              </div>
-              <p className="lead">Default tier for new stations. Per-station overrides live in Devices.</p>
-
-              <Field label="Default tier">
-                <div className="tier-stack">
-                  {TIERS.map(([k, n, d, b], i) => (
-                    <div key={k} className={`tier-card ${prefs.default_tier === k ? "selected" : ""}`}
-                      onClick={() => savePrefs({ default_tier: k })}>
-                      <div className="tier-num">{i + 1}</div>
-                      <div>
-                        <div className="tier-name">{n}</div>
-                        <div className="tier-desc">{d}</div>
-                      </div>
-                      <span className="tier-badge">{b}</span>
-                    </div>
-                  ))}
-                </div>
-              </Field>
-
-              <Field label="Auto-escalation threshold"
-                help="When in Auto mode, fall back to a higher tier if confidence is below this.">
-                <div>
-                  <input type="range" min="40" max="95" step="1" value={thresh}
-                    onChange={e => setThresh(Number(e.target.value))}
-                    onMouseUp={() => savePrefs({ escalation_threshold: thresh })}
-                    onTouchEnd={() => savePrefs({ escalation_threshold: thresh })}
-                    onKeyUp={() => savePrefs({ escalation_threshold: thresh })}
-                    style={{ width: "100%" }} />
-                  <div className="between" style={{ marginTop: 6 }}>
-                    <span className="label">40%</span>
-                    <span className="display-i tnum" style={{ fontSize: 22 }}>{thresh}%</span>
-                    <span className="label">95%</span>
-                  </div>
-                </div>
-              </Field>
-
-              <Field label="Debounce window"
-                help="Skip duplicate captures within this window of a confirmed sighting.">
-                <select value={String(prefs.debounce_seconds)}
-                  onChange={e => savePrefs({ debounce_seconds: Number(e.target.value) })}>
-                  <option value="10">10 seconds</option>
-                  <option value="30">30 seconds</option>
-                  <option value="60">60 seconds</option>
-                  <option value="120">2 minutes</option>
-                </select>
-              </Field>
-            </div>
-          )}
-
           {section === "integrations" && (
             <div className="settings-section">
               <h3>API keys</h3>
@@ -585,10 +494,6 @@ export function SettingsPage() {
               </Field>
               <Field label="SendGrid" help="Outbound transactional email.">
                 <input type="password" value="SG.•••••••••••••••••8f2c" readOnly />
-              </Field>
-              <Field label="Twilio" help="SMS + MMS for mobile alerts.">
-                <input type="text" value="AC1234567890abcdef" readOnly />
-                <input type="password" value="••••••••••••••••" readOnly style={{ marginTop: 6 }} />
               </Field>
             </div>
           )}

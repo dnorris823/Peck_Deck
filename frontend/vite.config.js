@@ -32,8 +32,7 @@ export default defineConfig({
     port: 5173,
     // Proxy API calls to the Litestar backend (docker compose exposes :8000).
     // The frontend calls fetch("/api/...") in dev and Vite forwards it.
-    // Override with VITE_API_TARGET to point the dev server at another
-    // instance — e.g. a DEMO_MODE backend running on a different port.
+    // Override with VITE_API_TARGET to point the dev server at another backend.
     proxy: apiProxy,
   },
   // `npm run build && npm run preview` — how the PWA (service worker, install

@@ -5,13 +5,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Read once at module scope so several fields below can agree on it without
-# re-reading the environment (and so DEV_TOOLS can be forced off in production).
+# Read once at module scope.
 _ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
-
-
-def _flag(name: str) -> bool:
-    return os.getenv(name, "").strip().lower() in {"1", "true", "yes", "on"}
 
 
 @dataclass
@@ -47,35 +42,11 @@ class Settings:
     # defaults (see backend/main.py).
     ENVIRONMENT: str = _ENVIRONMENT
 
-    # ── Dev tools ─────────────────────────────────────────────────────────────
-    # Unlocks POST /dev/sighting — the "Simulate a visit" button on the
-    # dashboard, which fabricates one sighting of a random catalogued species so
-    # the UI can be watched reacting without waiting on a feeder (or on
-    # `python -m backend.simulator`). Off unless explicitly set, and forced off
-    # in production regardless: it is an unauthenticated-by-role write of
-    # fictional records, which is a fine thing on a laptop and never a thing on
-    # a real deployment. The route 404s when this is false, so a normal instance
-    # cannot be probed for it.
-    DEV_TOOLS: bool = _flag("DEV_TOOLS") and _ENVIRONMENT.lower() != "production"
-
-    # ── Demo mode (FLEDGE Phase 5) ────────────────────────────────────────────
-    # When on, the app seeds the demo dataset at boot if the database is empty
-    # and refuses every user-authenticated write, so a public/shared instance
-    # can be clicked through without being edited. Device writes (the Pi and the
-    # simulator) still work — that's what keeps the demo *live* rather than a
-    # frozen snapshot. Advertised to the frontend via GET /meta.
-    DEMO_MODE: bool = _flag("DEMO_MODE")
-
     # ── Email (SendGrid) ──────────────────────────────────────────────────────
     SENDGRID_API_KEY: str = os.getenv("SENDGRID_API_KEY", "")
     NOTIFICATION_FROM_EMAIL: str = os.getenv(
         "NOTIFICATION_FROM_EMAIL", "notifications@peckdeck.local"
     )
-
-    # ── SMS (Twilio) ──────────────────────────────────────────────────────────
-    TWILIO_ACCOUNT_SID: str = os.getenv("TWILIO_ACCOUNT_SID", "")
-    TWILIO_AUTH_TOKEN: str = os.getenv("TWILIO_AUTH_TOKEN", "")
-    TWILIO_FROM_NUMBER: str = os.getenv("TWILIO_FROM_NUMBER", "")
 
     # ── Notifications ─────────────────────────────────────────────────────────
     NOTIFICATION_MIN_INTERVAL_SECONDS: int = int(

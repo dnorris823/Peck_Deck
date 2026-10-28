@@ -10,7 +10,7 @@ holds it open for the life of the session.
 | Piece | Where | Notes |
 |---|---|---|
 | Fan-out | `backend/events/hub.py` | In-process asyncio pub/sub. `publish()` is **sync, non-blocking and never raises** — it runs on the Pi's upload path, so a browser that stopped reading must not be able to slow or fail an upload. |
-| Publish seam | `backend/sightings/aftercare.py` | The one "a sighting happened" hook, shared by `POST /sightings` and `POST /dev/sighting`. |
+| Publish seam | `backend/sightings/aftercare.py` | The one "a sighting happened" hook, called by `POST /sightings`. |
 | Stream | `backend/events/controller.py` | Scoping, `Last-Event-ID` replay, heartbeats. |
 | Client | `frontend/src/events.js` | `fetch` + `ReadableStream`, not `EventSource`. |
 

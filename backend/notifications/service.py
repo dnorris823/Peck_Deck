@@ -19,7 +19,6 @@ from ..database.models import (
 from .email_sender import send_email
 from .push import delete_endpoints, subscriptions_for_users, to_target
 from .push_sender import push_enabled, send_push
-from .sms_sender import send_sms
 
 logger = logging.getLogger(__name__)
 
@@ -160,10 +159,6 @@ class NotificationService:
                 channels.append(
                     self._email(user, sighting, species, device, sighting_count, location, delayed_note)
                 )
-            if user.notify_sms and user.phone:
-                channels.append(
-                    self._sms(user, sighting, species, device, sighting_count, delayed_note)
-                )
             # Web push needs no per-user flag: a stored subscription *is* the
             # opt-in, and unsubscribing in the browser deletes the row.
             for sub in subs_by_user.get(user.id, []):
@@ -249,16 +244,6 @@ class NotificationService:
         if result.gone:
             dead_endpoints.append(sub.endpoint)
 
-    async def _sms(
-        self, user: User, sighting: Sighting, species: Species,
-        device: Device, count: int, delayed_note: str,
-    ) -> None:
-        wiki_part = f" {species.wiki_url}" if species.wiki_url else ""
-        body = (
-            f"Peck Deck: {species.common_name} at {device.name}"
-            f" — sighting #{count}{delayed_note}.{wiki_part}"
-        )
-        await send_sms(to_number=user.phone, body=body)
 
 
 from ..config import settings as _settings

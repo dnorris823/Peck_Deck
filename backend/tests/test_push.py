@@ -12,7 +12,7 @@ Three layers, deliberately separated:
 
 No network anywhere: the HTTP POST to the push service is faked, and the
 notification service's ``send_push`` is monkeypatched the same way the existing
-email/SMS tests fake theirs.
+email tests fake theirs.
 """
 import asyncio
 import json
@@ -465,13 +465,13 @@ async def _mk_recipient_with_subscription(n_subs: int = 1):
         async with db.begin():
             u = User(
                 name="Push User", email=f"push_{secrets.token_hex(4)}@test.dev",
-                password_hash="x", role="owner", notify_email=False, notify_sms=False,
+                password_hash="x", role="owner", notify_email=False,
             )
             db.add(u)
             await db.flush()
             d = Device(
                 name="Push Feeder", owner_id=u.id, city="Ithaca", state="NY",
-                classification_tier="auto", token=secrets.token_urlsafe(12),
+                token=secrets.token_urlsafe(12),
             )
             sp = Species(
                 common_name=f"PushBird {secrets.token_hex(3)}",
@@ -553,10 +553,10 @@ def test_dispatch_prunes_a_subscription_the_push_service_calls_gone(client, monk
     assert asyncio.run(_endpoint_exists(endpoints[0])) is False
 
 
-def test_push_is_independent_of_the_email_and_sms_flags(client, monkeypatch):
-    """A stored subscription *is* the opt-in — notify_email/sms don't gate it."""
+def test_push_is_independent_of_the_email_flag(client, monkeypatch):
+    """A stored subscription *is* the opt-in — notify_email doesn't gate it."""
     sent = _patch_push(monkeypatch)
     sid, did, endpoints = asyncio.run(_mk_recipient_with_subscription())
-    # The recipient was created with notify_email=False, notify_sms=False.
+    # The recipient was created with notify_email=False.
     asyncio.run(NotificationService().dispatch(sid, did))
     assert [e for e, _ in sent] == endpoints

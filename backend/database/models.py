@@ -24,9 +24,7 @@ class User(Base):
     name: Mapped[str] = mapped_column(String, nullable=False)
     email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
-    phone: Mapped[str | None] = mapped_column(String, nullable=True)
     notify_email: Mapped[bool] = mapped_column(Boolean, default=True)
-    notify_sms: Mapped[bool] = mapped_column(Boolean, default=False)
     role: Mapped[str] = mapped_column(String, default="viewer")  # owner|viewer
 
     owned_devices: Mapped[list["Device"]] = relationship(
@@ -54,12 +52,6 @@ class UserPreferences(Base):
     quiet_interval_seconds: Mapped[int] = mapped_column(Integer, default=60)
     # Only alert the first time a species is seen.
     notify_new_species_only: Mapped[bool] = mapped_column(Boolean, default=False)
-    # Default tier for new stations: local|gpu|cloud|auto.
-    default_tier: Mapped[str] = mapped_column(String, default="auto")
-    # In Auto mode, escalate below this confidence (percent, 40–95).
-    escalation_threshold: Mapped[int] = mapped_column(Integer, default=70)
-    # Skip duplicate captures within this window of a confirmed sighting.
-    debounce_seconds: Mapped[int] = mapped_column(Integer, default=30)
 
     user: Mapped["User"] = relationship("User")
 
@@ -107,7 +99,6 @@ class Device(Base):
     city: Mapped[str | None] = mapped_column(String, nullable=True)
     state: Mapped[str | None] = mapped_column(String, nullable=True)
     owner_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id"), nullable=False)
-    classification_tier: Mapped[str] = mapped_column(String, default="auto")
     feed_type: Mapped[str | None] = mapped_column(String, nullable=True)
     token: Mapped[str] = mapped_column(String, unique=True, nullable=False)
 

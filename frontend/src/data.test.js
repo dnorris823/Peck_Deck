@@ -8,7 +8,7 @@ vi.mock("./api.js", () => ({
 
 import { apiGet, apiSend } from "./api.js";
 import {
-  loadAll, saveMe, savePreferences, updateDevice,
+  loadAll, saveMe, savePreferences,
   fmtRelative, fmtTime, fmtDateFull,
 } from "./data.js";
 
@@ -27,13 +27,13 @@ function routeApiGet(overrides = {}) {
         count: 12, first_seen: "2026-05-01T08:00:00Z" },
     ],
     "/devices": [
-      { id: 10, name: "Backyard", city: "Austin", state: "TX", classification_tier: "auto",
+      { id: 10, name: "Backyard", city: "Austin", state: "TX",
         feed_type: "Sunflower", status: "online", battery: 88, signal: "strong",
         last_seen: new Date().toISOString(), today_sightings: 3, week_sightings: 20, all_time_sightings: 1500 },
     ],
     "/users": [
       { id: 100, name: "Dominic Norris", email: "dom@peck.deck", role: "owner",
-        phone: "+15125550100", notify_email: true, notify_sms: false },
+        notify_email: true },
     ],
     "/sightings?limit=100": [
       // Valid: species + device both resolve.
@@ -46,8 +46,8 @@ function routeApiGet(overrides = {}) {
     "/stats/heatmap": [[0, 1, 9]], // 9 clamped to 4
     "/stats/dashboard": { today_sightings: 3, total_species: 2 },
     "/users/me": { id: 100, name: "Dominic Norris", email: "dom@peck.deck", role: "owner",
-      phone: "+15125550100", notify_email: true, notify_sms: false },
-    "/users/me/preferences": { default_tier: "auto", escalation_threshold: 70, quiet_interval_seconds: 60 },
+      notify_email: true },
+    "/users/me/preferences": { quiet_interval_seconds: 60 },
   };
   const table = { ...base, ...overrides };
   apiGet.mockImplementation((path) => {
@@ -74,7 +74,7 @@ describe("loadAll", () => {
     });
 
     const device = data.DEVICES[0];
-    expect(device).toMatchObject({ id: 10, name: "Backyard", tier: "auto", feed: "Sunflower" });
+    expect(device).toMatchObject({ id: 10, name: "Backyard", feed: "Sunflower" });
     expect(data.USERS[0]).toMatchObject({ id: 100, name: "Dominic Norris", av: "DN" });
   });
 
@@ -105,24 +105,19 @@ describe("loadAll", () => {
 describe("settings mutations", () => {
   it("saveMe PUTs the patch and returns the mapped user", async () => {
     apiSend.mockResolvedValue({ id: 100, name: "New Name", email: "dom@peck.deck",
-      role: "owner", phone: "", notify_email: true, notify_sms: false });
+      role: "owner", notify_email: true });
     const me = await saveMe(100, { name: "New Name" });
     expect(apiSend).toHaveBeenCalledWith("/users/100", "PUT", { name: "New Name" });
     expect(me.name).toBe("New Name");
   });
 
   it("savePreferences PUTs to the preferences endpoint", async () => {
-    apiSend.mockResolvedValue({ default_tier: "cloud" });
-    const prefs = await savePreferences({ default_tier: "cloud" });
-    expect(apiSend).toHaveBeenCalledWith("/users/me/preferences", "PUT", { default_tier: "cloud" });
-    expect(prefs.default_tier).toBe("cloud");
+    apiSend.mockResolvedValue({ quiet_interval_seconds: 120 });
+    const prefs = await savePreferences({ quiet_interval_seconds: 120 });
+    expect(apiSend).toHaveBeenCalledWith("/users/me/preferences", "PUT", { quiet_interval_seconds: 120 });
+    expect(prefs.quiet_interval_seconds).toBe(120);
   });
 
-  it("updateDevice PUTs the patch to the device endpoint", async () => {
-    apiSend.mockResolvedValue({ id: 10, classification_tier: "gpu" });
-    await updateDevice(10, { classification_tier: "gpu" });
-    expect(apiSend).toHaveBeenCalledWith("/devices/10", "PUT", { classification_tier: "gpu" });
-  });
 });
 
 describe("date/time formatters", () => {

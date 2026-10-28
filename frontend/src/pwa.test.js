@@ -96,6 +96,10 @@ describe("service worker", () => {
     expect(sw).toMatch(/request\.method !== "GET"/);
   });
 
+  it("never caches API responses", () => {
+    expect(sw).not.toMatch(/\/api\//);
+  });
+
   it("only stores 200s, so a 401 can never outlive the session", () => {
     expect(sw).toMatch(/response\.status === 200/);
   });

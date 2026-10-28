@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Assemble a field-realistic evaluation set from iNaturalist observations.
 
-``validate_tier1.py`` scores both tiers on Wikipedia lead images and gets 20/20.
-That number is real but it is an *upper bound*: an encyclopedia lead image is a
+A score on Wikipedia lead images is an *upper bound* (both tiers got 20/20): an encyclopedia lead image is a
 bird photographer's keeper shot — full frame, sharp, side-on, well lit. A feeder
 camera sees a bird at a third of frame, half behind a perch, mid-wingbeat, in
 whatever light dawn offers. Those are different problems.
@@ -27,8 +26,8 @@ Two choices worth knowing about:
   uploads, most-faved oversamples prize-winning portraits — which is the very
   bias this set exists to escape.
 
-Ground truth is ``machine_learning/feeder_species.csv`` — the same 20 species
-``validate_tier1.py`` uses, so the clean and field numbers are comparable.
+Ground truth is ``machine_learning/feeder_species.csv`` — the 20 curated
+backyard species.
 
     python scripts/build_eval_set.py                      # 15 photos/species
     python scripts/build_eval_set.py --per-species 30

@@ -88,10 +88,6 @@ class Config:
     tier1_confidence_threshold: float | None = _opt_float("TIER1_CONFIDENCE_THRESHOLD")
     tier2_confidence_threshold: float | None = _opt_float("TIER2_CONFIDENCE_THRESHOLD")
     tier3_confidence_threshold: float | None = _opt_float("TIER3_CONFIDENCE_THRESHOLD")
-    # Legacy single threshold. Still honoured — an operator who set it deliberately
-    # should not be overridden by a default — but it now applies only to tiers with
-    # no per-tier value, and Pipeline logs a warning when it is in play.
-    confidence_threshold: float | None = _opt_float("CONFIDENCE_THRESHOLD")
     # Tier 2 is on the LAN and a healthy GPU answers in well under a second.
     # Past 5 s it is down, and Tier 1 should answer instead.
     tier2_request_timeout: int = int(os.getenv("TIER2_REQUEST_TIMEOUT", "5"))
@@ -102,9 +98,8 @@ class Config:
     backend_upload_timeout: int = int(os.getenv("BACKEND_UPLOAD_TIMEOUT", "60"))
 
     # Trigger
-    trigger_type: str = os.getenv("TRIGGER_TYPE", "camera")  # camera|pir|ir_beam
-    # GPIO triggers only (pir, ir_beam).
-    trigger_gpio_pin: int = int(os.getenv("TRIGGER_GPIO_PIN", "17"))
+    # The only trigger is "camera". Any other value refuses to start.
+    trigger_type: str = os.getenv("TRIGGER_TYPE", "camera")
     debounce_seconds: float = float(os.getenv("DEBOUNCE_SECONDS", "30"))
 
     # Camera trigger only. It replaces DEBOUNCE_SECONDS with the visit gap.
@@ -162,10 +157,7 @@ class Config:
     def threshold_for(self, tier_name: str) -> float:
         """The confidence a given tier must reach to win outright.
 
-        Precedence: that tier's own setting, then the legacy global, then the
-        measured default. Explicit configuration always beats a default — a
-        deployment that pinned CONFIDENCE_THRESHOLD did so for a reason, and
-        silently ignoring it would be the worse surprise.
+        That tier's own setting wins, then the measured default.
         """
         explicit = {
             "local": self.tier1_confidence_threshold,
@@ -174,14 +166,5 @@ class Config:
         }.get(tier_name)
         if explicit is not None:
             return explicit
-        if self.confidence_threshold is not None:
-            return self.confidence_threshold
         return DEFAULT_TIER_THRESHOLDS.get(tier_name, 0.5)
 
-    def uses_legacy_global_threshold(self) -> bool:
-        """True when CONFIDENCE_THRESHOLD is displacing a measured default."""
-        if self.confidence_threshold is None:
-            return False
-        return any(
-            getattr(self, f"tier{i}_confidence_threshold") is None for i in (1, 2, 3)
-        )

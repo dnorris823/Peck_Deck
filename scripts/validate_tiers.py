@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 """Score Tier 1 and Tier 2 over an evaluation tree, and check their calibration.
 
-``validate_tier1.py`` answers "is Tier 1 wired up correctly?" on 20 clean
-Wikipedia photos. This answers the two questions that actually decide product
-behaviour:
+This answers the two questions that decide product behaviour:
 
 1. **How accurate is each tier on images like the ones the feeder sees**, and
    which specific degradation breaks it (see ``degrade_eval_set.py``).
 2. **Is the confidence signal trustworthy?** The pipeline escalates Tier 1 to
-   Tier 2 to Tier 3 when confidence falls below ``CONFIDENCE_THRESHOLD`` (0.5).
+   Tier 2 to Tier 3 when confidence falls below its tier's threshold (``DEFAULT_TIER_THRESHOLDS``).
    That design is only sound if wrong answers come with *low* confidence. A tier
    that is confidently wrong never escalates, and the app displays the wrong
    bird with nothing anywhere indicating a problem.

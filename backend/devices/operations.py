@@ -28,7 +28,6 @@ async def create_device(
     city: str | None,
     state: str | None,
     owner_id: int,
-    classification_tier: str,
     feed_type: str | None,
 ) -> Device:
     device = Device(
@@ -36,7 +35,6 @@ async def create_device(
         city=city,
         state=state,
         owner_id=owner_id,
-        classification_tier=classification_tier,
         feed_type=feed_type,
         token=secrets.token_urlsafe(32),
     )
@@ -52,7 +50,6 @@ async def update_device(
     name: str | None,
     city: str | None,
     state: str | None,
-    classification_tier: str | None,
     feed_type: str | None,
 ) -> Device:
     if name is not None:
@@ -61,8 +58,6 @@ async def update_device(
         device.city = city
     if state is not None:
         device.state = state
-    if classification_tier is not None:
-        device.classification_tier = classification_tier
     if feed_type is not None:
         device.feed_type = feed_type
     await db.flush()

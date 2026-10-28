@@ -1,10 +1,6 @@
 """Fire-and-forget work that follows a newly created sighting.
 
-Extracted from :class:`~backend.sightings.controller.SightingController` so the
-device upload path and the dev-tools path (``POST /dev/sighting``) schedule
-exactly the same follow-up. A fabricated sighting that skipped notification
-dispatch would be a poor stand-in for a real one — the whole point of the dev
-button is to watch the real pipeline react.
+Extracted from :class:`~backend.sightings.controller.SightingController`.
 
 Both tasks open their own database sessions, so they run safely after the
 request transaction commits.

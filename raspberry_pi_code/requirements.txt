@@ -4,9 +4,6 @@ Pillow>=10.0
 python-dotenv>=1.0
 
 # ── Pi-only (install separately on the device) ──────────────────────────────
-# RPi.GPIO>=0.7
-#   pip install RPi.GPIO
-#
 # picamera2>=0.3
 #   sudo apt install -y python3-picamera2
 #

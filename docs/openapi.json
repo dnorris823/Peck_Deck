@@ -171,22 +171,6 @@
         "title": "DashboardResponse",
         "type": "object"
       },
-      "DeviceCountResponse": {
-        "properties": {
-          "count": {
-            "type": "integer"
-          },
-          "device_id": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "count",
-          "device_id"
-        ],
-        "title": "DeviceCountResponse",
-        "type": "object"
-      },
       "DeviceHeartbeat": {
         "properties": {
           "battery": {
@@ -238,9 +222,6 @@
                 "type": "null"
               }
             ]
-          },
-          "classification_tier": {
-            "type": "string"
           },
           "feed_type": {
             "oneOf": [
@@ -308,7 +289,6 @@
           "all_time_sightings",
           "battery",
           "city",
-          "classification_tier",
           "feed_type",
           "id",
           "last_seen",
@@ -322,109 +302,6 @@
           "week_sightings"
         ],
         "title": "DeviceResponse",
-        "type": "object"
-      },
-      "InsightsResponse": {
-        "properties": {
-          "active_days": {
-            "type": "integer"
-          },
-          "busiest_day": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "busiest_hour": {
-            "oneOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "day_labels": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
-          "days": {
-            "type": "integer"
-          },
-          "device_id": {
-            "oneOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "distinct_species": {
-            "type": "integer"
-          },
-          "diversity": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array"
-          },
-          "hours": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array"
-          },
-          "longest_streak": {
-            "type": "integer"
-          },
-          "new_species": {
-            "items": {
-              "$ref": "#/components/schemas/NewSpeciesResponse"
-            },
-            "type": "array"
-          },
-          "per_day": {
-            "items": {
-              "type": "integer"
-            },
-            "type": "array"
-          },
-          "per_device": {
-            "items": {
-              "$ref": "#/components/schemas/DeviceCountResponse"
-            },
-            "type": "array"
-          },
-          "total_sightings": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "active_days",
-          "busiest_day",
-          "busiest_hour",
-          "day_labels",
-          "days",
-          "device_id",
-          "distinct_species",
-          "diversity",
-          "hours",
-          "longest_streak",
-          "new_species",
-          "per_day",
-          "per_device",
-          "total_sightings"
-        ],
-        "title": "InsightsResponse",
         "type": "object"
       },
       "LoginRequest": {
@@ -443,37 +320,8 @@
         "title": "LoginRequest",
         "type": "object"
       },
-      "NewSpeciesResponse": {
-        "properties": {
-          "common_name": {
-            "type": "string"
-          },
-          "first_seen": {
-            "type": "string"
-          },
-          "id": {
-            "type": "integer"
-          }
-        },
-        "required": [
-          "common_name",
-          "first_seen",
-          "id"
-        ],
-        "title": "NewSpeciesResponse",
-        "type": "object"
-      },
       "PreferencesResponse": {
         "properties": {
-          "debounce_seconds": {
-            "type": "integer"
-          },
-          "default_tier": {
-            "type": "string"
-          },
-          "escalation_threshold": {
-            "type": "integer"
-          },
           "notify_new_species_only": {
             "type": "boolean"
           },
@@ -482,9 +330,6 @@
           }
         },
         "required": [
-          "debounce_seconds",
-          "default_tier",
-          "escalation_threshold",
           "notify_new_species_only",
           "quiet_interval_seconds"
         ],
@@ -542,16 +387,6 @@
               }
             ]
           },
-          "classification_tier": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "feed_type": {
             "oneOf": [
               {
@@ -592,16 +427,6 @@
           },
           "password": {
             "type": "string"
-          },
-          "phone": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
           },
           "role": {
             "default": "viewer",
@@ -995,16 +820,6 @@
               }
             ]
           },
-          "classification_tier": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "feed_type": {
             "oneOf": [
               {
@@ -1064,36 +879,6 @@
       },
       "UpdatePreferences": {
         "properties": {
-          "debounce_seconds": {
-            "oneOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "default_tier": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "escalation_threshold": {
-            "oneOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "notify_new_species_only": {
             "oneOf": [
               {
@@ -1150,26 +935,6 @@
                 "type": "null"
               }
             ]
-          },
-          "notify_sms": {
-            "oneOf": [
-              {
-                "type": "boolean"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "phone": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
           }
         },
         "required": [],
@@ -1190,19 +955,6 @@
           "notify_email": {
             "type": "boolean"
           },
-          "notify_sms": {
-            "type": "boolean"
-          },
-          "phone": {
-            "oneOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
           "role": {
             "type": "string"
           }
@@ -1212,8 +964,6 @@
           "id",
           "name",
           "notify_email",
-          "notify_sms",
-          "phone",
           "role"
         ],
         "title": "UserResponse",
@@ -1235,7 +985,7 @@
     }
   },
   "info": {
-    "description": "REST API for the Peck Deck smart bird feeder.\n\nTwo distinct kinds of caller, with separate credentials:\n\n* **Users** (web app) \u2014 `POST /login` returns a JWT. Send it as\n  `Authorization: Bearer <jwt>`. Roles are `owner` and `viewer`; owner-only\n  routes are marked as such.\n* **Devices** (Raspberry Pi feeders) \u2014 authenticate with their long-lived\n  device token, also sent as `Authorization: Bearer <token>`. A device token is\n  **not** accepted on user routes and vice versa.\n\nSighting images are stored in PostgreSQL as `bytea` and served from\n`GET /sightings/{id}/image`, which requires a user JWT.\n\n`GET /health` is liveness (never touches the database); `GET /ready` is\nreadiness (checks the database and migration state, 503 when not ready);\n`GET /meta` describes the instance itself (notably whether it is running in\nread-only demo mode).\n\nWith `DEMO_MODE=1` the instance seeds itself on first boot and rejects every\nuser-authenticated write with 403. Device-token routes (`POST /sightings`,\n`POST /classify`, the heartbeat) and `POST /login` keep working, so the demo\nstays live rather than frozen.",
+    "description": "REST API for the Peck Deck smart bird feeder.\n\nTwo distinct kinds of caller, with separate credentials:\n\n* **Users** (web app) \u2014 `POST /login` returns a JWT. Send it as\n  `Authorization: Bearer <jwt>`. Roles are `owner` and `viewer`; owner-only\n  routes are marked as such.\n* **Devices** (Raspberry Pi feeders) \u2014 authenticate with their long-lived\n  device token, also sent as `Authorization: Bearer <token>`. A device token is\n  **not** accepted on user routes and vice versa.\n\nSighting images are stored in PostgreSQL as `bytea` and served from\n`GET /sightings/{id}/image`, which requires a user JWT.\n\n`GET /health` is liveness (never touches the database); `GET /ready` is\nreadiness (checks the database and migration state, 503 when not ready).",
     "title": "Peck Deck API",
     "version": "1.0.0"
   },
@@ -1803,26 +1553,6 @@
           }
         },
         "summary": "Login"
-      }
-    },
-    "/meta": {
-      "get": {
-        "deprecated": false,
-        "operationId": "MetaMeta",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Request fulfilled, document follows",
-            "headers": {}
-          }
-        },
-        "summary": "Meta"
       }
     },
     "/push/config": {
@@ -2735,96 +2465,6 @@
           }
         },
         "summary": "Heatmap"
-      }
-    },
-    "/stats/insights": {
-      "get": {
-        "deprecated": false,
-        "operationId": "StatsInsightsInsights",
-        "parameters": [
-          {
-            "allowEmptyValue": false,
-            "allowReserved": false,
-            "deprecated": false,
-            "in": "query",
-            "name": "days",
-            "required": false,
-            "schema": {
-              "default": 30,
-              "type": "integer"
-            }
-          },
-          {
-            "allowEmptyValue": false,
-            "allowReserved": false,
-            "deprecated": false,
-            "in": "query",
-            "name": "device_id",
-            "required": false,
-            "schema": {
-              "oneOf": [
-                {
-                  "type": "integer"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InsightsResponse"
-                }
-              }
-            },
-            "description": "Request fulfilled, document follows",
-            "headers": {}
-          },
-          "400": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "description": "Validation Exception",
-                  "examples": [
-                    {
-                      "detail": "Bad Request",
-                      "extra": {},
-                      "status_code": 400
-                    }
-                  ],
-                  "properties": {
-                    "detail": {
-                      "type": "string"
-                    },
-                    "extra": {
-                      "additionalProperties": {},
-                      "type": [
-                        "null",
-                        "object",
-                        "array"
-                      ]
-                    },
-                    "status_code": {
-                      "type": "integer"
-                    }
-                  },
-                  "required": [
-                    "detail",
-                    "status_code"
-                  ],
-                  "type": "object"
-                }
-              }
-            },
-            "description": "Bad request syntax or unsupported method"
-          }
-        },
-        "summary": "Insights"
       }
     },
     "/stats/species-counts": {

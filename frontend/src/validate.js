@@ -4,8 +4,6 @@
 // each form) means the backend contract is described in one place and is testable.
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-// E.164: a leading + and 1–15 digits (first digit non-zero).
-const E164_RE = /^\+[1-9]\d{1,14}$/;
 
 export const MIN_PASSWORD_LENGTH = 8;
 
@@ -18,14 +16,6 @@ export function checkEmail(value, { required = true } = {}) {
   const v = (value ?? "").trim();
   if (!v) return required ? "Email is required." : null;
   if (!EMAIL_RE.test(v)) return "Enter a valid email address.";
-  return null;
-}
-
-// Phone is optional almost everywhere; only validate the format when present.
-export function checkPhone(value, { required = false } = {}) {
-  const v = (value ?? "").trim();
-  if (!v) return required ? "Phone is required." : null;
-  if (!E164_RE.test(v)) return "Use E.164 format, e.g. +15125550123.";
   return null;
 }
 

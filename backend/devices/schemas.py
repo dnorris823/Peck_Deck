@@ -6,8 +6,6 @@ class RegisterDevice:
     name: str
     city: str | None = None
     state: str | None = None
-    # Omit to inherit the owner's default_tier preference (see controller).
-    classification_tier: str | None = None
     feed_type: str | None = None
 
 
@@ -16,7 +14,6 @@ class UpdateDevice:
     name: str | None = None
     city: str | None = None
     state: str | None = None
-    classification_tier: str | None = None
     feed_type: str | None = None
 
 
@@ -38,7 +35,6 @@ class DeviceResponse:
     city: str | None
     state: str | None
     owner_id: int
-    classification_tier: str
     feed_type: str | None
     token: str
     battery: float | None

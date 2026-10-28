@@ -1,7 +1,7 @@
 """Tests for the per-recipient notification logic.
 
 These exercise NotificationService directly (not through an HTTP route) with
-send_email/send_sms monkeypatched, so we can assert exactly which recipients
+send_email monkeypatched, so we can assert exactly which recipients
 were reached under each preference. Each test builds its own throwaway
 user/device/species so shared-session state can't leak between tests.
 """
@@ -21,19 +21,19 @@ from backend.notifications import service as notif_module
 from backend.notifications.service import NotificationService
 
 
-async def _mk_user_device(*, notify_email=True, notify_sms=False, phone=None, prefs=None):
+async def _mk_user_device(*, notify_email=True, prefs=None):
     async with get_session_factory()() as db:
         async with db.begin():
             email = f"notif_{secrets.token_hex(4)}@test.dev"
             u = User(
-                name="Notif User", email=email, password_hash="x", phone=phone,
-                role="owner", notify_email=notify_email, notify_sms=notify_sms,
+                name="Notif User", email=email, password_hash="x",
+                role="owner", notify_email=notify_email,
             )
             db.add(u)
             await db.flush()
             d = Device(
                 name="Notif Device", owner_id=u.id,
-                classification_tier="auto", token=secrets.token_urlsafe(12),
+                token=secrets.token_urlsafe(12),
             )
             db.add(d)
             await db.flush()
@@ -69,25 +69,19 @@ async def _insert_sighting(species_id: int, device_id: int) -> int:
 
 def _patch_senders(monkeypatch):
     emails: list[str] = []
-    smses: list[str] = []
 
     async def fake_email(*, to_email, **_):
         emails.append(to_email)
         return True
 
-    async def fake_sms(*, to_number, **_):
-        smses.append(to_number)
-        return True
-
     monkeypatch.setattr(notif_module, "send_email", fake_email)
-    monkeypatch.setattr(notif_module, "send_sms", fake_sms)
-    return emails, smses
+    return emails
 
 
-def test_dispatch_reaches_email_and_sms_channels(client, monkeypatch):
-    emails, smses = _patch_senders(monkeypatch)
+def test_dispatch_reaches_the_email_channel(client, monkeypatch):
+    emails = _patch_senders(monkeypatch)
     uid, did, email = asyncio.run(
-        _mk_user_device(notify_email=True, notify_sms=True, phone="+15559999")
+        _mk_user_device(notify_email=True)
     )
     spid = asyncio.run(_mk_species())
     sid = asyncio.run(_insert_sighting(spid, did))
@@ -95,11 +89,10 @@ def test_dispatch_reaches_email_and_sms_channels(client, monkeypatch):
     asyncio.run(NotificationService().dispatch(sid, did))
 
     assert emails == [email]
-    assert smses == ["+15559999"]
 
 
 def test_new_species_only_notifies_first_but_skips_repeat(client, monkeypatch):
-    emails, _ = _patch_senders(monkeypatch)
+    emails = _patch_senders(monkeypatch)
     uid, did, email = asyncio.run(
         _mk_user_device(prefs={"notify_new_species_only": True})
     )
@@ -117,7 +110,7 @@ def test_new_species_only_notifies_first_but_skips_repeat(client, monkeypatch):
 
 
 def test_per_recipient_throttle_suppresses_rapid_repeat(client, monkeypatch):
-    emails, _ = _patch_senders(monkeypatch)
+    emails = _patch_senders(monkeypatch)
     uid, did, email = asyncio.run(_mk_user_device())
     spid = asyncio.run(_mk_species())
     sid = asyncio.run(_insert_sighting(spid, did))
@@ -131,7 +124,7 @@ def test_per_recipient_throttle_suppresses_rapid_repeat(client, monkeypatch):
 
 def test_throttle_is_independent_per_recipient(client, monkeypatch):
     """One recipient being throttled must not mute a different recipient."""
-    emails, _ = _patch_senders(monkeypatch)
+    emails = _patch_senders(monkeypatch)
     # Two owners can't co-own one device, so model this as owner + member.
     async def _setup():
         async with get_session_factory()() as db:
@@ -144,7 +137,7 @@ def test_throttle_is_independent_per_recipient(client, monkeypatch):
                 db.add_all([a, b])
                 await db.flush()
                 d = Device(name="Shared", owner_id=a.id,
-                           classification_tier="auto", token=secrets.token_urlsafe(12))
+                           token=secrets.token_urlsafe(12))
                 db.add(d)
                 await db.flush()
                 db.add(DeviceUser(device_id=d.id, user_id=b.id))
@@ -161,41 +154,12 @@ def test_throttle_is_independent_per_recipient(client, monkeypatch):
 # ---------------------------------------------------------------------------
 # Fire-and-forget failure isolation
 # ---------------------------------------------------------------------------
-def test_email_failure_does_not_block_sms(client, monkeypatch):
-    """A raising email channel must not prevent the SMS channel from sending."""
-    smses: list[str] = []
-
-    async def boom_email(**_):
-        raise RuntimeError("SendGrid exploded")
-
-    async def fake_sms(*, to_number, **_):
-        smses.append(to_number)
-        return True
-
-    monkeypatch.setattr(notif_module, "send_email", boom_email)
-    monkeypatch.setattr(notif_module, "send_sms", fake_sms)
-
-    uid, did, _ = asyncio.run(
-        _mk_user_device(notify_email=True, notify_sms=True, phone="+15550000")
-    )
-    spid = asyncio.run(_mk_species())
-    sid = asyncio.run(_insert_sighting(spid, did))
-
-    # gather(return_exceptions=True) isolates the failure; SMS still lands.
-    asyncio.run(NotificationService().dispatch(sid, did))
-    assert smses == ["+15550000"]
-
-
 def test_dispatch_swallows_send_failure(client, monkeypatch):
     """dispatch() is fire-and-forget: a channel error never propagates out."""
     async def boom_email(**_):
         raise RuntimeError("kaboom")
 
-    async def fake_sms(**_):
-        return True
-
     monkeypatch.setattr(notif_module, "send_email", boom_email)
-    monkeypatch.setattr(notif_module, "send_sms", fake_sms)
 
     uid, did, _ = asyncio.run(_mk_user_device(notify_email=True))
     spid = asyncio.run(_mk_species())
@@ -207,7 +171,7 @@ def test_dispatch_swallows_send_failure(client, monkeypatch):
 
 def test_dispatch_missing_sighting_is_noop(client, monkeypatch):
     """A dispatch for a non-existent sighting id returns cleanly (no send)."""
-    emails, _ = _patch_senders(monkeypatch)
+    emails = _patch_senders(monkeypatch)
     uid, did, _ = asyncio.run(_mk_user_device())
 
     asyncio.run(NotificationService().dispatch(9_999_999, did))
@@ -216,7 +180,7 @@ def test_dispatch_missing_sighting_is_noop(client, monkeypatch):
 
 def test_throttle_is_independent_per_device(client, monkeypatch):
     """One recipient throttled on device A can still be notified on device B."""
-    emails, _ = _patch_senders(monkeypatch)
+    emails = _patch_senders(monkeypatch)
 
     async def _two_devices_one_owner():
         async with get_session_factory()() as db:
@@ -225,9 +189,9 @@ def test_throttle_is_independent_per_device(client, monkeypatch):
                          password_hash="x", role="owner", notify_email=True)
                 db.add(u)
                 await db.flush()
-                d1 = Device(name="D1", owner_id=u.id, classification_tier="auto",
+                d1 = Device(name="D1", owner_id=u.id,
                             token=secrets.token_urlsafe(12))
-                d2 = Device(name="D2", owner_id=u.id, classification_tier="auto",
+                d2 = Device(name="D2", owner_id=u.id,
                             token=secrets.token_urlsafe(12))
                 db.add_all([d1, d2])
                 await db.flush()

@@ -52,7 +52,6 @@ bash scripts/migrate.sh revision --autogenerate -m "add foo"
 |---|---|---|
 | `GET /health` | Liveness — is the process up? | Nothing. Deliberately dependency-free, so a DB blip never restarts a healthy container. |
 | `GET /ready` | Readiness — can it serve? | DB reachable **and** schema migrated to a revision this build knows. 503 when not. |
-| `GET /meta` | What *is* this instance? | Nothing. Public and unauthenticated: reports `demo_mode` + environment so the web app can render the demo banner before login. |
 
 The compose healthcheck targets `/ready`, so `docker compose ps` only reports
 `healthy` once the container can actually serve. Use `/health` for liveness
@@ -67,7 +66,7 @@ running app:
 |---|---|
 | `http://localhost:8000/schema` | Interactive docs (Swagger UI / ReDoc) |
 | `http://localhost:8000/schema/openapi.json` | Raw OpenAPI 3.1 document |
-| `docs/openapi.json` | Committed snapshot — 28 paths, 37 operations |
+| `docs/openapi.json` | Committed snapshot — 26 paths, 35 operations |
 
 Both auth schemes are documented in the spec (`UserJWT`, `DeviceToken`), so the
 Pi/frontend contract is self-describing.
@@ -86,13 +85,10 @@ python scripts/export_openapi.py
   PostgreSQL and drive the real Pi `aiohttp` clients against live uvicorn
   servers (GPU mocked). They are gated on `PECK_TEST_DATABASE_URL`, so the
   default `pytest -q` never touches them.
-- The deterministic demo dataset is shared by both suites via
-  `backend/fixtures.py` (`seed_reference_data`). The larger, randomized web-app
-  dataset lives separately in `backend/seed.py` (`seed_demo_data`), which is
-  also what `DEMO_MODE` seeds at boot.
-- `integration_tests/test_contract_simulator.py` runs the simulator's real CLI
-  against a live server, so the Phase 5 seam is covered by the same mechanism as
-  the Pi's.
+- The deterministic test dataset is shared by both suites via
+  `backend/fixtures.py` (`seed_reference_data`). The larger, randomized dataset
+  for local web-app work lives separately in `backend/seed.py`
+  (`python -m backend.seed`).
 
 Commands for running them are in `CONTRIBUTING.md`.
 

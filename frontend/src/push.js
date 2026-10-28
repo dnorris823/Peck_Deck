@@ -1,6 +1,6 @@
 // Web push opt-in — FLEDGE Phase 7 (browser side).
 //
-// The fourth notification channel next to email and SMS, and the only one that
+// The second notification channel next to email, and the only one that
 // is per-*browser* rather than per-account: the subscription belongs to this
 // installation, so the toggle in Settings reflects what this browser has done,
 // not a column on the user row.

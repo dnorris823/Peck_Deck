@@ -23,7 +23,7 @@ npm run dev      # dev server on http://localhost:5173
 | File | Responsibility |
 |---|---|
 | `src/main.jsx` | React entry point |
-| `src/App.jsx` | Top-level routing, theming, live-alert toast |
+| `src/App.jsx` | Top-level routing and theming |
 | `src/Shell.jsx` | Sidebar nav, topbar, brand mark (`NAV`) |
 | `src/Icon.jsx` | Inline SVG icon set |
 | `src/BirdPlate.jsx` | Stylized field-guide bird silhouette plates |
@@ -65,7 +65,7 @@ python -m backend.seed
 cd frontend && npm run dev
 ```
 
-Demo login: **dom@peck.deck** / **peckdeck** (see `backend/seed.py`).
+Seeded login: **dom@peck.deck** / **peckdeck** (see `backend/seed.py`).
 
 Captured photos are stored as bytea and served by `GET /sightings/{id}/image`
 (auth required). The current design renders stylized SVG plates rather than the

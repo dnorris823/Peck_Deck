@@ -5,7 +5,7 @@ import { Icon } from "./Icon.jsx";
 import { Empty } from "./Empty.jsx";
 import { useDialog } from "./Modal.jsx";
 import { useData } from "./DataContext.jsx";
-import { fmtTime, fmtDateLabel } from "./data.js";
+import { downloadExport, fmtTime, fmtDateLabel } from "./data.js";
 
 // Inclusive lower bound (ms since epoch) for a named range, or 0 for "all time".
 export function rangeCutoff(range, now = Date.now()) {
@@ -123,6 +123,42 @@ export function SightingDetail({ s, onClose }) {
   );
 }
 
+// Downloads every sighting the signed-in user can see as CSV. The endpoint needs
+// the Bearer token, so this fetches a blob and clicks a temporary link.
+function ExportCsvButton() {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function run() {
+    setBusy(true);
+    setError(null);
+    try {
+      const { blob, filename } = await downloadExport({ fmt: "csv" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e.message || "Export failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <button type="button" className="btn ghost sm" disabled={busy} onClick={run}>
+        {busy ? "Preparing…" : "Export CSV"}
+      </button>
+      {error && <div className="field-help" style={{ color: "var(--cardinal)" }} role="alert">{error}</div>}
+    </div>
+  );
+}
+
 export function Sightings({ openSighting }) {
   const { data } = useData();
   const { SIGHTINGS, SPECIES, DEVICES } = data;
@@ -156,6 +192,7 @@ export function Sightings({ openSighting }) {
               of {SIGHTINGS.length}
             </span>
           </div>
+          <ExportCsvButton />
         </div>
       </div>
 

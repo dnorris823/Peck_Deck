@@ -62,13 +62,13 @@ def _fresh_device_token() -> str:
                         name="PG Upload Owner",
                         email=f"pg_{secrets.token_hex(4)}@test.dev",
                         password_hash="x", role="owner",
-                        notify_email=False, notify_sms=False,
+                        notify_email=False,
                     )
                     db.add(u)
                     await db.flush()
                     token = secrets.token_urlsafe(12)
                     db.add(Device(name="PG Upload Device", owner_id=u.id,
-                                  classification_tier="auto", token=token))
+                                  token=token))
                     return token
         finally:
             await engine.dispose()

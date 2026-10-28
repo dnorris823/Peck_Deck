@@ -63,13 +63,13 @@ async def seed_reference_data(db: AsyncSession) -> dict:
 
     owner = User(
         name="Owner One", email="owner@test.dev",
-        password_hash=hash_password(OWNER_PASSWORD), phone="+15550001",
-        role="owner", notify_email=True, notify_sms=True,
+        password_hash=hash_password(OWNER_PASSWORD),
+        role="owner", notify_email=True,
     )
     viewer = User(
         name="Viewer Two", email="viewer@test.dev",
-        password_hash=hash_password(VIEWER_PASSWORD), phone=None,
-        role="viewer", notify_email=True, notify_sms=False,
+        password_hash=hash_password(VIEWER_PASSWORD),
+        role="viewer", notify_email=True,
     )
     db.add_all([owner, viewer])
     await db.flush()
@@ -81,13 +81,13 @@ async def seed_reference_data(db: AsyncSession) -> dict:
     await db.flush()
 
     dev1 = Device(name="Dev One", city="Burlington", state="VT", owner_id=owner.id,
-                  classification_tier="auto", feed_type="sunflower", token=DEV1_TOKEN,
+                  feed_type="sunflower", token=DEV1_TOKEN,
                   battery=0.8, signal="good", last_seen=now)                       # online
     dev2 = Device(name="Dev Two", city="Stowe", state="VT", owner_id=owner.id,
-                  classification_tier="gpu", feed_type="nyjer", token=DEV2_TOKEN,
+                  feed_type="nyjer", token=DEV2_TOKEN,
                   battery=0.5, signal="good", last_seen=now - timedelta(minutes=40))  # offline
     dev3 = Device(name="Dev Three", city="Essex", state="VT", owner_id=owner.id,
-                  classification_tier="local", feed_type="suet", token=DEV3_TOKEN,
+                  feed_type="suet", token=DEV3_TOKEN,
                   battery=0.15, signal="good", last_seen=now)                      # warn (low battery)
     db.add_all([dev1, dev2, dev3])
     await db.flush()
