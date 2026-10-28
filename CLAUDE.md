@@ -69,13 +69,20 @@ derivable by reading the code or running `ls`, it does not belong here.
 
 ## Classification tiers
 
-The current direction: the Pi decides bird or no bird with the camera, and every
-bird capture goes to Tier 2 on the gaming PC. Tier 3 stays in the code, off by
-default. The tier chain below is what the code does today.
+The Pi decides bird or no bird with the camera, and every bird capture goes to
+Tier 2 on the gaming PC. Tier 3 stays in the code, off by default.
 
 Tier 1 runs TFLite on the Pi. Tier 2 is the LAN GPU server at `POST /classify`.
-Tier 3 relays through the backend to the Claude API. The Pi falls back from 1 to 2
-to 3 on availability and confidence.
+Tier 3 relays through the backend to the Claude API. `TIER_PREFERENCE` sets the
+order, and a tier that fails or falls below its threshold hands over to the next.
+The default `gpu` runs Tier 2, then Tier 1, and never calls Claude. Only `auto`
+(1, 2, 3) and `cloud` (3, 2, 1) reach Tier 3. An unknown value refuses to start,
+because it used to fall through to `auto` and turn on paid calls. The full table
+is in `SETUP.md` §7.
+
+**A capture is never discarded for want of a species.** If every tier fails, the
+Pi uploads or queues it as "Unknown" with tier `none`. The camera already
+decided it was a bird.
 
 **Thresholds are per tier, and measured.** `DEFAULT_TIER_THRESHOLDS` in
 `raspberry_pi_code/config.py` holds local 0.85, gpu 0.60, cloud 0.50. A single 0.5

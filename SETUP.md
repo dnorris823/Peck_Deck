@@ -135,7 +135,37 @@ Tier 1 local classification and offline queuing work without it.
 - Tier 2 is the main classifier. It runs on the gaming PC from `inference_server/`.
   `CONTRIBUTING.md` has the commands and the cu128 PyTorch note for the RTX 5080.
 - Set `INFERENCE_SERVER_URL` in `.env` to the gaming PC's LAN address, port 8001.
-- `TIER_PREFERENCE=gpu` sends captures to Tier 2 first.
+
+### Tier order
+
+`TIER_PREFERENCE` in `raspberry_pi_code/.env` sets the order the Pi tries the tiers in.
+A tier that fails, or answers below its threshold, hands the capture to the next one.
+
+| Value | Order | Calls Claude |
+|---|---|---|
+| `gpu` (default) | Tier 2, then Tier 1 | No |
+| `auto` | Tier 1, then Tier 2, then Tier 3 | Yes |
+| `cloud` | Tier 3, then Tier 2, then Tier 1 | Yes |
+| `local` | Tier 1 only | No |
+
+Any other value refuses to start.
+
+If every tier fails, the Pi still uploads the capture, or queues it. The sighting
+has species "Unknown" and tier `none`.
+
+### Turn Tier 3 on
+
+Tier 3 is off by default. To turn it on:
+
+1. Set `ANTHROPIC_API_KEY` in the backend's `.env` on the gaming PC, and restart the
+   backend. Without it, the backend's `POST /classify` returns 503, and the Pi moves
+   on to the next tier.
+2. Set `TIER_PREFERENCE=auto` or `TIER_PREFERENCE=cloud` in `raspberry_pi_code/.env`,
+   and restart the Pi service.
+
+Each Tier 3 call is a paid Claude API call. With `auto`, the Pi calls Claude only
+when Tier 1 and Tier 2 both fall short. With `cloud`, it calls Claude for every
+capture.
 
 ---
 
@@ -256,6 +286,6 @@ raise it. Record what you changed and why.
 | Tier 1 local classification | Model + taxonomy files (§2) |
 | Posting sightings to backend | Backend built + device token (§6) |
 | Tier 2 GPU classification | GPU inference server running on the gaming PC (§7) |
-| Tier 3 cloud classification | Backend built, Claude API key configured in backend `.env` |
+| Tier 3 cloud classification | Backend built, `ANTHROPIC_API_KEY` in backend `.env`, `TIER_PREFERENCE=auto` or `cloud` (§7) |
 | Offline sync | Backend reachable (§6, §8) |
 | Auto-start on boot | systemd unit installed (§9) |

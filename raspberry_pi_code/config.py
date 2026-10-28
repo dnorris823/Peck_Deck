@@ -49,7 +49,7 @@ class Config:
     inference_server_url: str = os.getenv("INFERENCE_SERVER_URL", "http://192.168.1.100:8001")
 
     # Classification
-    tier_preference: str = os.getenv("TIER_PREFERENCE", "auto")  # local|gpu|cloud|auto
+    tier_preference: str = os.getenv("TIER_PREFERENCE", "gpu")  # gpu|auto|cloud|local
     # Per-tier escalation thresholds; None means "use the default for that tier".
     tier1_confidence_threshold: float | None = _opt_float("TIER1_CONFIDENCE_THRESHOLD")
     tier2_confidence_threshold: float | None = _opt_float("TIER2_CONFIDENCE_THRESHOLD")

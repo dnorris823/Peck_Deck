@@ -86,13 +86,13 @@ Peck Deck is a smart bird feeder system that automatically detects bird visits, 
 
 Every capture with a bird goes to Tier 2 on the gaming PC. Tier 2 is the main classifier. Tier 3 stays available but is off by default. Tier 1 is no longer the first stop.
 
-The code today still runs the tiers in order, 1 then 2 then 3, falling back on availability and confidence. Changing that is a code task in `README.md`.
+By default the Pi sends each capture to Tier 2, and falls back to Tier 1 on failure or low confidence. It never calls Tier 3 unless `TIER_PREFERENCE` turns it on. `SETUP.md` §7 lists the tier orders and how to turn Tier 3 on. If every tier fails, the Pi still uploads the capture, or queues it, with species "Unknown".
 
 #### Tier 1 — Local (On-Device, Pi)
 - Model: INatVision TFLite (quantized, runs on Pi CPU)
 - No network required.
 - Fastest response; lower accuracy ceiling.
-- Used when offline or when configured as the preferred tier.
+- Used when Tier 2 fails or answers below its threshold, or when configured as the preferred tier.
 
 #### Tier 2 — LAN Inference Server (Gaming PC GPU)
 - Model: Larger PyTorch model served over local WiFi from the gaming PC (RTX 5080).
@@ -103,7 +103,7 @@ The code today still runs the tiers in order, 1 then 2 then 3, falling back on a
 #### Tier 3 — Cloud (Claude API)
 - Model: Claude (Anthropic) multimodal API.
 - Highest accuracy; requires internet access and a configured API key / account.
-- Used as a fallback or for difficult identifications.
+- Off by default. When turned on, used as a fallback or for difficult identifications.
 - Each classification tier returns: `common_name`, `scientific_name`, `confidence_score`.
 
 ### 5.3 Media Storage & Upload
