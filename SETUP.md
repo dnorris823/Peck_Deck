@@ -292,6 +292,31 @@ python -m raspberry_pi_code.main
 If the photo never fires, lower `CAMERA_DETECTION_THRESHOLD`. If the hand fires,
 raise it. Record what you changed and why.
 
+### Point the detector at the feeder
+
+The 120 degree camera sees far more than the feeder. The detector shrinks
+whatever it gets to 320x320, so a bird in the full 1920x1080 frame is only a few
+pixels wide. Set `CAMERA_ROI` to the feeder's region, as fractions of the frame:
+`x,y,width,height`. For example, `0.25,0.25,0.5,0.5` is the middle half. The
+detector runs on that crop of the main stream, and the motion check uses the same
+region of the lores frame. Motion outside it no longer wakes the detector.
+
+Unset means the full frame. A value that is not four numbers, or that does not
+fit inside the frame, stops the service at start with a `CAMERA_ROI` error. The
+detector squashes the crop to a square, so a crop close to square distorts the
+bird least. The captured image is not cropped. Tier 2 still gets the full frame.
+
+To find the numbers, stop the service, because the camera has one owner. Take a
+still with `rpicam-still -o roi.jpg`. Read the feeder's corners in pixels, then
+divide by the image width and height. The fractions do not depend on the image
+size, because every stream sees the same field of view.
+
+### Detector threads
+
+`DETECTOR_THREADS` sets the TFLite interpreter's thread count. The default 4
+uses all four Pi 5 cores. On the Pi 5, one detection took 138 ms on one thread
+and 63 ms on four. The startup log line `Bird detector loaded` shows the count.
+
 ---
 
 ## Quick reference — what blocks what

@@ -27,9 +27,12 @@ class BirdDetector:
     COCO models follow it.
     """
 
-    def __init__(self, model_path: str, score_threshold: float):
+    def __init__(self, model_path: str, score_threshold: float, num_threads: int = 4):
+        if num_threads < 1:
+            raise ValueError(f"DETECTOR_THREADS must be 1 or more, got {num_threads}")
         self._model_path = model_path
         self._threshold = score_threshold
+        self._num_threads = num_threads
         self._interp = None
         self._input: dict | None = None
         self._classes: dict | None = None
@@ -47,7 +50,11 @@ class BirdDetector:
         tflite = import_tflite()
         if tflite is None:
             return False
-        return self.attach(tflite.Interpreter(model_path=self._model_path))
+        # TFLite runs on one thread unless told otherwise. All three runtimes in
+        # tflite_loader accept num_threads.
+        return self.attach(
+            tflite.Interpreter(model_path=self._model_path, num_threads=self._num_threads)
+        )
 
     def attach(self, interpreter) -> bool:
         """Use an interpreter that is already built. Tests pass a fake here."""
@@ -70,8 +77,8 @@ class BirdDetector:
         self._input = inp
         _, self._classes, self._scores, self._count = outputs
         logger.info(
-            "Bird detector loaded (input %s, score threshold %.2f)",
-            tuple(inp["shape"]), self._threshold,
+            "Bird detector loaded (input %s, score threshold %.2f, %d threads)",
+            tuple(inp["shape"]), self._threshold, self._num_threads,
         )
         return True
 

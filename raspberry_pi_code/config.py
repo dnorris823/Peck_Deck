@@ -1,5 +1,6 @@
+import math
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -37,6 +38,39 @@ def _opt_float(name: str) -> float | None:
     from "set to the same value the default happens to be"."""
     raw = os.getenv(name)
     return float(raw) if raw not in (None, "") else None
+
+
+FULL_FRAME: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)
+
+
+def parse_roi(raw: str | None) -> tuple[float, float, float, float]:
+    """Parse CAMERA_ROI: "x,y,width,height" as fractions of the frame.
+
+    Unset or empty means the full frame. Anything else that does not describe
+    a region inside the frame raises ValueError, so the Pi refuses to start
+    rather than watch the wrong part of the picture.
+    """
+    if raw is None or raw.strip() == "":
+        return FULL_FRAME
+    parts = raw.split(",")
+    try:
+        x, y, w, h = (float(p) for p in parts)
+    except ValueError:
+        raise ValueError(
+            f"CAMERA_ROI must be four numbers x,y,width,height, got {raw!r}"
+        ) from None
+    if not all(math.isfinite(v) for v in (x, y, w, h)):
+        raise ValueError(f"CAMERA_ROI must be finite numbers, got {raw!r}")
+    if x < 0 or y < 0 or w <= 0 or h <= 0:
+        raise ValueError(
+            f"CAMERA_ROI needs x and y of 0 or more and a width and height above 0, "
+            f"got {raw!r}"
+        )
+    # A small tolerance, so "0.3,0.2,0.7,0.8" is not refused for float rounding.
+    if x + w > 1 + 1e-9 or y + h > 1 + 1e-9:
+        raise ValueError(f"CAMERA_ROI must lie inside the frame (x+width and "
+                         f"y+height at most 1), got {raw!r}")
+    return (x, y, w, h)
 
 
 @dataclass
@@ -82,6 +116,14 @@ class Config:
     camera_visit_gap_seconds: float = float(os.getenv("CAMERA_VISIT_GAP_SECONDS", "15"))
     # Analysis ticks per second. The motion check runs on every tick.
     camera_analysis_fps: float = float(os.getenv("CAMERA_ANALYSIS_FPS", "5"))
+    # The feeder's region, as fractions of the frame. The detector and the motion
+    # check see only this crop. Parsed when Config() is built, so a bad value
+    # stops the service at start.
+    camera_roi: tuple[float, float, float, float] = field(
+        default_factory=lambda: parse_roi(os.getenv("CAMERA_ROI"))
+    )
+    # TFLite interpreter threads for the bird detector. The Pi 5 has four cores.
+    detector_threads: int = int(os.getenv("DETECTOR_THREADS", "4"))
 
     # Camera
     image_width: int = int(os.getenv("IMAGE_WIDTH", "1920"))
