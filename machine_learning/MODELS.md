@@ -163,8 +163,9 @@ cheaper. See `docs/archive/OUTDOOR_DEPLOYMENT.md` for where the camera actually 
 
 ### Calibration — the part that changes product behaviour
 
-The pipeline escalates Tier 1 → 2 → 3 when confidence falls below
-`CONFIDENCE_THRESHOLD` (0.5, in `raspberry_pi_code/config.py`). That design is
+The pipeline escalates to the next tier when confidence falls below a threshold.
+It used to use one global `CONFIDENCE_THRESHOLD` of 0.5 for every tier. That
+setting is gone, and each tier now has its own threshold. The design is
 only sound if wrong answers arrive with *low* confidence. A tier that is
 confidently wrong never escalates: the app shows the wrong bird, as fact, with
 nothing anywhere indicating doubt.

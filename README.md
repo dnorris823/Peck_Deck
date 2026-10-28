@@ -27,17 +27,23 @@ when Tier 2 fails. `SETUP.md` §7 has the tier orders and how to turn Tier 3 on.
   provisioning.
 - CI with backend, frontend and integration tests.
 
-Measured accuracy on 300 field photos is in `machine_learning/MODELS.md`. No real
-bird has been photographed at a real feeder yet.
+Measured accuracy on 300 field photos is in `machine_learning/MODELS.md`.
+
+On 2026-10-28 the whole chain ran once on the desk. The camera trigger saw a phone
+photo of a house finch, Tier 2 on the 5080 named it House Finch at 63%, and the
+sighting reached the app. No real bird has been photographed at a real feeder yet.
 
 ## Next
 
-The [Windowsill milestone](https://github.com/dnorris823/Peck_Deck/milestone/1) tracks these:
+The [Windowsill milestone](https://github.com/dnorris823/Peck_Deck/milestone/1) tracks what is left:
 
-1. [Add a camera trigger](https://github.com/dnorris823/Peck_Deck/issues/61)
-2. [Send every bird capture to Tier 2](https://github.com/dnorris823/Peck_Deck/issues/62)
-3. [Put the Pi at the window](https://github.com/dnorris823/Peck_Deck/issues/63)
-4. [Tune the detector and camera focus from real captures](https://github.com/dnorris823/Peck_Deck/issues/64)
+1. [Classify the detector's crop, not the whole frame](https://github.com/dnorris823/Peck_Deck/issues/77)
+2. [Put the Pi at the window](https://github.com/dnorris823/Peck_Deck/issues/63)
+3. [Tune the detector and camera focus from real captures](https://github.com/dnorris823/Peck_Deck/issues/64)
+
+The first is code. The other two need the Pi mounted and a feeder outside.
+Smaller cleanups without a milestone are in the
+[open issues](https://github.com/dnorris823/Peck_Deck/issues).
 
 ## Where things are
 
