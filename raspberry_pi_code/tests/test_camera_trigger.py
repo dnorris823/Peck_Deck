@@ -5,6 +5,7 @@ the Pi covers the hardware.
 """
 import asyncio
 import os
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -12,7 +13,7 @@ import pytest
 from raspberry_pi_code.camera.base import CameraBase
 from raspberry_pi_code.config import Config
 from raspberry_pi_code.main import _build_trigger
-from raspberry_pi_code.pipeline import Pipeline
+from raspberry_pi_code.pipeline import Capture, Pipeline
 from raspberry_pi_code.trigger.bird_detector import BIRD_CLASS_ID, BirdDetector
 from raspberry_pi_code.trigger.camera_trigger import (
     CameraTrigger,
@@ -541,8 +542,9 @@ def _counting_pipeline(tmp_path, **kwargs) -> tuple[Pipeline, list]:
 
     async def fake_capture():
         captures.append(1)
+        return Capture(f"e{len(captures)}", "2026-10-28T12:00:00+00:00", Path("x.jpg"))
 
-    pipeline._capture_and_process = fake_capture
+    pipeline._capture = fake_capture
     return pipeline, captures
 
 
@@ -578,10 +580,5 @@ def test_pipeline_captures_through_the_shared_camera(tmp_path):
     )
     pipeline._cache.setup()
 
-    async def no_result(image_path):
-        return None
-
-    pipeline._classify = no_result
-
-    asyncio.run(pipeline._capture_and_process())
+    asyncio.run(pipeline._capture())
     assert len(camera.captured) == 1

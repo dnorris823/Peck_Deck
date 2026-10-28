@@ -259,6 +259,11 @@ class _RecordingClient:
         return self.outcome
 
 
+async def _capture_and_process(pipeline: Pipeline) -> None:
+    """One visit, start to finish, without the background worker."""
+    await pipeline._process(await pipeline._capture())
+
+
 def _dead_chain_pipeline(tmp_path, outcome: UploadOutcome) -> tuple[Pipeline, _RecordingClient]:
     """Default config, Tier 1's model file missing, Tier 2 unreachable."""
     cfg = Config(
@@ -278,7 +283,7 @@ def _dead_chain_pipeline(tmp_path, outcome: UploadOutcome) -> tuple[Pipeline, _R
 def test_capture_uploads_with_no_species_when_every_tier_fails(tmp_path):
     pipeline, client = _dead_chain_pipeline(tmp_path, UploadOutcome.OK)
 
-    asyncio.run(pipeline._capture_and_process())
+    asyncio.run(_capture_and_process(pipeline))
 
     assert len(client.posts) == 1, "the visit must not be discarded"
     post = client.posts[0]
@@ -292,7 +297,7 @@ def test_capture_uploads_with_no_species_when_every_tier_fails(tmp_path):
 def test_capture_queues_with_no_species_when_every_tier_and_the_backend_fail(tmp_path):
     pipeline, client = _dead_chain_pipeline(tmp_path, UploadOutcome.RETRY)
 
-    asyncio.run(pipeline._capture_and_process())
+    asyncio.run(_capture_and_process(pipeline))
 
     queued = pipeline._cache.get_pending()
     assert len(queued) == 1

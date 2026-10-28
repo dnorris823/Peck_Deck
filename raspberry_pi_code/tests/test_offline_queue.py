@@ -137,7 +137,7 @@ def test_in_flight_capture_survives_a_full_queue(tmp_path):
         cache.enqueue(_queued(f"queued{i}", path))
 
     in_flight = _add_image(cache, "inflight", mtime=3000)
-    cache.evict_if_needed(protect=in_flight)
+    cache.evict_if_needed(protect=[in_flight])
 
     assert in_flight.exists(), "the capture being classified was evicted mid-flight"
     assert len(cache.get_pending()) == 2

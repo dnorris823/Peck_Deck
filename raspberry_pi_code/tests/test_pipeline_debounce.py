@@ -4,9 +4,10 @@
 when the service starts. The first trigger must capture whatever the clock says.
 """
 import asyncio
+from pathlib import Path
 
 from raspberry_pi_code.config import Config
-from raspberry_pi_code.pipeline import Pipeline
+from raspberry_pi_code.pipeline import Capture, Pipeline
 
 
 def _triggers_at(tmp_path, times: list[float]) -> int:
@@ -18,8 +19,9 @@ def _triggers_at(tmp_path, times: list[float]) -> int:
 
     async def fake_capture():
         captures.append(1)
+        return Capture(f"e{len(captures)}", "2026-10-28T12:00:00+00:00", Path("x.jpg"))
 
-    pipeline._capture_and_process = fake_capture
+    pipeline._capture = fake_capture
 
     async def run():
         loop = asyncio.get_running_loop()

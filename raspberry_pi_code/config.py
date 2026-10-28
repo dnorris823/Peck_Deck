@@ -58,9 +58,11 @@ class Config:
     # should not be overridden by a default — but it now applies only to tiers with
     # no per-tier value, and Pipeline logs a warning when it is in play.
     confidence_threshold: float | None = _opt_float("CONFIDENCE_THRESHOLD")
-    tier2_request_timeout: int = int(os.getenv("TIER2_REQUEST_TIMEOUT", "30"))
-    # Keep below debounce_seconds: an unreachable backend must not stall the
-    # pipeline past the next trigger.
+    # Tier 2 is on the LAN and a healthy GPU answers in well under a second.
+    # Past 5 s it is down, and Tier 1 should answer instead.
+    tier2_request_timeout: int = int(os.getenv("TIER2_REQUEST_TIMEOUT", "5"))
+    # Every capture waiting in the classify queue waits this long behind an
+    # unreachable backend, so keep it short.
     tier3_request_timeout: int = int(os.getenv("TIER3_REQUEST_TIMEOUT", "25"))
     backend_connect_timeout: int = int(os.getenv("BACKEND_CONNECT_TIMEOUT", "10"))
     backend_upload_timeout: int = int(os.getenv("BACKEND_UPLOAD_TIMEOUT", "60"))
@@ -92,6 +94,9 @@ class Config:
     # Queued sightings are protected from image eviction, so this — not
     # max_cache_images — is what bounds the cache during a long outage.
     max_queued_sightings: int = int(os.getenv("MAX_QUEUED_SIGHTINGS", "200"))
+    # Captures waiting for classify and upload. Past this, a new capture goes to
+    # the offline queue unclassified. Waiting images are kept from eviction too.
+    classify_queue_size: int = int(os.getenv("CLASSIFY_QUEUE_SIZE", "4"))
 
     # ML models (default: relative to project root). scripts/fetch_models.py
     # writes the Tier 1 model to this default path.
