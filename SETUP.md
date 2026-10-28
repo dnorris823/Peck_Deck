@@ -173,8 +173,24 @@ capture.
 
 - [ ] Pi connected to home WiFi (run `sudo raspi-config` → System → Wireless LAN).
 - [ ] Gaming PC and Pi are on the same subnet.
-- [ ] Gaming PC's firewall allows inbound TCP on port 8000 (backend) and 8001 (inference server).
-- [ ] Confirm reachability: `ping <gaming-pc-ip>` from the Pi.
+- [ ] The gaming PC has a fixed LAN address, so the Pi's `.env` never goes stale. Set a DHCP
+      reservation on the router. On the eero, use the eero app: Settings → Network settings →
+      Reservations & port forwarding → Add a reservation. The PC shows up under its Windows
+      computer name. In this setup the reserved address is `192.168.4.55`.
+- [ ] `BACKEND_URL` and `INFERENCE_SERVER_URL` in the Pi's `.env` use that address, on ports
+      8000 and 8001.
+- [ ] Confirm reachability from the Pi, with the backend and Tier 2 running on the gaming PC:
+
+  ```bash
+  curl -m 5 http://<gaming-pc-ip>:8000/ready
+  curl -m 5 http://<gaming-pc-ip>:8001/health
+  ```
+
+  Both should answer in milliseconds. A timeout usually means the server is not running.
+  Windows Firewall drops packets to a closed port without a reply, so a stopped server looks
+  the same as a blocked one. Check the server first. Add an inbound rule for TCP 8000 and 8001
+  on the Private profile only if a running server still times out. On 2026-10-28 no rule was
+  needed.
 
 ---
 
