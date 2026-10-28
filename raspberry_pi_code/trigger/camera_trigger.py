@@ -9,6 +9,10 @@ Each analysis tick runs three steps:
 3. Visit rule. A bird detection fires a trigger event only if no bird was
    detected in the previous ``quiet_gap_seconds``.
 
+The motion check and the detector see only the region of interest,
+``CAMERA_ROI``. It is in fractions of the frame, so one setting crops both the
+lores and the main stream.
+
 The visit rule is the only repeat rule for this trigger. ``main.py`` sets the
 pipeline's own debounce to 0 when this trigger runs, so the two cannot disagree.
 """
@@ -21,6 +25,7 @@ from typing import Callable
 import numpy as np
 
 from ..camera.base import CameraBase
+from ..config import FULL_FRAME
 from .base import TriggerBase
 from .bird_detector import BirdDetector
 
@@ -29,6 +34,23 @@ logger = logging.getLogger(__name__)
 # A pixel counts as changed when its grey level moves by more than this. It sits
 # above sensor noise on the lores stream and below a bird's edge contrast.
 PIXEL_DELTA = 25
+
+
+def crop(frame: np.ndarray, roi: tuple[float, float, float, float]) -> np.ndarray:
+    """Return the part of ``frame`` that ``roi`` covers, as a view.
+
+    ``roi`` is (x, y, width, height) in fractions of the frame. Edges round to
+    the nearest pixel, and the crop is never less than one pixel each way.
+    """
+    if roi == FULL_FRAME:
+        return frame
+    x, y, w, h = roi
+    frame_h, frame_w = frame.shape[:2]
+    x0 = min(int(round(x * frame_w)), frame_w - 1)
+    y0 = min(int(round(y * frame_h)), frame_h - 1)
+    x1 = max(int(round((x + w) * frame_w)), x0 + 1)
+    y1 = max(int(round((y + h) * frame_h)), y0 + 1)
+    return frame[y0:y1, x0:x1]
 
 
 class MotionDetector:
@@ -84,6 +106,7 @@ class CameraTrigger(TriggerBase):
         motion_threshold: float,
         quiet_gap_seconds: float,
         analysis_fps: float,
+        roi: tuple[float, float, float, float] = FULL_FRAME,
         clock: Callable[[], float] = time.monotonic,
     ):
         if analysis_fps <= 0:
@@ -93,6 +116,7 @@ class CameraTrigger(TriggerBase):
         self._motion = MotionDetector(motion_threshold)
         self._visits = VisitTracker(quiet_gap_seconds)
         self._interval = 1.0 / analysis_fps
+        self._roi = roi
         self._clock = clock
         self._queue: asyncio.Queue[float] = asyncio.Queue()
         self._task: asyncio.Task | None = None
@@ -135,7 +159,7 @@ class CameraTrigger(TriggerBase):
         gray = await self._camera.grab_gray()
         if gray is None:
             return False
-        moved = self._motion.update(gray)
+        moved = self._motion.update(crop(gray, self._roi))
 
         # While a visit is open, run the detector even without motion. A bird
         # that sits still to eat is still there, and the visit must stay open.
@@ -145,7 +169,7 @@ class CameraTrigger(TriggerBase):
         rgb = await self._camera.grab_rgb()
         if rgb is None:
             return False
-        score = await asyncio.to_thread(self._detector.detect, rgb)
+        score = await asyncio.to_thread(self._detector.detect, crop(rgb, self._roi))
         if score is None:
             return False
 

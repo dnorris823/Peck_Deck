@@ -32,10 +32,15 @@ def _build_trigger(config: Config, camera: CameraBase) -> TriggerBase:
 
         return CameraTrigger(
             camera,
-            BirdDetector(config.detector_model_path, config.camera_detection_threshold),
+            BirdDetector(
+                config.detector_model_path,
+                config.camera_detection_threshold,
+                num_threads=config.detector_threads,
+            ),
             motion_threshold=config.camera_motion_threshold,
             quiet_gap_seconds=config.camera_visit_gap_seconds,
             analysis_fps=config.camera_analysis_fps,
+            roi=config.camera_roi,
         )
     if config.trigger_type == "ir_beam":
         from .trigger.ir_beam_trigger import IRBeamTrigger
@@ -84,12 +89,13 @@ async def _run() -> None:
     if config.trigger_type == "camera":
         logger.info(
             "Peck Deck Pi starting  [tier=%s  trigger=camera  visit_gap=%.0fs  "
-            "motion=%.3f  detect=%.2f  fps=%.1f]",
+            "motion=%.3f  detect=%.2f  fps=%.1f  roi=%s]",
             config.tier_preference,
             config.camera_visit_gap_seconds,
             config.camera_motion_threshold,
             config.camera_detection_threshold,
             config.camera_analysis_fps,
+            ",".join(f"{v:g}" for v in config.camera_roi),
         )
     else:
         logger.info(
