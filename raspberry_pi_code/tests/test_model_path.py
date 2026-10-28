@@ -18,7 +18,8 @@ def _fetch_models_filename() -> str:
     spec = importlib.util.spec_from_file_location("fetch_models", _FETCH_MODELS)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    return module.MODEL_FILENAME
+    (tier1,) = [m for m in module.MODELS if m.name == "tier1"]
+    return tier1.filename
 
 
 @pytest.mark.skipif("MODEL_PATH" in os.environ, reason="MODEL_PATH overrides the default")

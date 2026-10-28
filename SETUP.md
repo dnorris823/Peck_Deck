@@ -44,14 +44,8 @@ MODEL_PATH=/absolute/path/to/model.tflite
 TAXONOMY_PATH=/absolute/path/to/taxonomy.csv
 ```
 
-The camera trigger needs its own model, a COCO bird detector. Fetch it with the
-Tier 1 weights:
-
-```bash
-python scripts/fetch_models.py
-```
-
-It writes `machine_learning/efficientdet_lite0_detection.tflite` and checks its
+The camera trigger needs its own model, a COCO bird detector. The same
+`fetch_models.py` run writes `machine_learning/efficientdet_lite0_detection.tflite` and checks its
 digest. Override the path with `DETECTOR_MODEL_PATH`. Without the file, the service
 still starts, logs a warning, and the camera trigger fires no events.
 
