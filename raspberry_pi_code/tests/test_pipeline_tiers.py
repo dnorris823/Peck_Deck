@@ -13,6 +13,7 @@ from pathlib import Path
 
 import pytest
 
+from raspberry_pi_code.api_client import UploadOutcome
 from raspberry_pi_code.classification.base import ClassificationResult, ClassifierBase
 from raspberry_pi_code.config import Config
 from raspberry_pi_code.pipeline import Pipeline
@@ -220,3 +221,81 @@ def test_tier_preference_ordering(tmp_path, preference, expected):
     pipeline = Pipeline(cfg)
 
     assert [c.tier_name for c in pipeline._classifiers_for_preference()] == expected
+
+
+def test_default_preference_sends_captures_to_tier2_first(tmp_path):
+    """A Pi with a default .env asks the GPU first and never calls Claude."""
+    pipeline = Pipeline(Config(cache_dir=str(tmp_path / "cache")))
+
+    order = [c.tier_name for c in pipeline._classifiers_for_preference()]
+
+    assert order == ["gpu", "local"]
+
+
+@pytest.mark.parametrize("bad", ["", "GPU", "gpu ", "claude"])
+def test_unknown_tier_preference_refuses_to_start(tmp_path, bad):
+    """It used to fall through to "auto", so a typo turned on paid Claude calls."""
+    with pytest.raises(ValueError, match="TIER_PREFERENCE"):
+        Pipeline(Config(cache_dir=str(tmp_path / "cache"), tier_preference=bad))
+
+
+# ── Every tier down ──────────────────────────────────────────────────────────
+
+class _FileCamera:
+    """Writes a few bytes where the pipeline asks, like a real capture."""
+
+    async def capture(self, output_path: Path) -> Path:
+        output_path.write_bytes(b"\xff\xd8 not really a jpeg")
+        return output_path
+
+
+class _RecordingClient:
+    def __init__(self, outcome: UploadOutcome):
+        self.outcome = outcome
+        self.posts: list[dict] = []
+
+    async def post_sighting(self, **kwargs) -> UploadOutcome:
+        self.posts.append(kwargs)
+        return self.outcome
+
+
+def _dead_chain_pipeline(tmp_path, outcome: UploadOutcome) -> tuple[Pipeline, _RecordingClient]:
+    """Default config, Tier 1's model file missing, Tier 2 unreachable."""
+    cfg = Config(
+        cache_dir=str(tmp_path / "cache"),
+        device_token="t",
+        model_path=str(tmp_path / "no-such-model.tflite"),
+    )
+    pipeline = Pipeline(cfg, camera=_FileCamera())
+    pipeline.setup()  # Tier 1 fails to load here, as it does on the Pi
+    # GPUServerClassifier returns None on a refused connection or a timeout.
+    pipeline._tier2 = _StubClassifier("gpu", None)
+    client = _RecordingClient(outcome)
+    pipeline._client = client
+    return pipeline, client
+
+
+def test_capture_uploads_with_no_species_when_every_tier_fails(tmp_path):
+    pipeline, client = _dead_chain_pipeline(tmp_path, UploadOutcome.OK)
+
+    asyncio.run(pipeline._capture_and_process())
+
+    assert len(client.posts) == 1, "the visit must not be discarded"
+    post = client.posts[0]
+    assert post["common_name"] == "Unknown"
+    assert post["scientific_name"] == ""
+    assert post["confidence"] == 0.0
+    assert post["tier_used"] == "none"
+    assert pipeline._cache.get_pending() == []
+
+
+def test_capture_queues_with_no_species_when_every_tier_and_the_backend_fail(tmp_path):
+    pipeline, client = _dead_chain_pipeline(tmp_path, UploadOutcome.RETRY)
+
+    asyncio.run(pipeline._capture_and_process())
+
+    queued = pipeline._cache.get_pending()
+    assert len(queued) == 1
+    assert queued[0].common_name == "Unknown"
+    assert queued[0].tier_used == "none"
+    assert Path(queued[0].image_path).exists()

@@ -15,6 +15,17 @@ from .storage.local_cache import LocalCache, QueuedSighting
 
 logger = logging.getLogger(__name__)
 
+# What a capture carries when every tier in the chain failed. The backend files
+# it under an "Unknown" species, which is also what Tier 3 returns for no bird.
+_UNCLASSIFIED = ClassificationResult(
+    common_name="Unknown",
+    scientific_name="",
+    confidence=0.0,
+    tier_used="none",
+)
+
+TIER_PREFERENCES = ("gpu", "auto", "cloud", "local")
+
 
 class Pipeline:
     """Orchestrates trigger → capture → classify → upload/queue for each bird visit."""
@@ -33,6 +44,13 @@ class Pipeline:
         that applies its own repeat rule, like the camera trigger's quiet gap,
         passes 0, so only one rule decides what counts as a new visit.
         """
+        # An unknown value refuses to start. It used to fall through to the
+        # "auto" order, so a typo turned on paid Tier 3 calls.
+        if config.tier_preference not in TIER_PREFERENCES:
+            raise ValueError(
+                f"Unknown TIER_PREFERENCE {config.tier_preference!r}. "
+                f"Expected one of: {', '.join(TIER_PREFERENCES)}"
+            )
         self._cfg = config
         self._camera = camera
         self._debounce_seconds = (
@@ -59,7 +77,10 @@ class Pipeline:
     def setup(self) -> None:
         self._cache.setup()
         if not self._tier1.load():
-            logger.warning("Tier 1 classifier unavailable — will fall through to Tier 2/3")
+            logger.warning(
+                "Tier 1 classifier unavailable. The chain skips it (TIER_PREFERENCE=%s)",
+                self._cfg.tier_preference,
+            )
 
         # Log what the chain will actually enforce. The thresholds decide which
         # answers reach the user unchallenged, and until now nothing said out
@@ -160,8 +181,13 @@ class Pipeline:
 
         result = await self._classify(image_path)
         if result is None:
-            logger.error("All classifiers failed for event %s — sighting discarded", event_id)
-            return
+            # The trigger already decided this is a visit, so keep it. A tier
+            # outage must not lose sightings. It uploads, or queues, as "Unknown".
+            logger.error(
+                "All classifiers failed for event %s. Uploading it with no species",
+                event_id,
+            )
+            result = _UNCLASSIFIED
 
         logger.info(
             "Classified: %s (%.0f%%) [tier=%s]",
@@ -213,6 +239,7 @@ class Pipeline:
             return [self._tier2, self._tier1]
         if pref == "cloud":
             return [self._tier3, self._tier2, self._tier1]
+        # "auto". __init__ has already refused anything else.
         return [self._tier1, self._tier2, self._tier3]
 
     async def _classify(self, image_path: Path) -> ClassificationResult | None:

@@ -8,7 +8,7 @@ class ClassificationResult:
     common_name: str
     scientific_name: str
     confidence: float
-    tier_used: str  # "local" | "gpu" | "cloud"
+    tier_used: str  # "local" | "gpu" | "cloud", or "none" when every tier failed
 
 
 class ClassifierBase(ABC):
