@@ -11,7 +11,9 @@ Work through these in order — later sections depend on earlier ones.
 2. Fill in `BACKEND_URL` with the gaming PC's local IP and port (e.g., `http://192.168.1.100:8000`).
 3. Leave `DEVICE_TOKEN` alone — `scripts/provision_device.py` writes it, and rewrites it
    whenever it goes stale. See §6.
-4. Leave `TRIGGER_TYPE` alone for now. The plan replaces the GPIO triggers with a camera trigger, which is not built yet. See `README.md`.
+4. Leave `TRIGGER_TYPE` at its default, `camera`. The camera trigger watches the feed
+   and needs no extra hardware. `pir` and `ir_beam` still work if a GPIO sensor is
+   wired. Any other value stops the service at start with an error.
 
 ---
 
@@ -36,13 +38,24 @@ MODEL_PATH=/absolute/path/to/model.tflite
 TAXONOMY_PATH=/absolute/path/to/taxonomy.csv
 ```
 
+The camera trigger needs its own model, a COCO bird detector. Fetch it with the
+Tier 1 weights:
+
+```bash
+python scripts/fetch_models.py
+```
+
+It writes `machine_learning/efficientdet_lite0_detection.tflite` and checks its
+digest. Override the path with `DETECTOR_MODEL_PATH`. Without the file, the service
+still starts, logs a warning, and the camera trigger fires no events.
+
 ---
 
 ## 3. Pi hardware
 
 - [ ] Raspberry Pi 5 physically assembled.
 - [ ] Camera module connected (ribbon cable seated, locked).
-- [ ] No trigger peripheral. The camera trigger will replace it.
+- [ ] No trigger peripheral. The camera is the trigger.
 - [ ] Mains power at the window.
 - [ ] Camera port enabled in `raspi-config` → Interface Options → Camera.
 
@@ -211,10 +224,35 @@ sudo journalctl -u peck-deck -f   # live logs
 
 ---
 
+## 10. Desk test the camera trigger
+
+Run the service by hand with the camera pointed at an empty desk:
+
+```bash
+python -m raspberry_pi_code.main
+```
+
+1. Check the start-up log. It must show `Camera started`, `Bird detector loaded`,
+   and `Camera trigger active`. A `will fire no events` warning means picamera2 or
+   the detector model is missing.
+2. Leave the frame empty for a minute. Nothing must fire.
+3. Wave a hand through the frame. Nothing must fire.
+4. Hold a printed or on-screen bird photo up to the camera. The log must show
+   `Bird detected (score ...). Starting a new visit`, then a capture.
+5. Keep the photo there. No second capture must follow while it stays in view.
+6. Take it away for more than `CAMERA_VISIT_GAP_SECONDS` (15 s by default), then
+   show it again. That is a new visit and must capture again.
+
+If the photo never fires, lower `CAMERA_DETECTION_THRESHOLD`. If the hand fires,
+raise it. Record what you changed and why.
+
+---
+
 ## Quick reference — what blocks what
 
 | Feature | Blocked by |
 |---|---|
+| Camera trigger | Detector model (§2), picamera2 (§4) |
 | Tier 1 local classification | Model + taxonomy files (§2) |
 | Posting sightings to backend | Backend built + device token (§6) |
 | Tier 2 GPU classification | GPU inference server running on the gaming PC (§7) |
