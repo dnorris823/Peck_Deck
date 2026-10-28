@@ -66,9 +66,20 @@ class Config:
     backend_upload_timeout: int = int(os.getenv("BACKEND_UPLOAD_TIMEOUT", "60"))
 
     # Trigger
-    trigger_type: str = os.getenv("TRIGGER_TYPE", "pir")  # pir|ir_beam
+    trigger_type: str = os.getenv("TRIGGER_TYPE", "camera")  # camera|pir|ir_beam
+    # GPIO triggers only (pir, ir_beam).
     trigger_gpio_pin: int = int(os.getenv("TRIGGER_GPIO_PIN", "17"))
     debounce_seconds: float = float(os.getenv("DEBOUNCE_SECONDS", "30"))
+
+    # Camera trigger only. It replaces DEBOUNCE_SECONDS with the visit gap.
+    # Fraction of lores pixels (0 to 1) that must change before the detector runs.
+    camera_motion_threshold: float = float(os.getenv("CAMERA_MOTION_THRESHOLD", "0.01"))
+    # Detector score for "bird". See machine_learning/MODELS.md for the measurement.
+    camera_detection_threshold: float = float(os.getenv("CAMERA_DETECTION_THRESHOLD", "0.5"))
+    # One visit = the first bird detection after this many seconds with no bird.
+    camera_visit_gap_seconds: float = float(os.getenv("CAMERA_VISIT_GAP_SECONDS", "15"))
+    # Analysis ticks per second. The motion check runs on every tick.
+    camera_analysis_fps: float = float(os.getenv("CAMERA_ANALYSIS_FPS", "5"))
 
     # Camera
     image_width: int = int(os.getenv("IMAGE_WIDTH", "1920"))
@@ -90,6 +101,11 @@ class Config:
     taxonomy_path: str = os.getenv(
         "TAXONOMY_PATH",
         str(_ROOT / "machine_learning" / "taxonomy.csv"),
+    )
+    # COCO bird detector for the camera trigger. scripts/fetch_models.py writes it.
+    detector_model_path: str = os.getenv(
+        "DETECTOR_MODEL_PATH",
+        str(_ROOT / "machine_learning" / "efficientdet_lite0_detection.tflite"),
     )
 
     # Background sync
