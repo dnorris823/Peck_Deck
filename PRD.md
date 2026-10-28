@@ -76,8 +76,8 @@ Peck Deck is a smart bird feeder system that automatically detects bird visits, 
 
 ### 5.1 Trigger & Capture
 
-- The Pi watches the feeder with its camera and decides one thing: bird or no bird. A cheap motion check runs first, and a small detector (YOLO nano or similar) confirms a bird.
-- There is no separate trigger peripheral. The old PIR and IR beam triggers are still in the code until the camera trigger replaces them.
+- The Pi watches the feeder with its camera and decides one thing: bird or no bird. A cheap motion check runs first, and an EfficientDet-Lite0 detector trained on COCO confirms a bird.
+- There is no trigger peripheral. `TRIGGER_TYPE=camera` is the only valid value.
 - On trigger, the Pi camera captures one high-resolution still image (primary classification input).
 - **Video clips are deferred from the initial implementation.** A future release will add short clips (< 5 seconds). The Sightings data model includes a `video_path` field to avoid a schema migration later.
 - A short debounce window (configurable, default 30s) prevents duplicate captures for the same visit.
@@ -89,7 +89,7 @@ Every capture with a bird goes to Tier 2 on the gaming PC. Tier 2 is the main cl
 By default the Pi sends each capture to Tier 2, and falls back to Tier 1 on failure or low confidence. It never calls Tier 3 unless `TIER_PREFERENCE` turns it on. `SETUP.md` §7 lists the tier orders and how to turn Tier 3 on. If every tier fails, the Pi still uploads the capture, or queues it, with species "Unknown".
 
 #### Tier 1 — Local (On-Device, Pi)
-- Model: INatVision TFLite (quantized, runs on Pi CPU)
+- Model: Google AIY birds V1 TFLite (quantized, runs on Pi CPU)
 - No network required.
 - Fastest response; lower accuracy ceiling.
 - Used when Tier 2 fails or answers below its threshold, or when configured as the preferred tier.
@@ -304,9 +304,9 @@ alerts. Requires the service worker, so it is unavailable on a dev server.
 
 ## 9. Classification Model Details
 
-### Tier 1 — INatVision TFLite (On-Device)
+### Tier 1 — AIY birds V1 TFLite (On-Device)
 - Quantized 8-bit model designed for edge inference.
-- Trained on iNaturalist data; strong coverage of North American bird species.
+- 964 bird species plus a background class. Details and measured accuracy are in `machine_learning/MODELS.md`.
 - Input: 224×224 RGB image.
 - Output: species probability distribution; top prediction + confidence returned.
 - Taxonomy reference: `taxonomy.csv` maps model output indices to species names.
@@ -314,7 +314,7 @@ alerts. Requires the service worker, so it is unavailable on a dev server.
 ### Tier 2 — GPU Inference Server
 - Python HTTP service running on gaming PC, exposed on LAN.
 - Accepts multipart image upload, returns JSON prediction.
-- Model TBD (candidates: larger iNaturalist model, fine-tuned EfficientNet, or YOLO-based detector + classifier pipeline).
+- Model: ViT-L/14 fine-tuned on iNaturalist 2021 (`timm/vit_large_patch14_clip_336.laion2b_ft_augreg_inat21`), 10,000 species projected onto `taxonomy.csv`. Details are in `machine_learning/MODELS.md`.
 - RTX 5080 allows for real-time inference even on large models.
 
 ### Tier 3 — Claude API (Cloud)
