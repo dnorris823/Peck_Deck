@@ -93,10 +93,11 @@ class Config:
     # max_cache_images — is what bounds the cache during a long outage.
     max_queued_sightings: int = int(os.getenv("MAX_QUEUED_SIGHTINGS", "200"))
 
-    # ML models (default: relative to project root)
+    # ML models (default: relative to project root). scripts/fetch_models.py
+    # writes the Tier 1 model to this default path.
     model_path: str = os.getenv(
         "MODEL_PATH",
-        str(_ROOT / "machine_learning" / "INatVision_Small_2_fact256_8bit.tflite"),
+        str(_ROOT / "machine_learning" / "aiy_birds_V1_224_uint8.tflite"),
     )
     taxonomy_path: str = os.getenv(
         "TAXONOMY_PATH",
