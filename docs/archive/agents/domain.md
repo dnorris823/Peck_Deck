@@ -34,6 +34,11 @@ vocabulary currently lives.
 
 (ADR filenames above are illustrative — none are written yet.)
 
+## Writing style
+
+Vocabulary is only half of it. `docs/agents/writing.md` holds the sentence and
+punctuation rules that apply to every artifact this repo produces. Read both.
+
 ## Use the glossary's vocabulary
 
 When your output names a domain concept (in an issue title, a refactor proposal, a hypothesis, a test name), use the term as defined in `CONTEXT.md`. Don't drift to synonyms the glossary explicitly avoids.

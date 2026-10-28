@@ -11,7 +11,7 @@ Work through these in order — later sections depend on earlier ones.
 2. Fill in `BACKEND_URL` with the gaming PC's local IP and port (e.g., `http://192.168.1.100:8000`).
 3. Leave `DEVICE_TOKEN` alone — `scripts/provision_device.py` writes it, and rewrites it
    whenever it goes stale. See §6.
-4. Set `TRIGGER_TYPE` (`pir` or `ir_beam`) and `TRIGGER_GPIO_PIN` once hardware is decided.
+4. Leave `TRIGGER_TYPE` alone for now. The plan replaces the GPIO triggers with a camera trigger, which is not built yet. See `README.md`.
 
 ---
 
@@ -42,10 +42,8 @@ TAXONOMY_PATH=/absolute/path/to/taxonomy.csv
 
 - [ ] Raspberry Pi 5 physically assembled.
 - [ ] Camera module connected (ribbon cable seated, locked).
-- [ ] Trigger peripheral (PIR or IR beam break) wired to a GPIO pin and GND.
-  - PIR: signal wire → GPIO pin, pull-down resistor recommended (the code configures `PUD_DOWN`).
-  - IR beam: receiver output → GPIO pin (the code configures `PUD_UP` and listens for FALLING edge).
-- [ ] Battery pack connected and charged.
+- [ ] No trigger peripheral. The camera trigger will replace it.
+- [ ] Mains power at the window.
 - [ ] Camera port enabled in `raspi-config` → Interface Options → Camera.
 
 ---
@@ -119,11 +117,12 @@ Tier 1 local classification and offline queuing work without it.
 
 ---
 
-## 7. GPU inference server (Tier 2, blocked until M3)
+## 7. GPU inference server (Tier 2)
 
-- The gaming PC's GPU inference server (`inference_server/`) is not built yet (Milestone 3).
-- Set `TIER_PREFERENCE=local` in `.env` to skip Tier 2 until the server exists.
-- Once the server is running, update `INFERENCE_SERVER_URL` in `.env`.
+- Tier 2 is the main classifier. It runs on the gaming PC from `inference_server/`.
+  `CONTRIBUTING.md` has the commands and the cu128 PyTorch note for the RTX 5080.
+- Set `INFERENCE_SERVER_URL` in `.env` to the gaming PC's LAN address, port 8001.
+- `TIER_PREFERENCE=gpu` sends captures to Tier 2 first.
 
 ---
 
@@ -218,7 +217,7 @@ sudo journalctl -u peck-deck -f   # live logs
 |---|---|
 | Tier 1 local classification | Model + taxonomy files (§2) |
 | Posting sightings to backend | Backend built + device token (§6) |
-| Tier 2 GPU classification | GPU inference server built (§7) |
+| Tier 2 GPU classification | GPU inference server running on the gaming PC (§7) |
 | Tier 3 cloud classification | Backend built, Claude API key configured in backend `.env` |
 | Offline sync | Backend reachable (§6, §8) |
 | Auto-start on boot | systemd unit installed (§9) |

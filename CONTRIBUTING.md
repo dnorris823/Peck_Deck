@@ -42,6 +42,24 @@ npm run build      # production build (what CI checks)
 npm run dev        # local dev server
 ```
 
+**GPU inference server** (Tier 2). Run it from the project root, not from
+`inference_server/`. It needs direct GPU access, so it does not run in Docker.
+
+```bash
+pip install -r inference_server/requirements.txt
+python -m inference_server
+```
+
+The RTX 5080 is Blackwell (sm_120) and needs the cu128 wheels. The cu124 build
+has no sm_120 kernels and fails on this card:
+
+```bash
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+```
+
+Backups, migrations, health endpoints and the OpenAPI snapshot are in
+`docs/operations.md`.
+
 ## Recommended repository settings
 
 Enable branch protection on `main` (repo **Settings → Branches → Add rule**):
@@ -56,5 +74,5 @@ This keeps the freshly-promoted `main` from regressing.
 
 See `CLAUDE.md` for the project's architecture and coding conventions
 (async everywhere, bcrypt passwords, images as `bytea`, secrets in env vars,
-Litestar for the API vs. FastAPI for the inference server). The phased plan for
-outstanding work lives in `FLEDGE_ROADMAP.md`.
+Litestar for the API vs. FastAPI for the inference server). What comes next is
+in `README.md`.
