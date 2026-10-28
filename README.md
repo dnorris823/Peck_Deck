@@ -33,14 +33,12 @@ bird has been photographed at a real feeder yet.
 
 ## Next
 
-1. Replace the `pir` and `ir_beam` triggers with a camera trigger. Use a cheap
-   motion check first, then a small detector (YOLO nano or similar) to confirm a
-   bird.
-2. Send every bird capture straight to Tier 2 on the gaming PC.
-3. Leave Tier 3 in the code, off by default.
-4. Put the Pi at the window with a feeder outside. Look at real sightings in the
-   app.
-5. Tune the detector thresholds and the camera focus from what step 4 shows.
+The [Windowsill milestone](https://github.com/dnorris823/Peck_Deck/milestone/1) tracks these:
+
+1. [Add a camera trigger](https://github.com/dnorris823/Peck_Deck/issues/61)
+2. [Send every bird capture to Tier 2](https://github.com/dnorris823/Peck_Deck/issues/62)
+3. [Put the Pi at the window](https://github.com/dnorris823/Peck_Deck/issues/63)
+4. [Tune the detector and camera focus from real captures](https://github.com/dnorris823/Peck_Deck/issues/64)
 
 ## Where things are
 

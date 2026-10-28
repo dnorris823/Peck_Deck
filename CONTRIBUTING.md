@@ -76,3 +76,11 @@ See `CLAUDE.md` for the project's architecture and coding conventions
 (async everywhere, bcrypt passwords, images as `bytea`, secrets in env vars,
 Litestar for the API vs. FastAPI for the inference server). What comes next is
 in `README.md`.
+
+## Issues
+
+- One issue is one task. "Add a camera trigger" is an issue. "What counts as a
+  visit?" is not. Decide that inside the task, in a comment.
+- Use the Task template: what, why, done when.
+- Three labels: `bug`, `enhancement`, `hardware`.
+- A milestone groups the issues for one goal. `README.md` links the current one.
