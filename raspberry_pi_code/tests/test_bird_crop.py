@@ -208,7 +208,7 @@ class _RecordingClient:
 
 def _pipeline(tmp_path) -> tuple[Pipeline, list[_SizeRecordingTier], _RecordingClient]:
     cfg = Config(cache_dir=str(tmp_path / "cache"), device_token="t", classify_crop_margin=0.25)
-    pipeline = Pipeline(cfg, camera=_PhotoCamera(), debounce_seconds=0)
+    pipeline = Pipeline(cfg, camera=_PhotoCamera())
     pipeline._cache.setup()
     tiers = [_SizeRecordingTier("gpu"), _SizeRecordingTier("local")]
     pipeline._classifiers_for_preference = lambda: tiers
