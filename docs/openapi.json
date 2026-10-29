@@ -278,9 +278,6 @@
           "today_sightings": {
             "type": "integer"
           },
-          "token": {
-            "type": "string"
-          },
           "week_sightings": {
             "type": "integer"
           }
@@ -298,10 +295,25 @@
           "state",
           "status",
           "today_sightings",
-          "token",
           "week_sightings"
         ],
         "title": "DeviceResponse",
+        "type": "object"
+      },
+      "DeviceTokenResponse": {
+        "properties": {
+          "id": {
+            "type": "integer"
+          },
+          "token": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "token"
+        ],
+        "title": "DeviceTokenResponse",
         "type": "object"
       },
       "LoginRequest": {
@@ -439,6 +451,112 @@
           "password"
         ],
         "title": "RegisterUser",
+        "type": "object"
+      },
+      "RegisteredDeviceResponse": {
+        "properties": {
+          "all_time_sightings": {
+            "type": "integer"
+          },
+          "battery": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "city": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "feed_type": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "type": "integer"
+          },
+          "last_seen": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "owner_id": {
+            "type": "integer"
+          },
+          "signal": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "today_sightings": {
+            "type": "integer"
+          },
+          "token": {
+            "type": "string"
+          },
+          "week_sightings": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "all_time_sightings",
+          "battery",
+          "city",
+          "feed_type",
+          "id",
+          "last_seen",
+          "name",
+          "owner_id",
+          "signal",
+          "state",
+          "status",
+          "today_sightings",
+          "token",
+          "week_sightings"
+        ],
+        "title": "RegisteredDeviceResponse",
         "type": "object"
       },
       "SightingResponse": {
@@ -1099,7 +1217,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/DeviceResponse"
+                  "$ref": "#/components/schemas/RegisteredDeviceResponse"
                 }
               }
             },
@@ -1372,6 +1490,75 @@
           }
         },
         "summary": "Heartbeat"
+      }
+    },
+    "/devices/{device_id}/token": {
+      "get": {
+        "deprecated": false,
+        "operationId": "DevicesDeviceIdTokenGetToken",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceTokenResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "GetToken"
       }
     },
     "/devices/{device_id}/users": {

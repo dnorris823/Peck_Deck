@@ -158,7 +158,11 @@ def main() -> None:
         # device silently, and sightings split across two rows that both look
         # healthy in the app (#38).
         print(f"provision: matched existing device {name!r} (id {match['id']})")
-        device = match
+        # GET /devices carries no token, so a viewer on the feeder cannot read it.
+        # This route is owner only.
+        status, device = request("GET", f"{api}/devices/{match['id']}/token", token=jwt)
+        if status != 200:
+            fail(f"GET /devices/{match['id']}/token failed ({status}): {device}")
     else:
         known = ", ".join(repr(d.get("name")) for d in devices) or "none visible"
         print(f"provision: no device named {name!r} — registering. Visible: {known}")
