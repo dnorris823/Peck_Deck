@@ -70,8 +70,7 @@ class _RecordingClient:
 def _pipeline(tmp_path, **overrides) -> tuple[Pipeline, _FileCamera, _SlowTier2, _RecordingClient]:
     camera = _FileCamera()
     cfg = Config(cache_dir=str(tmp_path / "cache"), device_token="t", **overrides)
-    # The camera trigger's visit gap is the repeat rule, as in main.py.
-    pipeline = Pipeline(cfg, camera=camera, debounce_seconds=0)
+    pipeline = Pipeline(cfg, camera=camera)
     pipeline._cache.setup()
     tier2 = _SlowTier2()
     pipeline._classifiers_for_preference = lambda: [tier2]

@@ -1,8 +1,7 @@
 """Tier 3 timeout behaviour.
 
-An unreachable backend is routine at the feeder. It must (a) give up before the
-trigger debounce expires, so the Pi isn't still classifying when the next bird
-lands, and (b) degrade to None quietly rather than raising or logging a trace.
+An unreachable backend is routine at the feeder. It must degrade to None
+quietly rather than raising or logging a trace.
 """
 import asyncio
 import logging
@@ -24,15 +23,6 @@ def test_pipeline_passes_the_configured_timeout_to_tier3(tmp_path):
     pipeline = Pipeline(cfg)
 
     assert pipeline._tier3._timeout.total == 7
-
-
-def test_tier3_timeout_stays_under_the_trigger_debounce():
-    cfg = Config()
-
-    assert cfg.tier3_request_timeout < cfg.debounce_seconds, (
-        "a stalled Tier 3 must not outlast the debounce window, or the pipeline "
-        "is still busy when the next trigger fires"
-    )
 
 
 def test_timeout_returns_none_without_logging_a_traceback(tmp_path, caplog):

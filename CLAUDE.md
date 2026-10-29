@@ -54,9 +54,8 @@ derivable by reading the code or running `ls`, it does not belong here.
   both the trigger and the pipeline. picamera2 refuses a second open while the
   camera trigger streams, so new Pi code takes that instance and never opens its
   own. `PiCamera` serialises every request behind one lock.
-- The camera trigger's visit gap is its only repeat rule. `main.py` sets the
-  pipeline's `DEBOUNCE_SECONDS` to 0 for it, so the two rules cannot both drop a
-  visit.
+- The camera trigger's visit gap is the only repeat rule. The pipeline has none,
+  so it captures every trigger it receives.
 - Notifications are fire and forget. `asyncio.create_task()` in the sighting
   controller, and the notification service opens its own DB session.
 - **A push subscription row is the push opt-in.** There is no `notify_push` column

@@ -480,7 +480,7 @@ def test_zero_analysis_fps_is_rejected():
                       quiet_gap_seconds=15, analysis_fps=0)
 
 
-# ── _build_trigger and the debounce hand-off ──────────────────────────────────
+# ── _build_trigger and the pipeline's lack of a repeat rule ───────────────────
 
 
 def test_camera_is_the_default_trigger_type():
@@ -517,13 +517,9 @@ def test_unknown_trigger_type_refuses_to_start(bad):
         _build_trigger(Config(trigger_type=bad), FakeCamera())
 
 
-def test_the_camera_trigger_debounces_itself():
-    assert _build_trigger(Config(trigger_type="camera"), FakeCamera()).debounces_itself
-
-
 def _counting_pipeline(tmp_path, **kwargs) -> tuple[Pipeline, list]:
     pipeline = Pipeline(
-        Config(cache_dir=str(tmp_path / "cache"), device_token="t", debounce_seconds=30),
+        Config(cache_dir=str(tmp_path / "cache"), device_token="t"),
         **kwargs,
     )
     captures: list = []
@@ -536,22 +532,9 @@ def _counting_pipeline(tmp_path, **kwargs) -> tuple[Pipeline, list]:
     return pipeline, captures
 
 
-def test_pipeline_debounce_drops_a_quick_second_trigger(tmp_path):
-    pipeline, captures = _counting_pipeline(tmp_path)
-
-    async def run():
-        # Start the clock past the window, so the first trigger is not dropped.
-        pipeline._last_capture = asyncio.get_running_loop().time() - 100
-        await pipeline.handle_trigger()
-        await pipeline.handle_trigger()
-
-    asyncio.run(run())
-    assert len(captures) == 1
-
-
-def test_zero_debounce_lets_the_trigger_decide(tmp_path):
+def test_pipeline_captures_every_trigger(tmp_path):
     """The camera trigger's visit gap is the only repeat rule."""
-    pipeline, captures = _counting_pipeline(tmp_path, debounce_seconds=0)
+    pipeline, captures = _counting_pipeline(tmp_path)
 
     async def run():
         await pipeline.handle_trigger()

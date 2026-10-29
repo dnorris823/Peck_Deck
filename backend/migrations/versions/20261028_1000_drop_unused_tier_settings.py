@@ -2,7 +2,7 @@
 
 Drops four columns that the Pi never read. The Pi takes its tier order and
 thresholds from its own `.env` (`TIER_PREFERENCE`, `TIER*_CONFIDENCE_THRESHOLD`,
-`DEBOUNCE_SECONDS`), so the per-device tier and the three per-user preferences
+and a pipeline debounce), so the per-device tier and the three per-user preferences
 changed nothing.
 
 Revision ID: a7c1e4d20b11
