@@ -1,6 +1,6 @@
 // App — auth gate, data provider, top-level routing
 import React, { useState, useCallback } from "react";
-import { Sidebar, Topbar, NAV } from "./Shell.jsx";
+import { Sidebar, Topbar, TabBar, NAV } from "./Shell.jsx";
 import { Dashboard } from "./Dashboard.jsx";
 import { Sightings, SightingDetail } from "./Sightings.jsx";
 import { SpeciesPage } from "./Species.jsx";
@@ -51,9 +51,17 @@ function AppShell({ onLogout }) {
   const [route, setRoute] = useState(initialRoute);
   const [openSighting, setOpenSighting] = useState(null);
   const [navOpen, setNavOpen] = useState(false); // mobile off-canvas sidebar
+  // Species filter handed to Sightings, so "View sightings" on a species lands
+  // on that species' visits rather than the whole list.
+  const [speciesFilter, setSpeciesFilter] = useState("all");
 
-  // Navigating always closes the mobile drawer.
-  const go = useCallback((r) => { setRoute(r); setNavOpen(false); }, []);
+  // Navigating always closes the mobile drawer and starts at the top.
+  const go = useCallback((r, { species = "all" } = {}) => {
+    setRoute(r);
+    setSpeciesFilter(species);
+    setNavOpen(false);
+    window.scrollTo?.(0, 0);
+  }, []);
 
   if (loading && !data) {
     return <div className="boot"><div className="boot-mark">Loading field station…</div></div>;
@@ -77,17 +85,20 @@ function AppShell({ onLogout }) {
             lines on a phone can't slide it under the topbar. */}
         <div className="topstack">
           <OfflineBanner offline={!online} loading={loading} onRetry={reload} />
-          <Topbar route={route} onOpenNav={() => setNavOpen(true)} />
+          <Topbar route={route} />
         </div>
         <div className="page" data-screen-label={NAV.find(n => n.id === route)?.label || route}>
-          {route === "dashboard" && <Dashboard openSighting={setOpenSighting} />}
-          {route === "sightings" && <Sightings openSighting={setOpenSighting} />}
-          {route === "species" && <SpeciesPage />}
+          {route === "dashboard" && <Dashboard openSighting={setOpenSighting} go={go} />}
+          {route === "sightings" && (
+            <Sightings key={speciesFilter} openSighting={setOpenSighting} initialSpecies={speciesFilter} />
+          )}
+          {route === "species" && <SpeciesPage go={go} />}
           {route === "devices" && <DevicesPage />}
           {route === "users" && <UsersPage />}
           {route === "settings" && <SettingsPage />}
         </div>
       </main>
+      <TabBar route={route} setRoute={go} onMore={() => setNavOpen(true)} />
 
       {openSighting && <SightingDetail s={openSighting} onClose={() => setOpenSighting(null)} />}
 

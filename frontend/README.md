@@ -24,18 +24,18 @@ npm run dev      # dev server on http://localhost:5173
 |---|---|
 | `src/main.jsx` | React entry point |
 | `src/App.jsx` | Top-level routing and theming |
-| `src/Shell.jsx` | Sidebar nav, topbar, brand mark (`NAV`) |
+| `src/Shell.jsx` | Sidebar nav, topbar with live status, phone tab bar, brand mark (`NAV`) |
 | `src/Icon.jsx` | Inline SVG icon set |
 | `src/BirdPlate.jsx` | Stylized field-guide bird silhouette plates |
-| `src/Dashboard.jsx` | Dashboard: stats, recent feed, heatmap, top visitors |
-| `src/Sightings.jsx` | Sightings gallery + sighting detail modal |
+| `src/Dashboard.jsx` | Dashboard: latest photo, day stats, recent photos, heatmap, stations |
+| `src/Sightings.jsx` | Day-grouped photo gallery, sighting detail, `ConfidenceChip` |
 | `src/Species.jsx` | Species library + species detail modal |
 | `src/Devices.jsx` | Devices list + per-station settings modal |
 | `src/UsersSettings.jsx` | Users management + Settings pages |
 | `src/api.js` | Fetch client: token storage, `login()`, `apiGet()` |
 | `src/Login.jsx` | Sign-in gate (exchanges credentials for a JWT) |
 | `src/DataContext.jsx` | Loads all datasets after login; `useData()` hook |
-| `src/data.js` | Backend adapters (`loadAll()`) + date/time helpers |
+| `src/data.js` | Backend adapters (`loadAll()`), tier thresholds, local-time helpers |
 | `src/styles.css` | Full design system (field-journal theme, day/dusk) |
 
 ## Backend wiring
@@ -68,13 +68,14 @@ cd frontend && npm run dev
 Seeded login: **dom@peck.deck** / **peckdeck** (see `backend/seed.py`).
 
 Captured photos are stored as bytea and served by `GET /sightings/{id}/image`
-(auth required). The current design renders stylized SVG plates rather than the
-real photos, so that endpoint isn't consumed yet — wiring it up would need a
-blob fetch with the `Authorization` header (a plain `<img src>` can't send it).
+(auth required). `SightingImage.jsx` fetches them as blobs, because a plain
+`<img src>` can't send the `Authorization` header. The SVG plate is the
+placeholder while a photo loads and the fallback when there is none.
 
 ## Notes
 
-- The design's floating "Tweaks" panel was a Claude Design canvas tool and is
-  intentionally not ported. Its appearance defaults (theme/accent/font) live in
-  `APPEARANCE` in `App.jsx` and are applied on load.
+- Appearance (theme, accent, font, density) lives in `Appearance.jsx` and is
+  saved per browser. The default theme is Auto, which follows the OS.
+- The backend buckets "today" and the heatmap by UTC. The dashboard counts
+  today from the loaded sightings and shifts the heatmap into local time.
 - Fonts load from Google Fonts (see `index.html`).

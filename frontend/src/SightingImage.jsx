@@ -26,6 +26,7 @@ export function SightingImage({ sighting, large = false, alt }) {
   const holder = useRef(null);
   const [visible, setVisible] = useState(false);
   const [src, setSrc] = useState(null);
+  const [failed, setFailed] = useState(false);
 
   // Arm the observer. Without IntersectionObserver (older browsers, jsdom in the
   // test suite) fall back to loading immediately — degraded, but never blank.
@@ -64,6 +65,7 @@ export function SightingImage({ sighting, large = false, alt }) {
       })
       .catch(() => {
         /* Keep the plate. A missing photo is not worth an error state. */
+        if (!cancelled) setFailed(true);
       });
 
     return () => {
@@ -75,7 +77,9 @@ export function SightingImage({ sighting, large = false, alt }) {
   }, [visible, sighting?.hasImage, sighting?.id]);
 
   return (
-    <div className="capture" ref={holder}>
+    // While a photo is on its way the plate is dimmed, so a cartoon bird
+    // doesn't flash at full strength for the second or two the JPEG takes.
+    <div className={`capture ${sighting?.hasImage && !src && !failed ? "pending" : ""}`} ref={holder}>
       <BirdPlate species={sighting.species} showLabel={false} large={large} />
       {src && (
         <img

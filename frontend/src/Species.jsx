@@ -1,11 +1,12 @@
 // Species library — gridded specimen plates with counts
-import React, { useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { BirdPlate } from "./BirdPlate.jsx";
 import { Icon } from "./Icon.jsx";
 import { useData } from "./DataContext.jsx";
 import { Modal, TextInput, FormNote, useDialog } from "./Modal.jsx";
 import { Empty } from "./Empty.jsx";
-import { createSpecies } from "./data.js";
+import { SightingImage } from "./SightingImage.jsx";
+import { createSpecies, fmtRelative } from "./data.js";
 
 function AddSpeciesModal({ onClose, onDone }) {
   const [form, setForm] = useState({ common_name: "", genus: "", species_name: "", order_name: "" });
@@ -52,76 +53,78 @@ function AddSpeciesModal({ onClose, onDone }) {
   );
 }
 
-function Specimen({ s, idx, onClick }) {
+// The card leads with this species' newest photo when the loaded window has
+// one, and falls back to the field-guide plate.
+function Specimen({ s, idx, photo, onClick }) {
   return (
-    <div className="specimen" onClick={() => onClick(s)}>
+    <button type="button" className="specimen" onClick={() => onClick(s)}>
       <div className="specimen-plate">
-        <span className="specimen-no">№ {String(idx + 1).padStart(3, "0")}</span>
-        <BirdPlate species={s} showLabel={false} />
+        {photo ? <SightingImage sighting={photo} /> : <BirdPlate species={s} showLabel={false} />}
+        <span className="tile-badge tile-badge-l">№ {String(idx + 1).padStart(3, "0")}</span>
       </div>
       <div className="specimen-body">
         <div className="specimen-common">{s.common}</div>
         <div className="specimen-sci">{s.sci}</div>
         <div className="specimen-meta">
           <div>
-            Sightings
-            <strong className="tnum">{s.count}</strong>
+            Visits
+            <strong className="tnum">{s.count.toLocaleString()}</strong>
           </div>
-          <div style={{ textAlign: "right" }}>
+          <div className="specimen-meta-r">
             First seen
             <strong>{s.firstSeen}</strong>
           </div>
         </div>
       </div>
-    </div>
+    </button>
   );
 }
 
-function SpeciesDetail({ s, onClose }) {
+function SpeciesDetail({ s, photo, lastSeen, onClose, onViewSightings }) {
   const panelRef = useRef(null);
   useDialog(onClose, panelRef);
   return (
     <div className="modal-bg" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}
+      <div className="modal modal-wide" onClick={e => e.stopPropagation()}
         ref={panelRef} role="dialog" aria-modal="true" aria-label={`${s.common} details`} tabIndex={-1}>
         <button className="modal-close" onClick={onClose} aria-label="Close dialog"><Icon name="x" className="" /></button>
         <div className="modal-grid">
-          <div className="modal-img">
-            <BirdPlate species={s} showLabel={false} large />
+          <div className={`modal-img ${photo ? "" : "modal-img-plate"}`}>
+            {photo ? <SightingImage sighting={photo} large /> : <BirdPlate species={s} showLabel={false} large />}
           </div>
           <div className="modal-side">
-            <div className="label" style={{ marginBottom: 8 }}>{s.order} · Cataloged 2026</div>
-            <h2 className="display" style={{ fontSize: 38, lineHeight: 1, margin: 0 }}>
-              {s.common}
-            </h2>
-            <div className="display-i" style={{ fontSize: 17, color: "var(--ink-soft)", marginTop: 4 }}>
-              {s.sci}
-            </div>
+            <div className="label">{s.order !== "—" ? s.order : "Species"}</div>
+            <h2 className="modal-title">{s.common}</h2>
+            <div className="modal-sci">{s.sci}</div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginTop: 22, paddingTop: 18, borderTop: "1px solid var(--hairline)" }}>
+            <dl className="facts">
               <div>
-                <div className="label">Total visits</div>
-                <div className="display-i tnum" style={{ fontSize: 26, marginTop: 4 }}>{s.count}</div>
+                <dt className="label">Total visits</dt>
+                <dd className="tnum">{s.count.toLocaleString()}</dd>
               </div>
               <div>
-                <div className="label">First seen</div>
-                <div style={{ marginTop: 6 }}>{s.firstSeen}</div>
+                <dt className="label">First seen</dt>
+                <dd>{s.firstSeen}</dd>
               </div>
-              <div>
-                <div className="label">Stations</div>
-                <div style={{ marginTop: 6 }}>3 of 3</div>
-              </div>
-            </div>
+              {lastSeen && (
+                <div>
+                  <dt className="label">Last seen</dt>
+                  <dd>{fmtRelative(lastSeen)}</dd>
+                </div>
+              )}
+            </dl>
 
-            <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 22, lineHeight: 1.55 }}>
-              {s.note}
-            </p>
+            {s.note && <p className="modal-note">{s.note}</p>}
 
-            <div style={{ display: "flex", gap: 8, marginTop: 24 }}>
-              <a className="btn" href={s.wiki} target="_blank" rel="noopener">
-                <Icon name="extlink" className="" /> Wikipedia
-              </a>
-              <button className="btn">View all sightings</button>
+            <div className="modal-actions">
+              <button className="btn primary" onClick={onViewSightings}>
+                View sightings <Icon name="arrow" className="" />
+              </button>
+              {s.wiki && (
+                <a className="btn ghost" href={s.wiki} target="_blank" rel="noopener noreferrer">
+                  <Icon name="extlink" className="" /> Wikipedia
+                </a>
+              )}
             </div>
           </div>
         </div>
@@ -130,9 +133,19 @@ function SpeciesDetail({ s, onClose }) {
   );
 }
 
-export function SpeciesPage() {
+export function SpeciesPage({ go }) {
   const { data, reload } = useData();
-  const { SPECIES, SPECIES_COUNTS } = data;
+  const { SPECIES_COUNTS, SIGHTINGS } = data;
+  // Newest sighting per species (any), and newest with a photo.
+  const { latestBy, photoBy } = useMemo(() => {
+    const latestBy = new Map();
+    const photoBy = new Map();
+    for (const s of SIGHTINGS) {
+      if (!latestBy.has(s.species.id)) latestBy.set(s.species.id, s);
+      if (s.hasImage && !photoBy.has(s.species.id)) photoBy.set(s.species.id, s);
+    }
+    return { latestBy, photoBy };
+  }, [SIGHTINGS]);
   const [order, setOrder] = useState("count");
   const [openSp, setOpenSp] = useState(null);
   const [adding, setAdding] = useState(false);
@@ -140,7 +153,12 @@ export function SpeciesPage() {
   const sorted = [...SPECIES_COUNTS].sort((a, b) => {
     if (order === "count") return b.count - a.count;
     if (order === "name") return a.common.localeCompare(b.common);
-    if (order === "recent") return a.id - b.id; // proxy
+    if (order === "recent") {
+      // Species with a visit in the loaded window first, newest visit first.
+      const ta = latestBy.get(a.id)?.datetime.getTime() ?? 0;
+      const tb = latestBy.get(b.id)?.datetime.getTime() ?? 0;
+      return tb - ta;
+    }
     return 0;
   });
 
@@ -148,33 +166,35 @@ export function SpeciesPage() {
     <>
       <div className="page-header">
         <div>
-          <div className="label" style={{ marginBottom: 6 }}>Recorded by your stations</div>
+          <div className="label">Recorded by your stations</div>
           <h1 className="page-title">Species <em>library</em></h1>
-          <div style={{ marginTop: 10, color: "var(--ink-soft)", maxWidth: "60ch" }}>
-            Every species your feeders have catalogued. Tap a plate to read field notes.
-          </div>
+          <p className="page-lede">Every species your feeders have caught on camera. Open one for field notes.</p>
         </div>
         <div className="page-meta">
-          <div className="label">Catalogued</div>
-          <div className="page-meta-row">
-            <span className="page-meta-num tnum">{SPECIES.length}</span>
-            <span className="display-i" style={{ fontSize: 18, color: "var(--ink-soft)" }}>species</span>
-          </div>
+          <span className="page-meta-num tnum">{SPECIES_COUNTS.length}</span>
+          <span className="label">species seen</span>
         </div>
       </div>
 
       <div className="toolbar">
-        <button className={`chip ${order === "count" ? "active" : ""}`} onClick={() => setOrder("count")}>Most frequent</button>
-        <button className={`chip ${order === "name" ? "active" : ""}`} onClick={() => setOrder("name")}>A → Z</button>
-        <button className={`chip ${order === "recent" ? "active" : ""}`} onClick={() => setOrder("recent")}>Recently added</button>
-        <button className="btn primary sm" style={{ marginLeft: "auto" }} onClick={() => setAdding(true)}>
-          <Icon name="plus" className="" /> Add species
-        </button>
+        <div className="segmented" role="group" aria-label="Sort species">
+          {[["count", "Most visits"], ["recent", "Recently seen"], ["name", "A to Z"]].map(([id, label]) => (
+            <button key={id} className={order === id ? "active" : ""} aria-pressed={order === id}
+              onClick={() => setOrder(id)}>{label}</button>
+          ))}
+        </div>
+        <span className="toolbar-end">
+          <button className="btn sm" onClick={() => setAdding(true)}>
+            <Icon name="plus" className="" /> Add species
+          </button>
+        </span>
       </div>
 
       {sorted.length > 0 ? (
         <div className="species-grid">
-          {sorted.map((s, i) => <Specimen key={s.id} s={s} idx={i} onClick={setOpenSp} />)}
+          {sorted.map((s, i) => (
+            <Specimen key={s.id} s={s} idx={i} photo={photoBy.get(s.id)} onClick={setOpenSp} />
+          ))}
         </div>
       ) : (
         <Empty
@@ -187,7 +207,12 @@ export function SpeciesPage() {
         />
       )}
 
-      {openSp && <SpeciesDetail s={openSp} onClose={() => setOpenSp(null)} />}
+      {openSp && (
+        <SpeciesDetail s={openSp} photo={photoBy.get(openSp.id)}
+          lastSeen={latestBy.get(openSp.id)?.datetime}
+          onClose={() => setOpenSp(null)}
+          onViewSightings={() => go("sightings", { species: openSp.id })} />
+      )}
       {adding && <AddSpeciesModal onClose={() => setAdding(false)} onDone={reload} />}
     </>
   );
