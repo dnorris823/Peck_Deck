@@ -13,8 +13,7 @@ The motion check and the detector see only the region of interest,
 ``CAMERA_ROI``. It is in fractions of the frame, so one setting crops both the
 lores and the main stream.
 
-The visit rule is the only repeat rule for this trigger. ``main.py`` sets the
-pipeline's own debounce to 0 when this trigger runs, so the two cannot disagree.
+The visit rule is the only repeat rule. The pipeline applies none of its own.
 """
 
 import asyncio
@@ -95,8 +94,6 @@ class VisitTracker:
 
 class CameraTrigger(TriggerBase):
     """Fires when the camera sees a new bird visit. No GPIO involved."""
-
-    debounces_itself = True
 
     def __init__(
         self,
