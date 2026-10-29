@@ -48,15 +48,13 @@ class Pipeline:
         self,
         config: Config,
         camera: CameraBase | None = None,
-        debounce_seconds: float | None = None,
     ):
         """
         ``camera`` is the long-lived camera that ``main.py`` opens and shares
         with the trigger. Without one, each capture opens its own camera.
 
-        ``debounce_seconds`` defaults to ``config.debounce_seconds``. A trigger
-        that applies its own repeat rule, like the camera trigger's quiet gap,
-        passes 0, so only one rule decides what counts as a new visit.
+        The pipeline has no repeat rule. The camera trigger's visit gap decides
+        what counts as a new visit.
         """
         # An unknown value refuses to start. It used to fall through to the
         # "auto" order, so a typo turned on paid Tier 3 calls.
@@ -67,9 +65,6 @@ class Pipeline:
             )
         self._cfg = config
         self._camera = camera
-        self._debounce_seconds = (
-            config.debounce_seconds if debounce_seconds is None else debounce_seconds
-        )
         self._cache = LocalCache(
             config.cache_dir, config.max_cache_images, config.max_queued_sightings
         )
@@ -85,9 +80,6 @@ class Pipeline:
             config.backend_url, config.device_token, config.tier3_request_timeout
         )
 
-        # loop.time() is time since boot on Linux, so 0.0 here would debounce
-        # every trigger in the first DEBOUNCE_SECONDS after boot.
-        self._last_capture: float = float("-inf")
         # Covers the camera only. Classify and upload run in run_classifier, so
         # a slow Tier 2 delays the answer but never costs the next visit its photo.
         self._capture_lock = asyncio.Lock()
@@ -124,11 +116,6 @@ class Pipeline:
         an unreachable Tier 2 dropped every visit for 40 s at a time.
         """
         async with self._capture_lock:
-            now = asyncio.get_running_loop().time()
-            if now - self._last_capture < self._debounce_seconds:
-                logger.debug("Debounce active — skipping trigger")
-                return
-            self._last_capture = now
             capture = await self._capture()
         self._submit(replace(capture, box=box))
 

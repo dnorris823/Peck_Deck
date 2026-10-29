@@ -103,9 +103,7 @@ class Config:
     # Trigger
     # The only trigger is "camera". Any other value refuses to start.
     trigger_type: str = os.getenv("TRIGGER_TYPE", "camera")
-    debounce_seconds: float = float(os.getenv("DEBOUNCE_SECONDS", "30"))
 
-    # Camera trigger only. It replaces DEBOUNCE_SECONDS with the visit gap.
     # Fraction of lores pixels (0 to 1) that must change before the detector runs.
     camera_motion_threshold: float = float(os.getenv("CAMERA_MOTION_THRESHOLD", "0.01"))
     # Detector score for "bird". See machine_learning/MODELS.md for the measurement.

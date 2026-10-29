@@ -71,11 +71,7 @@ async def _run() -> None:
     camera = PiCamera(config.image_width, config.image_height, config.jpeg_quality)
     trigger = _build_trigger(config, camera)
 
-    # The camera trigger's visit gap is its repeat rule. Keep the pipeline's
-    # debounce out of the way, or a second visit inside DEBOUNCE_SECONDS would
-    # be dropped by a rule the trigger knows nothing about.
-    debounce = 0.0 if trigger.debounces_itself else config.debounce_seconds
-    pipeline = Pipeline(config, camera=camera, debounce_seconds=debounce)
+    pipeline = Pipeline(config, camera=camera)
     pipeline.setup()
 
     logger.info(
