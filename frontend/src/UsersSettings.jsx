@@ -139,7 +139,7 @@ export function UsersPage() {
     <>
       <div className="page-header">
         <div>
-          <div className="label" style={{ marginBottom: 6 }}>People who watch your feeders</div>
+          <div className="label">People who watch your feeders</div>
           <h1 className="page-title">Users &amp; <em>roles</em></h1>
         </div>
         <button className="btn primary" onClick={() => setInviting(true)}>
@@ -182,6 +182,14 @@ const SETTINGS_SECTIONS = [
   { id: "account", label: "Account" },
   { id: "notifications", label: "Notifications" },
   { id: "appearance", label: "Appearance" },
+];
+
+// Mirrors ACCENTS in Appearance.jsx.
+const ACCENT_SWATCHES = [
+  ["cardinal", "Cardinal", "#b8412c"],
+  ["forest", "Forest", "#2d4a36"],
+  ["yolk", "Yolk", "#d4a23a"],
+  ["plum", "Plum", "#6b4570"],
 ];
 
 function Toggle({ on, onChange, disabled = false }) {
@@ -393,7 +401,7 @@ export function SettingsPage() {
     <>
       <div className="page-header">
         <div>
-          <div className="label" style={{ marginBottom: 6 }}>Station preferences</div>
+          <div className="label">Preferences</div>
           <h1 className="page-title"><em>Settings</em></h1>
         </div>
       </div>
@@ -487,22 +495,24 @@ export function SettingsPage() {
             <div className="settings-section">
               <h3>Appearance</h3>
               <p className="lead">Visual preferences for the field journal interface. Saved in this browser.</p>
-              <Field label="Theme">
-                <div className="row">
-                  <button className={`btn ${appearance.theme === "day" ? "primary" : ""}`}
-                    onClick={() => updateAppearance({ theme: "day" })}>Day</button>
-                  <button className={`btn ${appearance.theme === "dusk" ? "primary" : ""}`}
-                    onClick={() => updateAppearance({ theme: "dusk" })}>Dusk</button>
+              <Field label="Theme" help="Auto follows your device's light or dark setting.">
+                <div className="segmented" role="group" aria-label="Theme">
+                  {[["auto", "Auto"], ["day", "Day"], ["dusk", "Dusk"]].map(([id, label]) => (
+                    <button key={id} className={appearance.theme === id ? "active" : ""}
+                      aria-pressed={appearance.theme === id}
+                      onClick={() => updateAppearance({ theme: id })}>{label}</button>
+                  ))}
                 </div>
               </Field>
-              <Field label="Accent" help="Primary highlight color across the app.">
-                <select value={appearance.accent}
-                  onChange={e => updateAppearance({ accent: e.target.value })}>
-                  <option value="cardinal">Cardinal</option>
-                  <option value="forest">Forest</option>
-                  <option value="yolk">Yolk</option>
-                  <option value="plum">Plum</option>
-                </select>
+              <Field label="Accent" help="Highlight color for focus rings and emphasis.">
+                <div className="swatches" role="group" aria-label="Accent">
+                  {ACCENT_SWATCHES.map(([id, label, color]) => (
+                    <button key={id} className={`swatch ${appearance.accent === id ? "active" : ""}`}
+                      aria-pressed={appearance.accent === id} aria-label={label} title={label}
+                      style={{ "--swatch": color }}
+                      onClick={() => updateAppearance({ accent: id })} />
+                  ))}
+                </div>
               </Field>
               <Field label="Display font" help="Used for headings and large numerals.">
                 <select value={appearance.displayFont}

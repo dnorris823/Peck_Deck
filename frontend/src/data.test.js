@@ -10,6 +10,7 @@ import { apiGet, apiSend } from "./api.js";
 import {
   loadAll, saveMe, savePreferences,
   fmtRelative, fmtTime, fmtDateFull,
+  confidenceLevel, countToday, toLocalGrid, fmtDayHeading,
 } from "./data.js";
 
 // Route each apiGet(path) call to a fixture keyed by path.
@@ -134,5 +135,45 @@ describe("date/time formatters", () => {
     expect(typeof fmtTime(d)).toBe("string");
     expect(fmtTime(d).length).toBeGreaterThan(0);
     expect(fmtDateFull(d)).toMatch(/2026/);
+  });
+});
+
+describe("confidenceLevel", () => {
+  it("judges each tier against its own threshold", () => {
+    // 0.7 clears the GPU tier's 0.60 but not the Pi tier's 0.85.
+    expect(confidenceLevel({ tier: "gpu", confidence: 0.7 })).toBe("sure");
+    expect(confidenceLevel({ tier: "local", confidence: 0.7 })).toBe("unsure");
+    expect(confidenceLevel({ tier: "none", confidence: 0 })).toBe("unsure");
+  });
+});
+
+describe("local-time helpers", () => {
+  it("countToday counts from local midnight", () => {
+    const now = new Date(2026, 9, 28, 19, 0);
+    const at = (h, day = 28) => ({ datetime: new Date(2026, 9, day, h, 0) });
+    expect(countToday([at(16), at(9), at(23, 27)], now)).toBe(2);
+  });
+
+  it("toLocalGrid rotates a UTC grid by the zone offset", () => {
+    const grid = Array.from({ length: 7 }, () => Array(24).fill(0));
+    grid[3][2] = 4; // Thursday 02:00 UTC
+    const pdt = toLocalGrid(grid, -7 * 60);
+    expect(pdt[2][19]).toBe(4); // Wednesday 19:00 local
+    expect(pdt[3][2]).toBe(0);
+    // Sunday wraps forward to Monday.
+    const wrap = Array.from({ length: 7 }, () => Array(24).fill(0));
+    wrap[6][23] = 1;
+    expect(toLocalGrid(wrap, 60)[0][0]).toBe(1);
+  });
+
+  it("toLocalGrid leaves an unexpected shape alone", () => {
+    expect(toLocalGrid([[0, 1, 4]], 60)).toEqual([[0, 1, 4]]);
+  });
+
+  it("fmtDayHeading names today and yesterday", () => {
+    const now = new Date(2026, 9, 28, 19, 0);
+    expect(fmtDayHeading(new Date(2026, 9, 28, 8), now)).toBe("Today");
+    expect(fmtDayHeading(new Date(2026, 9, 27, 23), now)).toBe("Yesterday");
+    expect(fmtDayHeading(new Date(2026, 9, 26, 12), now)).toMatch(/Oct 26/);
   });
 });

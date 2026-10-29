@@ -1,153 +1,59 @@
-// Dashboard — recent feed, stats, device status, activity heatmap
-import React from "react";
+// Dashboard — latest visitor, day summary, recent photos, activity, stations
+import React, { useMemo } from "react";
 import { SightingImage } from "./SightingImage.jsx";
 import { Icon } from "./Icon.jsx";
 import { Empty } from "./Empty.jsx";
 import { useData } from "./DataContext.jsx";
-import { fmtTime, fmtRelative } from "./data.js";
+import { ConfidenceChip, SightingTile } from "./Sightings.jsx";
+import { DeviceStatus } from "./Devices.jsx";
+import { countToday, fmtRelative, fmtTime, tierInfo, toLocalGrid } from "./data.js";
 
-function Sparkline({ data, color = "var(--forest)" }) {
-  const w = 88, h = 32;
-  const max = Math.max(...data);
-  const min = Math.min(...data);
-  const pts = data.map((v, i) => {
-    const x = (i / (data.length - 1)) * w;
-    const y = h - ((v - min) / (max - min || 1)) * (h - 4) - 2;
-    return `${x},${y}`;
-  }).join(" ");
-  return (
-    <svg className="stat-spark" viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-      {data.map((v, i) => {
-        const x = (i / (data.length - 1)) * w;
-        const y = h - ((v - min) / (max - min || 1)) * (h - 4) - 2;
-        return i === data.length - 1 ? <circle key={i} cx={x} cy={y} r="2" fill={color} /> : null;
-      })}
-    </svg>
-  );
-}
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-function StatCard({ label, value, em, trend, trendDir, spark, accent, isText }) {
-  return (
-    <div className="stat">
-      <div className="stat-label label">
-        <span style={{ width: 4, height: 4, background: accent, borderRadius: "50%" }} />
-        {label}
-      </div>
-      <div className={`stat-value ${isText ? "text" : "tnum"}`}>
-        {em ? <em>{value}</em> : value}
-      </div>
-      {trend && (
-        <div className={`stat-trend ${trendDir === "up" ? "trend-up" : trendDir === "down" ? "trend-down" : ""}`}>
-          {trendDir === "up" ? "↑" : trendDir === "down" ? "↓" : "·"} {trend}
-        </div>
-      )}
-      {spark && <Sparkline data={spark} color={accent} />}
-    </div>
-  );
-}
-
-function FeedItem({ s, onClick }) {
-  const conf = s.confidence;
-  const cls = conf >= 0.9 ? "conf-high" : conf >= 0.78 ? "conf-mid" : "conf-low";
-  return (
-    <div className="feed-item" onClick={() => onClick(s)}>
-      <div className="feed-thumb">
-        <SightingImage sighting={s} />
-      </div>
-      <div>
-        <div className="feed-time">
-          <span>{fmtTime(s.datetime)}</span>
-          <span>·</span>
-          <span>{fmtRelative(s.datetime)}</span>
-          <span>·</span>
-          <span>{s.device.name}</span>
-        </div>
-        <div className="feed-name">{s.species.common}</div>
-        <div className="feed-sci">{s.species.sci}</div>
-      </div>
-      <div className="feed-meta">
-        <span className={`feed-conf ${cls}`}>{Math.round(conf * 100)}%</span>
-        <div style={{ marginTop: 6 }}>{s.tier.toUpperCase()}</div>
-      </div>
-    </div>
-  );
-}
-
-function DeviceCard({ d }) {
-  const pct = Math.round(d.battery * 100);
-  const batColor = pct > 50 ? "var(--forest)" : pct > 20 ? "var(--yolk)" : "var(--cardinal)";
-  const dotCls = d.status === "online" ? "on" : d.status === "warn" ? "warn" : "off";
-  const statusLabel = d.status === "online" ? "Online" : d.status === "warn" ? "Low signal" : "Offline";
-  return (
-    <div className="device-card">
-      <div className="device-row">
-        <div>
-          <div className="device-name">{d.name}</div>
-          <div className="device-loc">{d.city}, {d.state} · {d.feed}</div>
-        </div>
-        <div style={{ textAlign: "right" }}>
-          <div className="device-status">
-            <span className={`dot ${dotCls}`} />
-            {statusLabel}
-          </div>
-          <div className="battery" style={{ marginTop: 6 }}>
-            <span className="bat-bar"><span className="bat-fill" style={{ width: `${pct}%`, background: batColor }} /></span>
-            <span className="tnum">{pct}%</span>
-          </div>
-        </div>
-      </div>
-      <div className="device-stats">
-        <div>
-          <div className="device-stat-num tnum">{d.todaySightings}</div>
-          <div className="device-stat-lbl">Today</div>
-        </div>
-        <div>
-          <div className="device-stat-num tnum">{d.weekSightings}</div>
-          <div className="device-stat-lbl">This week</div>
-        </div>
-        <div>
-          <div className="device-stat-num tnum">{d.allTime.toLocaleString()}</div>
-          <div className="device-stat-lbl">All time</div>
-        </div>
-      </div>
-    </div>
-  );
+function hourLabel(h) {
+  if (h === 0) return "12a";
+  if (h === 12) return "12p";
+  return h > 12 ? `${h - 12}p` : `${h}a`;
 }
 
 function ActivityHeatmap() {
   const { HEATMAP } = useData().data;
-  const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  // The backend buckets by UTC; shift into the viewer's own hours.
+  const grid = useMemo(() => toLocalGrid(HEATMAP), [HEATMAP]);
+  const busiest = useMemo(() => {
+    const byHour = Array(24).fill(0);
+    grid.forEach(row => row.forEach((v, h) => { byHour[h] += v; }));
+    const max = Math.max(...byHour);
+    return max > 0 ? byHour.indexOf(max) : null;
+  }, [grid]);
   return (
-    <div>
-      <div style={{ display: "grid", gridTemplateColumns: "32px 1fr", gap: 8, marginTop: 6 }}>
-        <div />
+    // One label for the grid; 168 cell tooltips are noise to a screen reader.
+    <div className="heat" role="img"
+      aria-label={busiest != null ? `Visits by hour over the last 7 days. Busiest around ${hourLabel(busiest)}.` : "No visits in the last 7 days."}>
+      <div className="heat-row">
+        <span />
         <div className="heat-axis">
-          {[0, 6, 12, 18].map(h => (
-            <span key={h} style={{ gridColumn: `span 6`, textAlign: "left" }}>
-              {h === 0 ? "12a" : h === 12 ? "12p" : h > 12 ? `${h - 12}p` : `${h}a`}
-            </span>
-          ))}
+          {[0, 6, 12, 18].map(h => <span key={h}>{hourLabel(h)}</span>)}
         </div>
       </div>
-      {HEATMAP.map((row, di) => (
-        <div key={di} style={{ display: "grid", gridTemplateColumns: "32px 1fr", gap: 8, marginTop: 3, alignItems: "center" }}>
-          <div className="label" style={{ fontSize: 9, padding: 0 }}>{days[di]}</div>
-          <div className="heatmap" style={{ marginTop: 0 }}>
+      {grid.map((row, di) => (
+        <div key={di} className="heat-row">
+          <span className="heat-day">{DAYS[di]}</span>
+          <div className="heatmap">
             {row.map((v, hi) => (
-              <div key={hi} className={`heat-cell ${v > 0 ? `heat-${v}` : ""}`} title={`${days[di]} ${hi}:00 — ${v} sightings`} />
+              <div key={hi} className={`heat-cell ${v > 0 ? `heat-${v}` : ""}`}
+                title={`${DAYS[di]} ${hourLabel(hi)}: ${v >= 4 ? "4+" : v} sighting${v === 1 ? "" : "s"}`} />
             ))}
           </div>
         </div>
       ))}
-      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontFamily: "var(--mono)", fontSize: 10, color: "var(--ink-mute)", letterSpacing: "0.06em" }}>
-        <span>FEWER</span>
-        <span className="heat-cell" style={{ width: 12, height: 12, aspectRatio: "auto" }} />
-        <span className="heat-cell heat-1" style={{ width: 12, height: 12, aspectRatio: "auto" }} />
-        <span className="heat-cell heat-2" style={{ width: 12, height: 12, aspectRatio: "auto" }} />
-        <span className="heat-cell heat-3" style={{ width: 12, height: 12, aspectRatio: "auto" }} />
-        <span className="heat-cell heat-4" style={{ width: 12, height: 12, aspectRatio: "auto" }} />
-        <span>MORE</span>
+      <div className="heat-foot">
+        <span className="heat-legend">
+          Fewer
+          {[0, 1, 2, 3, 4].map(v => <span key={v} className={`heat-cell ${v ? `heat-${v}` : ""}`} />)}
+          More
+        </span>
+        {busiest != null && <span>Busiest around {hourLabel(busiest)}</span>}
       </div>
     </div>
   );
@@ -157,174 +63,177 @@ function TopVisitors() {
   const { SPECIES_COUNTS } = useData().data;
   const top = SPECIES_COUNTS.slice(0, 5);
   if (top.length === 0) {
-    return <div style={{ color: "var(--ink-mute)", fontSize: 13, padding: "8px 0" }}>No sightings yet.</div>;
+    return <div className="muted-note">No sightings yet.</div>;
   }
   const max = top[0].count;
   return (
-    <div>
+    <ol className="rank">
       {top.map((s, i) => (
-        <div key={s.id} style={{ padding: "10px 0", borderTop: i === 0 ? "none" : "1px dashed var(--hairline)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 6 }}>
-            <div>
-              <span style={{ fontFamily: "var(--mono)", fontSize: 10, color: "var(--ink-mute)", marginRight: 8 }}>
-                {String(i + 1).padStart(2, "0")}
-              </span>
-              <span style={{ fontFamily: "var(--display)", fontStyle: "italic", fontSize: 17 }}>{s.common}</span>
-            </div>
-            <span className="tnum" style={{ fontFamily: "var(--mono)", fontSize: 12, color: "var(--ink-soft)" }}>
-              {s.count}
-            </span>
+        <li key={s.id}>
+          <div className="rank-line">
+            <span className="rank-no tnum">{String(i + 1).padStart(2, "0")}</span>
+            <span className="rank-name">{s.common}</span>
+            <span className="rank-count tnum">{s.count.toLocaleString()}</span>
           </div>
-          <div style={{ height: 4, background: "var(--paper-2)", borderRadius: 2, overflow: "hidden" }}>
-            <div style={{
-              height: "100%", width: `${(s.count / max) * 100}%`,
-              background: s.palette[0], borderRadius: 2
-            }} />
+          <div className="rank-bar">
+            <span style={{ width: `${(s.count / max) * 100}%`, background: s.palette[0] }} />
           </div>
-        </div>
+        </li>
       ))}
+    </ol>
+  );
+}
+
+// The newest capture, big. A feeder app is a photo app: this is what someone
+// opens it to see.
+function LatestVisit({ s, onOpen }) {
+  return (
+    <button type="button" className="hero" onClick={() => onOpen(s)}>
+      <div className="hero-img">
+        <SightingImage sighting={s} large />
+      </div>
+      <div className="hero-body">
+        <div className="label">Latest visitor · {fmtRelative(s.datetime)}</div>
+        <div className="hero-name">{s.species.common}</div>
+        <div className="hero-sci">{s.species.sci}</div>
+        <div className="hero-meta">
+          <ConfidenceChip s={s} long />
+          <span>{fmtTime(s.datetime)}</span>
+          <span>{s.device.name}</span>
+          <span>{tierInfo(s.tier).long}</span>
+        </div>
+        <span className="hero-open">View sighting <Icon name="arrow" className="" /></span>
+      </div>
+    </button>
+  );
+}
+
+function Stat({ label, value, sub, text = false }) {
+  return (
+    <div className="stat">
+      <div className="label">{label}</div>
+      <div className={`stat-value ${text ? "text" : "tnum"}`}>{value}</div>
+      {sub && <div className="stat-sub">{sub}</div>}
+    </div>
+  );
+}
+
+function StationRow({ d }) {
+  return (
+    <div className="station-row">
+      <div className="station-main">
+        <div className="station-name">{d.name}</div>
+        <div className="station-sub">
+          {[d.city !== "—" && [d.city, d.state].filter(Boolean).join(", "), `seen ${d.lastSeen}`]
+            .filter(Boolean).join(" · ")}
+        </div>
+      </div>
+      <div className="station-counts tnum">
+        <span><strong>{d.todaySightings}</strong> today</span>
+        <span><strong>{d.weekSightings}</strong> week</span>
+      </div>
+      <DeviceStatus d={d} />
     </div>
   );
 }
 
 function greeting(now) {
   const h = now.getHours();
+  if (h < 5) return "Good night";
   if (h < 12) return "Good morning";
   if (h < 18) return "Good afternoon";
   return "Good evening";
 }
-function abbrevName(name) {
-  if (!name) return "—";
-  const parts = name.split(/\s+/);
-  return parts.length > 1 ? `${parts[0][0]}. ${parts.slice(1).join(" ")}` : name;
-}
 
-export function Dashboard({ openSighting }) {
-  const { data, live } = useData();
-  const { SIGHTINGS, DEVICES, DASHBOARD } = data;
+export function Dashboard({ openSighting, go }) {
+  const { data } = useData();
+  const { SIGHTINGS, DEVICES, DASHBOARD: d, ME } = data;
   const now = new Date();
-  const d = DASHBOARD;
-  const sparkSightings = d.spark_sightings?.length ? d.spark_sightings : [0];
-  const sparkSpecies = d.spark_species?.length ? d.spark_species : [0];
-  const sparkConf = d.spark_confidence?.length ? d.spark_confidence.map(v => Math.round(v * 100)) : [0];
-  const sightingsTrend = sparkSightings.length > 1
-    ? sparkSightings[sparkSightings.length - 1] - sparkSightings[sparkSightings.length - 2] : 0;
+  const firstName = (ME.name || "").trim().split(/\s+/)[0];
+  // Counted locally: the backend's "today" is the UTC day, which on the west
+  // coast ends at 5 pm.
+  const today = countToday(SIGHTINGS, now);
+  const week = (d.spark_sightings || []).reduce((a, b) => a + b, 0);
+  const [latest, ...rest] = SIGHTINGS;
+  const recent = rest.slice(0, 8);
+
   return (
     <>
       <div className="page-header">
         <div>
-          <div className="label" style={{ marginBottom: 6 }}>
-            {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "2-digit", year: "numeric" })}
+          <div className="label">
+            {now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}
           </div>
-          <h1 className="page-title">{greeting(now)}, <em>Dominic.</em></h1>
-          <div style={{ marginTop: 10, color: "var(--ink-soft)", maxWidth: "60ch" }}>
-            {DEVICES.length} station{DEVICES.length === 1 ? " is" : "s are"} listening.{" "}
-            <strong style={{ color: "var(--ink)" }}>{d.today_sightings} bird{d.today_sightings === 1 ? "" : "s"}</strong> stopped
-            by today{d.most_frequent ? <> — your most frequent visitor is the{" "}
-            <em style={{ color: "var(--cardinal)" }}>{d.most_frequent}</em>.</> : "."}
-          </div>
-        </div>
-        <div className="page-meta">
-          <div className="label">Species this week</div>
-          <div className="page-meta-row">
-            <span className="display-i" style={{ fontSize: 32 }}>{d.species_this_week}</span>
-            <span style={{ fontFamily: "var(--mono)", fontSize: 11, color: "var(--ink-mute)" }}>
-              OF {d.total_species} CATALOGUED
-            </span>
-          </div>
+          <h1 className="page-title">{greeting(now)}{firstName && <>, <em>{firstName}.</em></>}</h1>
+          <p className="page-lede">
+            {today === 0
+              ? "No visits yet today."
+              : <><strong>{today} visit{today === 1 ? "" : "s"}</strong> so far today.</>}
+            {latest && <> The last was {/^[aeiou]/i.test(latest.species.common) ? "an" : "a"}{" "}
+              <em>{latest.species.common}</em>, {fmtRelative(latest.datetime)}.</>}
+          </p>
         </div>
       </div>
 
-      <div className="stats-grid">
-        <StatCard label="Today's sightings" value={d.today_sightings} accent="var(--cardinal)"
-          trend={sightingsTrend >= 0 ? `+${sightingsTrend} vs. yesterday` : `${sightingsTrend} vs. yesterday`}
-          trendDir={sightingsTrend > 0 ? "up" : sightingsTrend < 0 ? "down" : ""} spark={sparkSightings} />
-        <StatCard label="Species this week" value={d.species_this_week} em accent="var(--forest)"
-          trend={`${d.total_species} catalogued`} trendDir="" spark={sparkSpecies} />
-        <StatCard label="Most frequent" value={abbrevName(d.most_frequent)} accent="var(--cardinal)" isText
-          trend={`${d.most_frequent_count} visits all-time`} trendDir="" />
-        <StatCard label="Avg. confidence"
-          value={d.avg_confidence != null ? `${Math.round(d.avg_confidence * 100)}%` : "—"}
-          accent="var(--yolk-deep)" trend="last 7 days" trendDir="" spark={sparkConf} />
+      {latest ? (
+        <LatestVisit s={latest} onOpen={openSighting} />
+      ) : (
+        <Empty title="No visits yet" hint="Your stations are watching. The first bird will show up here." />
+      )}
+
+      <div className="stats-strip">
+        <Stat label="Today" value={today} sub="local time" />
+        <Stat label="Last 7 days" value={week} sub={`${d.species_this_week} species`} />
+        <Stat label="Catalogued" value={d.total_species} sub="species, all time" />
+        <Stat label="Top visitor" value={d.most_frequent || "—"} text
+          sub={d.most_frequent ? `${d.most_frequent_count.toLocaleString()} visits` : null} />
       </div>
+
+      {recent.length > 0 && (
+        <section className="section">
+          <div className="section-head">
+            <h2 className="section-title">Recent visits</h2>
+            <button className="btn ghost sm" onClick={() => go("sightings")}>
+              All sightings <Icon name="arrow" className="" />
+            </button>
+          </div>
+          <div className="gallery gallery-compact">
+            {recent.map(s => <SightingTile key={s.id} s={s} onClick={openSighting} showDate />)}
+          </div>
+        </section>
+      )}
 
       <div className="dash-grid">
-        <div>
+        <section className="section">
           <div className="section-head">
-            <div>
-              <div className="section-title">Recent visits</div>
-              <div className="section-sub">
-                {/* Whether the feed updates on its own. Without this the only
-                    way to tell a live stream from a dead one is to wait. */}
-                <span className={`live-dot ${live ? "on" : "off"}`} aria-hidden="true" />
-                {live ? "Live" : "Not live"} · {DEVICES.length} station{DEVICES.length === 1 ? "" : "s"}
-              </div>
-            </div>
-            <div className="row">
-              <button className="btn ghost sm">Today</button>
-              <button className="btn ghost sm">Week</button>
-              <button className="btn sm">All</button>
-            </div>
+            <h2 className="section-title">Activity, last 7 days</h2>
+            <span className="label">By hour, your time</span>
           </div>
-          <div className="card" style={{ padding: SIGHTINGS.length ? "0 18px" : 0 }}>
-            {SIGHTINGS.length > 0 ? (
-              <div className="feed">
-                {SIGHTINGS.slice(0, 6).map(s => (
-                  <FeedItem key={s.id} s={s} onClick={openSighting} />
-                ))}
-              </div>
-            ) : (
-              <Empty
-                title="No visits yet"
-                hint="Your stations are listening — the first bird will show up here."
-              />
-            )}
-          </div>
-        </div>
-
-        <div>
+          <div className="card card-pad"><ActivityHeatmap /></div>
+        </section>
+        <section className="section">
           <div className="section-head">
-            <div>
-              <div className="section-title">Stations</div>
-              <div className="section-sub">{DEVICES.length} registered</div>
-            </div>
-            <button className="btn ghost sm"><Icon name="plus" className="" /> Add</button>
+            <h2 className="section-title">Top visitors</h2>
+            <span className="label">All time</span>
           </div>
-          {DEVICES.map(d => <DeviceCard key={d.id} d={d} />)}
-        </div>
+          <div className="card card-pad"><TopVisitors /></div>
+        </section>
       </div>
 
-      <div style={{ height: 36 }} />
-
-
-      <div style={{ height: 36 }} />
-
-      <div className="dash-grid" style={{ gridTemplateColumns: "1.6fr 1fr" }}>
-        <div>
-          <div className="section-head">
-            <div>
-              <div className="section-title">Activity, last 7 days</div>
-              <div className="section-sub">Sightings per hour, all stations</div>
-            </div>
-            <span className="label">UTC −05:00</span>
-          </div>
-          <div className="card card-pad">
-            <ActivityHeatmap />
-          </div>
+      <section className="section">
+        <div className="section-head">
+          <h2 className="section-title">Stations</h2>
+          <button className="btn ghost sm" onClick={() => go("devices")}>
+            Manage <Icon name="arrow" className="" />
+          </button>
         </div>
-
-        <div>
-          <div className="section-head">
-            <div>
-              <div className="section-title">Top visitors</div>
-              <div className="section-sub">All time · sorted by count</div>
-            </div>
-          </div>
-          <div className="card card-pad">
-            <TopVisitors />
-          </div>
-        </div>
-      </div>
+        {DEVICES.length > 0 ? (
+          <div className="card">{DEVICES.map(dv => <StationRow key={dv.id} d={dv} />)}</div>
+        ) : (
+          <Empty icon="📡" title="No stations yet" hint="Register a feeder under Stations to start."
+            action={<button className="btn primary sm" onClick={() => go("devices")}>Register a station</button>} />
+        )}
+      </section>
     </>
   );
 }

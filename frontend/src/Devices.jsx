@@ -4,7 +4,8 @@ import { Icon } from "./Icon.jsx";
 import { useData } from "./DataContext.jsx";
 import { Modal, TextInput, FormNote, useDialog } from "./Modal.jsx";
 import { Empty } from "./Empty.jsx";
-import { createDevice } from "./data.js";
+import { SightingImage } from "./SightingImage.jsx";
+import { createDevice, fmtRelative } from "./data.js";
 
 function RegisterDeviceModal({ onClose, onDone }) {
   const [form, setForm] = useState({ name: "", city: "", state: "", feed_type: "" });
@@ -63,82 +64,60 @@ function RegisterDeviceModal({ onClose, onDone }) {
   );
 }
 
-function StationFigure({ d }) {
-  // Stylized "feeder station" diagram with battery, signal, sensor
-  const pct = Math.round(d.battery * 100);
-  const batColor = pct > 50 ? "var(--forest)" : pct > 20 ? "var(--yolk)" : "var(--cardinal)";
+const STATUS = {
+  online: { cls: "on", label: "Online" },
+  warn: { cls: "warn", label: "Low signal" },
+  offline: { cls: "off", label: "Offline" },
+};
+
+export function DeviceStatus({ d }) {
+  const st = STATUS[d.status] || STATUS.offline;
   return (
-    <svg viewBox="0 0 220 160" style={{ width: "100%", height: "100%" }}>
-      <defs>
-        <linearGradient id={`sky-${d.id}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="rgba(107, 155, 184, 0.18)" />
-          <stop offset="100%" stopColor="rgba(107, 155, 184, 0.04)" />
-        </linearGradient>
-      </defs>
-      <rect width="220" height="160" fill={`url(#sky-${d.id})`} />
-      {/* ground */}
-      <line x1="0" y1="138" x2="220" y2="138" stroke="var(--hairline-strong)" strokeWidth="1" strokeDasharray="2 3" />
-
-      {/* Tree branch */}
-      <path d="M 30 138 Q 60 130 80 132 Q 100 134 120 128" stroke="var(--ink-soft)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-      <path d="M 80 132 L 75 110" stroke="var(--ink-soft)" strokeWidth="1.5" fill="none" strokeLinecap="round" />
-
-      {/* Feeder pole */}
-      <line x1="155" y1="138" x2="155" y2="60" stroke="var(--ink-soft)" strokeWidth="1.5" />
-      {/* Feeder body */}
-      <g transform="translate(120, 40)">
-        <path d="M 0 22 L 35 8 L 70 22 L 70 50 L 0 50 Z" fill="var(--paper-2)" stroke="var(--ink-soft)" strokeWidth="1.2" />
-        <path d="M 0 22 L 35 8 L 70 22" fill="var(--ink-soft)" opacity="0.18" />
-        <line x1="35" y1="8" x2="35" y2="50" stroke="var(--hairline-strong)" />
-        <circle cx="20" cy="34" r="2" fill="var(--cardinal)" />
-        <circle cx="50" cy="34" r="2" fill="var(--cardinal)" />
-        {/* camera */}
-        <rect x="30" y="-6" width="10" height="8" rx="1" fill="var(--ink)" />
-        <circle cx="35" cy="-2" r="2" fill="var(--cardinal)" />
-        {/* signal arcs */}
-        <path d="M 47 -3 q 4 0 6 4" stroke={d.status === "online" ? "var(--forest)" : "var(--ink-mute)"} strokeWidth="1.2" fill="none" strokeLinecap="round" />
-        <path d="M 51 -7 q 7 1 11 8" stroke={d.status === "online" ? "var(--forest)" : "var(--ink-mute)"} strokeWidth="1.2" fill="none" strokeLinecap="round" opacity={d.signal === "weak" ? 0.3 : 0.85} />
-      </g>
-
-      {/* Tiny bird perched */}
-      <g transform="translate(82, 100)" fill="var(--ink)" stroke="var(--cardinal)" strokeWidth="0.5">
-        <path d="M 0 8 C -2 4 0 0 4 -1 C 8 -2 13 -1 16 2 L 19 0 L 22 2 L 19 5 C 21 8 18 11 14 11 L 12 14 L 8 13 L 6 15 L 5 12 L 2 13 Z" />
-      </g>
-
-      {/* Battery and stats overlay */}
-      <g transform="translate(12, 12)">
-        <rect x="0" y="0" width="76" height="46" rx="3" fill="var(--paper)" stroke="var(--hairline-strong)" />
-        <text x="8" y="14" fontFamily="'Geist Mono', monospace" fontSize="8" letterSpacing="1.5" fill="var(--ink-mute)">BATTERY</text>
-        <text x="8" y="32" fontFamily="'Newsreader', serif" fontStyle="italic" fontSize="20" fill="var(--ink)">{pct}%</text>
-        <rect x="8" y="36" width="60" height="4" rx="0.5" fill="var(--paper-2)" stroke="var(--hairline)" />
-        <rect x="8" y="36" width={60 * d.battery} height="4" rx="0.5" fill={batColor} />
-      </g>
-    </svg>
+    <span className={`device-status status-${st.cls}`}>
+      <span className={`dot ${st.cls}`} />
+      {st.label}
+    </span>
   );
 }
 
-function DeviceListCard({ d, onClick }) {
-  const dotCls = d.status === "online" ? "on" : d.status === "warn" ? "warn" : "off";
+// Battery only for stations that report one. A mains-powered Pi sends null.
+function Battery({ value }) {
+  if (value == null) return null;
+  const pct = Math.round(value * 100);
+  const level = pct > 50 ? "ok" : pct > 20 ? "low" : "crit";
   return (
-    <div className="card" style={{ overflow: "hidden", cursor: "pointer" }} onClick={() => onClick(d)}>
-      <div style={{ aspectRatio: "1.6", borderBottom: "1px solid var(--hairline)" }}>
-        <StationFigure d={d} />
+    <span className={`battery bat-${level}`} title={`Battery ${pct}%`}>
+      <span className="bat-bar"><span className="bat-fill" style={{ width: `${pct}%` }} /></span>
+      <span className="tnum">{pct}%</span>
+    </span>
+  );
+}
+
+function DeviceListCard({ d, latest, onClick }) {
+  return (
+    <button type="button" className="station-card" onClick={() => onClick(d)}>
+      <div className="station-shot">
+        {latest ? (
+          <>
+            <SightingImage sighting={latest} />
+            <span className="tile-badge tile-badge-l">Last capture · {fmtRelative(latest.datetime)}</span>
+          </>
+        ) : (
+          <div className="station-shot-empty">No captures yet</div>
+        )}
       </div>
       <div className="card-pad">
-        <div className="between" style={{ marginBottom: 10 }}>
+        <div className="between">
           <div>
             <div className="device-name">{d.name}</div>
-            <div className="device-loc">{d.city}, {d.state}</div>
+            <div className="device-loc">
+              {[d.city !== "—" && [d.city, d.state].filter(Boolean).join(", "), d.feed !== "—" && d.feed]
+                .filter(Boolean).join(" · ") || "No location set"}
+            </div>
           </div>
-          <div className="device-status">
-            <span className={`dot ${dotCls}`} />
-            {d.status === "online" ? "Online" : d.status === "warn" ? "Low signal" : "Offline"}
-          </div>
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, fontSize: 12, color: "var(--ink-soft)" }}>
-          <div>
-            <div className="label">Bait</div>
-            <div style={{ marginTop: 3, color: "var(--ink)" }}>{d.feed}</div>
+          <div className="station-card-status">
+            <DeviceStatus d={d} />
+            <Battery value={d.battery} />
           </div>
         </div>
         <div className="device-stats">
@@ -155,8 +134,9 @@ function DeviceListCard({ d, onClick }) {
             <div className="device-stat-lbl">All time</div>
           </div>
         </div>
+        <div className="station-seen">Last heard from {d.lastSeen}</div>
       </div>
-    </div>
+    </button>
   );
 }
 
@@ -220,14 +200,19 @@ function DeviceDetail({ d, onClose }) {
 
 export function DevicesPage() {
   const { data, reload } = useData();
-  const DEVICES = data.DEVICES;
+  const { DEVICES, SIGHTINGS } = data;
+  // Newest capture with a photo per station; SIGHTINGS is newest-first.
+  const latestBy = new Map();
+  for (const s of SIGHTINGS) {
+    if (s.hasImage && !latestBy.has(s.device.id)) latestBy.set(s.device.id, s);
+  }
   const [open, setOpen] = useState(null);
   const [registering, setRegistering] = useState(false);
   return (
     <>
       <div className="page-header">
         <div>
-          <div className="label" style={{ marginBottom: 6 }}>Field stations</div>
+          <div className="label">Field stations</div>
           <h1 className="page-title">Your <em>feeders</em></h1>
         </div>
         <button className="btn primary" onClick={() => setRegistering(true)}>
@@ -236,8 +221,8 @@ export function DevicesPage() {
       </div>
 
       {DEVICES.length > 0 ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))", gap: 18 }}>
-          {DEVICES.map(d => <DeviceListCard key={d.id} d={d} onClick={setOpen} />)}
+        <div className="station-grid">
+          {DEVICES.map(d => <DeviceListCard key={d.id} d={d} latest={latestBy.get(d.id)} onClick={setOpen} />)}
         </div>
       ) : (
         <Empty

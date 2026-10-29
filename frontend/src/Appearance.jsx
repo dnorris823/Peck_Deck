@@ -6,7 +6,7 @@ import React, { createContext, useContext, useEffect, useMemo, useState } from "
 const STORAGE_KEY = "peckdeck_appearance";
 
 export const DEFAULT_APPEARANCE = {
-  theme: "day",          // day | dusk
+  theme: "auto",         // auto | day | dusk; auto follows the OS setting
   accent: "cardinal",    // cardinal | forest | yolk | plum
   displayFont: "newsreader", // newsreader | instrument | playfair | eb
   density: "comfortable",    // compact | comfortable | spacious
@@ -40,9 +40,16 @@ function load() {
   return { ...DEFAULT_APPEARANCE };
 }
 
+const DARK_QUERY = "(prefers-color-scheme: dark)";
+
+function resolveTheme(theme) {
+  if (theme !== "auto") return theme;
+  return window.matchMedia?.(DARK_QUERY).matches ? "dusk" : "day";
+}
+
 export function applyAppearance(a) {
   const root = document.documentElement;
-  root.dataset.theme = a.theme;
+  root.dataset.theme = resolveTheme(a.theme);
   const accent = ACCENTS[a.accent] || ACCENTS.cardinal;
   root.style.setProperty("--cardinal", accent.primary);
   root.style.setProperty("--cardinal-deep", accent.deep);
@@ -62,6 +69,15 @@ export function AppearanceProvider({ children }) {
     } catch {
       /* ignore storage write failures (private mode, quota) */
     }
+  }, [appearance]);
+
+  // On "auto", follow the OS when it flips between light and dark.
+  useEffect(() => {
+    if (appearance.theme !== "auto" || !window.matchMedia) return;
+    const mq = window.matchMedia(DARK_QUERY);
+    const onChange = () => applyAppearance(appearance);
+    mq.addEventListener?.("change", onChange);
+    return () => mq.removeEventListener?.("change", onChange);
   }, [appearance]);
 
   const value = useMemo(

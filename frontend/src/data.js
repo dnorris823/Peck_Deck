@@ -50,7 +50,9 @@ function mapDevice(d) {
     state: d.state || "",
     feed: d.feed_type || "—",
     status: d.status,
-    battery: d.battery == null ? 0 : d.battery,
+    // Null means the station reports no battery (mains power). Mapping it to 0
+    // drew a red "0%" on every plugged-in Pi.
+    battery: d.battery == null ? null : d.battery,
     signal: d.signal || "none",
     lastSeen: d.last_seen ? fmtRelative(new Date(d.last_seen)) : "never",
     todaySightings: d.today_sightings,
@@ -263,4 +265,69 @@ export function fmtDateLabel(d) {
 }
 export function fmtDateFull(d) {
   return d.toLocaleDateString("en-US", { month: "short", day: "2-digit", year: "numeric" });
+}
+
+// ── Classification tiers ──────────────────────────────────────────────────
+// Thresholds mirror DEFAULT_TIER_THRESHOLDS in raspberry_pi_code/config.py.
+// A score below its tier's threshold is a guess the chain kept anyway (for
+// example the last tier standing), so the UI marks it as unsure rather than
+// colouring every tier against one shared scale.
+export const TIERS = {
+  local: { short: "Pi", long: "On the Pi (TFLite)", threshold: 0.85 },
+  gpu: { short: "PC", long: "Gaming PC GPU", threshold: 0.6 },
+  cloud: { short: "Claude", long: "Claude API", threshold: 0.5 },
+  none: { short: "None", long: "No tier answered", threshold: Infinity },
+};
+
+export function tierInfo(tier) {
+  return TIERS[tier] || { short: tier || "?", long: tier || "Unknown tier", threshold: Infinity };
+}
+
+/** "sure" when the score clears its own tier's threshold, else "unsure". */
+export function confidenceLevel(s) {
+  return s.confidence >= tierInfo(s.tier).threshold ? "sure" : "unsure";
+}
+
+// ── Local-time helpers ────────────────────────────────────────────────────
+// The backend buckets by UTC, so on the US west coast an afternoon visit lands
+// on tomorrow's row. These re-bucket in the viewer's own time zone.
+
+export function startOfToday(now = new Date()) {
+  const d = new Date(now);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** Sightings since local midnight, from the loaded window. */
+export function countToday(sightings, now = new Date()) {
+  const cutoff = startOfToday(now).getTime();
+  return sightings.filter((s) => s.datetime.getTime() >= cutoff).length;
+}
+
+/**
+ * Shift a Mon→Sun × 24h grid from UTC into local time. Rotating cells by the
+ * offset is exact for whole-hour zones; half-hour zones round to the nearest
+ * hour, which a heatmap cannot show anyway.
+ */
+export function toLocalGrid(grid, offsetMinutes = -new Date().getTimezoneOffset()) {
+  if (grid.length !== 7 || grid.some((row) => row.length !== 24)) return grid;
+  const shift = Math.round(offsetMinutes / 60);
+  const out = Array.from({ length: 7 }, () => Array(24).fill(0));
+  for (let d = 0; d < 7; d++) {
+    for (let h = 0; h < 24; h++) {
+      const t = (((d * 24 + h + shift) % 168) + 168) % 168;
+      out[Math.floor(t / 24)][t % 24] = grid[d][h];
+    }
+  }
+  return out;
+}
+
+/** "Today", "Yesterday", or "Tue, Oct 26" for a day-group heading. */
+export function fmtDayHeading(d, now = new Date()) {
+  const day = startOfToday(d).getTime();
+  const today = startOfToday(now).getTime();
+  const diff = Math.round((today - day) / 86400000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }

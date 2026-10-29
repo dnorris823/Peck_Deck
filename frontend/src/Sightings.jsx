@@ -1,11 +1,15 @@
-// Sightings gallery — filters + tile grid + detail modal
+// Sightings gallery — filters + day-grouped photo grid + detail modal
 import React, { useRef, useState, useMemo } from "react";
 import { SightingImage } from "./SightingImage.jsx";
 import { Icon } from "./Icon.jsx";
 import { Empty } from "./Empty.jsx";
 import { useDialog } from "./Modal.jsx";
 import { useData } from "./DataContext.jsx";
-import { downloadExport, fmtTime, fmtDateLabel } from "./data.js";
+import { apiObjectUrl } from "./api.js";
+import {
+  confidenceLevel, downloadExport, fmtDateLabel, fmtDayHeading, fmtRelative, fmtTime,
+  tierInfo,
+} from "./data.js";
 
 // Inclusive lower bound (ms since epoch) for a named range, or 0 for "all time".
 export function rangeCutoff(range, now = Date.now()) {
@@ -20,33 +24,75 @@ export function rangeCutoff(range, now = Date.now()) {
   return 0; // all
 }
 
-function SightingTile({ s, onClick }) {
-  const conf = s.confidence;
-  const cls = conf >= 0.9 ? "conf-high" : conf >= 0.78 ? "conf-mid" : "conf-low";
+const RANGES = [
+  ["today", "Today"],
+  ["week", "7 days"],
+  ["month", "30 days"],
+  ["all", "All"],
+];
+
+// Score plus a plain-words verdict. Each tier is judged against its own
+// threshold, because 70% from the GPU tier and 70% from the Pi mean different
+// things.
+export function ConfidenceChip({ s, long = false }) {
+  const level = confidenceLevel(s);
+  const tier = tierInfo(s.tier);
+  const pct = `${Math.round(s.confidence * 100)}%`;
+  const title = level === "sure"
+    ? `${pct} from ${tier.long}, above its ${Math.round(tier.threshold * 100)}% bar`
+    : `${pct} from ${tier.long}, below the bar for this tier. Treat it as a guess.`;
   return (
-    <div className="tile" onClick={() => onClick(s)}>
+    <span className={`conf conf-${level}`} title={title}>
+      {pct}{level === "unsure" && <span className="conf-flag">{long ? " · unsure" : "?"}</span>}
+    </span>
+  );
+}
+
+export function SightingTile({ s, onClick, showDate = false }) {
+  return (
+    <button type="button" className="tile" onClick={() => onClick(s)}
+      aria-label={`${s.species.common}, ${fmtTime(s.datetime)}`}>
       <div className="tile-img">
         <SightingImage sighting={s} />
-        <span className="corner">{fmtTime(s.datetime)}</span>
-        <span className={`corner corner-r feed-conf ${cls}`} style={{ background: undefined, padding: "3px 6px" }}>
-          {Math.round(conf * 100)}%
-        </span>
-        {s.hasVideo && (
-          <span className="corner" style={{ top: "auto", bottom: 8, left: 8 }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-              <Icon name="play" className="" /> CLIP
-            </span>
-          </span>
-        )}
+        <span className="tile-badge tile-badge-l">{fmtTime(s.datetime)}</span>
+        <span className="tile-badge tile-badge-r"><ConfidenceChip s={s} /></span>
       </div>
       <div className="tile-body">
         <div className="tile-name">{s.species.common}</div>
         <div className="tile-foot">
-          <span className="tile-time">{fmtDateLabel(s.datetime)} · {s.device.name}</span>
-          <span className="tile-time">{s.tier.toUpperCase()}</span>
+          <span>{showDate ? `${fmtDateLabel(s.datetime)} · ` : ""}{s.device.name}</span>
+          <span>{tierInfo(s.tier).short}</span>
         </div>
       </div>
-    </div>
+    </button>
+  );
+}
+
+// Saves the original capture. Same reason as the CSV export: the image route
+// needs the Bearer token, so it goes through fetch and a temporary link.
+function DownloadPhotoButton({ s }) {
+  const [busy, setBusy] = useState(false);
+  async function run() {
+    setBusy(true);
+    try {
+      const url = await apiObjectUrl(`/sightings/${s.id}/image`);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `peck-deck-${s.id}-${s.species.common.replace(/\W+/g, "-").toLowerCase()}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      /* The button stays; a second try is the only useful recovery. */
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <button className="btn" onClick={run} disabled={busy}>
+      <Icon name="download" className="" /> {busy ? "Saving…" : "Save photo"}
+    </button>
   );
 }
 
@@ -55,66 +101,55 @@ export function SightingDetail({ s, onClose }) {
   const panelRef = useRef(null);
   useDialog(onClose, panelRef);
   if (!s) return null;
-  const conf = s.confidence;
-  const cls = conf >= 0.9 ? "conf-high" : conf >= 0.78 ? "conf-mid" : "conf-low";
+  const tier = tierInfo(s.tier);
   const speciesCount = data.SPECIES_COUNTS.find(x => x.id === s.species.id)?.count || 1;
   return (
     <div className="modal-bg" onClick={onClose}>
-      <div className="modal" onClick={e => e.stopPropagation()}
+      <div className="modal modal-wide" onClick={e => e.stopPropagation()}
         ref={panelRef} role="dialog" aria-modal="true" aria-label={`${s.species.common} sighting`} tabIndex={-1}>
         <button className="modal-close" onClick={onClose} aria-label="Close dialog"><Icon name="x" className="" /></button>
         <div className="modal-grid">
           <div className="modal-img">
             <SightingImage sighting={s} large />
-            <div style={{ position: "absolute", bottom: 14, left: 16, fontFamily: "var(--mono)", fontSize: 10, letterSpacing: "0.16em", color: "rgba(28,38,32,0.75)", textTransform: "uppercase" }}>
-              Plate № {String(s.id).padStart(4, "0")}
-            </div>
-            {s.hasVideo && (
-              <button className="btn primary sm" style={{ position: "absolute", bottom: 14, right: 16 }}>
-                <Icon name="play" className="" /> Play 7s clip
-              </button>
-            )}
           </div>
           <div className="modal-side">
-            <div className="label" style={{ marginBottom: 8 }}>Sighting · {s.tier.toUpperCase()} tier</div>
-            <h2 className="display" style={{ fontSize: 38, lineHeight: 1, margin: 0 }}>
-              {s.species.common}
-            </h2>
-            <div className="display-i" style={{ fontSize: 17, color: "var(--ink-soft)", marginTop: 4 }}>
-              {s.species.sci}
-            </div>
+            <div className="label">Sighting № {String(s.id).padStart(4, "0")}</div>
+            <h2 className="modal-title">{s.species.common}</h2>
+            <div className="modal-sci">{s.species.sci}</div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 22, paddingTop: 18, borderTop: "1px solid var(--hairline)" }}>
+            <dl className="facts">
               <div>
-                <div className="label">Confidence</div>
-                <div className={`feed-conf ${cls}`} style={{ marginTop: 6, fontSize: 12 }}>
-                  {Math.round(conf * 100)}% · {s.tier === "local" ? "iNatVision TFLite" : s.tier === "gpu" ? "EfficientNet-B4 GPU" : "Claude Sonnet 4.5"}
-                </div>
+                <dt className="label">Confidence</dt>
+                <dd><ConfidenceChip s={s} long /></dd>
               </div>
               <div>
-                <div className="label">Captured</div>
-                <div style={{ marginTop: 6 }}>{fmtDateLabel(s.datetime)} · {fmtTime(s.datetime)}</div>
+                <dt className="label">Identified by</dt>
+                <dd>{tier.long}</dd>
               </div>
               <div>
-                <div className="label">Station</div>
-                <div style={{ marginTop: 6 }}>{s.device.name}</div>
+                <dt className="label">Captured</dt>
+                <dd>{fmtDateLabel(s.datetime)}, {fmtTime(s.datetime)}
+                  <span className="facts-sub"> · {fmtRelative(s.datetime)}</span></dd>
               </div>
               <div>
-                <div className="label">Visits this species</div>
-                <div className="display-i" style={{ marginTop: 4, fontSize: 22 }}>{speciesCount}</div>
+                <dt className="label">Station</dt>
+                <dd>{s.device.name}</dd>
               </div>
-            </div>
+              <div>
+                <dt className="label">Visits, this species</dt>
+                <dd className="tnum">{speciesCount.toLocaleString()}</dd>
+              </div>
+            </dl>
 
-            <p style={{ fontSize: 13.5, color: "var(--ink-soft)", marginTop: 22, lineHeight: 1.55 }}>
-              {s.species.note}
-            </p>
+            {s.species.note && <p className="modal-note">{s.species.note}</p>}
 
-            <div style={{ display: "flex", gap: 8, marginTop: 24 }}>
-              <a className="btn" href={s.species.wiki} target="_blank" rel="noopener">
-                <Icon name="extlink" className="" /> Wikipedia
-              </a>
-              <button className="btn"><Icon name="download" className="" /> Download</button>
-              <button className="btn ghost" style={{ marginLeft: "auto" }}>Misidentified?</button>
+            <div className="modal-actions">
+              {s.hasImage && <DownloadPhotoButton s={s} />}
+              {s.species.wiki && (
+                <a className="btn ghost" href={s.species.wiki} target="_blank" rel="noopener noreferrer">
+                  <Icon name="extlink" className="" /> Wikipedia
+                </a>
+              )}
             </div>
           </div>
         </div>
@@ -150,21 +185,34 @@ function ExportCsvButton() {
   }
 
   return (
-    <div style={{ marginTop: 8 }}>
-      <button type="button" className="btn ghost sm" disabled={busy} onClick={run}>
-        {busy ? "Preparing…" : "Export CSV"}
+    <>
+      <button type="button" className="btn sm" disabled={busy} onClick={run}>
+        <Icon name="download" className="" /> {busy ? "Preparing…" : "Export CSV"}
       </button>
-      {error && <div className="field-help" style={{ color: "var(--cardinal)" }} role="alert">{error}</div>}
-    </div>
+      {error && <div className="field-help field-error" role="alert">{error}</div>}
+    </>
   );
 }
 
-export function Sightings({ openSighting }) {
+// Newest-first sightings split into local calendar days.
+function groupByDay(sightings) {
+  const groups = [];
+  for (const s of sightings) {
+    const key = s.datetime.toDateString();
+    const last = groups[groups.length - 1];
+    if (last && last.key === key) last.items.push(s);
+    else groups.push({ key, date: s.datetime, items: [s] });
+  }
+  return groups;
+}
+
+export function Sightings({ openSighting, initialSpecies = "all" }) {
   const { data } = useData();
   const { SIGHTINGS, SPECIES, DEVICES } = data;
   const [device, setDevice] = useState("all");
-  const [species, setSpecies] = useState("all");
-  const [range, setRange] = useState("week");
+  const [species, setSpecies] = useState(initialSpecies);
+  // Coming from a species page, start wide: that species' visits may be old.
+  const [range, setRange] = useState(initialSpecies === "all" ? "week" : "all");
 
   const filtered = useMemo(() => {
     const cutoff = rangeCutoff(range);
@@ -175,69 +223,77 @@ export function Sightings({ openSighting }) {
     );
   }, [SIGHTINGS, device, species, range]);
 
+  const groups = useMemo(() => groupByDay(filtered), [filtered]);
   const hasAny = SIGHTINGS.length > 0;
+  // Only species that appear in the loaded sightings are worth filtering by.
+  const seenSpecies = useMemo(() => {
+    const ids = new Set(SIGHTINGS.map(s => s.species.id));
+    return SPECIES.filter(s => ids.has(s.id)).sort((a, b) => a.common.localeCompare(b.common));
+  }, [SIGHTINGS, SPECIES]);
 
   return (
     <>
       <div className="page-header">
         <div>
-          <div className="label" style={{ marginBottom: 6 }}>Field Records</div>
+          <div className="label">Field records</div>
           <h1 className="page-title">All <em>sightings</em></h1>
         </div>
         <div className="page-meta">
-          <div className="label">Showing</div>
-          <div className="page-meta-row">
-            <span className="page-meta-num tnum">{filtered.length}</span>
-            <span className="display-i" style={{ fontSize: 18, color: "var(--ink-soft)" }}>
-              of {SIGHTINGS.length}
-            </span>
-          </div>
-          <ExportCsvButton />
+          <span className="page-meta-num tnum">{filtered.length}</span>
+          <span className="label">shown</span>
         </div>
       </div>
 
       <div className="toolbar">
-        <button className={`chip ${range === "today" ? "active" : ""}`} onClick={() => setRange("today")}>Today</button>
-        <button className={`chip ${range === "week" ? "active" : ""}`} onClick={() => setRange("week")}>This week</button>
-        <button className={`chip ${range === "month" ? "active" : ""}`} onClick={() => setRange("month")}>This month</button>
-        <button className={`chip ${range === "all" ? "active" : ""}`} onClick={() => setRange("all")}>All time</button>
+        <div className="segmented" role="group" aria-label="Time range">
+          {RANGES.map(([id, label]) => (
+            <button key={id} className={range === id ? "active" : ""} aria-pressed={range === id}
+              onClick={() => setRange(id)}>{label}</button>
+          ))}
+        </div>
 
-        <span style={{ width: 1, height: 22, background: "var(--hairline-strong)", margin: "0 4px" }} />
-
-        <button className={`chip ${device === "all" ? "active" : ""}`} onClick={() => setDevice("all")}>
-          <Icon name="device" className="" /> All stations
-        </button>
-        {DEVICES.map(d => (
-          <button key={d.id} className={`chip ${device === d.id ? "active" : ""}`} onClick={() => setDevice(d.id)}>
-            {d.name}
-          </button>
-        ))}
-
-        <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <select value={species} aria-label="Filter by species"
-            onChange={e => setSpecies(e.target.value === "all" ? "all" : Number(e.target.value))}
-            style={{ width: 200 }}>
-            <option value="all">All species</option>
-            {SPECIES.map(s => <option key={s.id} value={s.id}>{s.common}</option>)}
+        {DEVICES.length > 1 && (
+          <select value={device} aria-label="Filter by station" className="toolbar-select"
+            onChange={e => setDevice(e.target.value === "all" ? "all" : Number(e.target.value))}>
+            <option value="all">All stations</option>
+            {DEVICES.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
-          <button className="btn sm"><Icon name="download" className="" /> Export</button>
-        </span>
+        )}
+
+        <select value={species} aria-label="Filter by species" className="toolbar-select"
+          onChange={e => setSpecies(e.target.value === "all" ? "all" : Number(e.target.value))}>
+          <option value="all">All species</option>
+          {seenSpecies.map(s => <option key={s.id} value={s.id}>{s.common}</option>)}
+        </select>
+
+        <span className="toolbar-end"><ExportCsvButton /></span>
       </div>
 
-      {filtered.length > 0 ? (
-        <div className="gallery">
-          {filtered.map(s => <SightingTile key={s.id} s={s} onClick={openSighting} />)}
-        </div>
+      {groups.length > 0 ? (
+        groups.map(g => (
+          <section key={g.key} className="day-group">
+            <h2 className="day-head">
+              <span>{fmtDayHeading(g.date)}</span>
+              <span className="label tnum">{g.items.length} visit{g.items.length === 1 ? "" : "s"}</span>
+            </h2>
+            <div className="gallery">
+              {g.items.map(s => <SightingTile key={s.id} s={s} onClick={openSighting} />)}
+            </div>
+          </section>
+        ))
       ) : hasAny ? (
         <Empty
           icon="🔍"
-          title="No sightings match these filters"
-          hint="Try a wider time range or a different station or species."
+          title="No sightings match"
+          hint="Try a wider time range, or clear the station and species filters."
+          action={<button className="btn sm" onClick={() => { setRange("all"); setDevice("all"); setSpecies("all"); }}>
+            Show everything
+          </button>}
         />
       ) : (
         <Empty
           title="No sightings yet"
-          hint="Once a station spots a bird, its plate will appear here."
+          hint="When a station spots a bird, its photo shows up here."
         />
       )}
     </>
