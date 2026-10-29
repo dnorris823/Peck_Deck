@@ -1,0 +1,59 @@
+version: 2
+
+# Weekly version updates. Minor and patch updates share one PR per ecosystem.
+# Major updates stay separate, so a breaking change never hides in a bulk PR.
+# Every PR targets main, so ci.yml runs on it like any other PR.
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    groups:
+      # react-dom must match the react major, so the two move in one PR.
+      react:
+        patterns: ["react", "react-dom"]
+        update-types: ["major"]
+      npm-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+
+  - package-ecosystem: pip
+    directories:
+      - /backend
+      - /inference_server
+      - /raspberry_pi_code
+    schedule:
+      interval: weekly
+    groups:
+      pip-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+      # Without this, a major bump to a package in several directories, such
+      # as Pillow, opens one PR per directory.
+      pip-major:
+        patterns: ["*"]
+        update-types: ["major"]
+        group-by: dependency-name
+    ignore:
+      # The RTX 5080 needs the cu128 build of torch, which comes from the
+      # PyTorch index, not PyPI. A raised floor makes `pip install -r` replace
+      # it with a PyPI wheel, and on Windows that wheel is CPU only. CI never
+      # installs inference_server, so it would not catch this. Upgrade both by
+      # hand with the cu128 command in CONTRIBUTING.md.
+      - dependency-name: torch
+      - dependency-name: torchvision
+      # The Pi venv uses the system numpy 1.24.2. picamera2's simplejpeg is
+      # compiled against it, and numpy 2 breaks it. A raised floor makes pip
+      # install its own numpy over the system one. CI does not install
+      # picamera2, so it would not catch this.
+      # See docs/archive/HARDWARE_TEST_PLAN.md, section 1.
+      - dependency-name: numpy
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
