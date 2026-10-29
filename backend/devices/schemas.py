@@ -36,7 +36,6 @@ class DeviceResponse:
     state: str | None
     owner_id: int
     feed_type: str | None
-    token: str
     battery: float | None
     signal: str | None
     last_seen: str | None
@@ -44,3 +43,16 @@ class DeviceResponse:
     today_sightings: int
     week_sightings: int
     all_time_sightings: int
+
+
+@dataclass
+class RegisteredDeviceResponse(DeviceResponse):
+    """Only `POST /devices` returns this. The token never rides on a shared response."""
+
+    token: str
+
+
+@dataclass
+class DeviceTokenResponse:
+    id: int
+    token: str
