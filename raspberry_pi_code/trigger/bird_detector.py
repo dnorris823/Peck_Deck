@@ -7,9 +7,11 @@ after the capture.
 
 import logging
 from pathlib import Path
+from typing import NamedTuple
 
 import numpy as np
 
+from ..bird_crop import Box
 from ..tflite_loader import import_tflite
 
 logger = logging.getLogger(__name__)
@@ -17,6 +19,25 @@ logger = logging.getLogger(__name__)
 # COCO "bird", as the model numbers it. The model's labelmap.txt starts at
 # person = 0, so bird is line 16 and class 15. Check this if the model changes.
 BIRD_CLASS_ID = 15
+
+
+class Detection(NamedTuple):
+    """The best bird in a frame.
+
+    ``box`` is in fractions of the frame the detector was given. It is None
+    when the model returned an empty box.
+    """
+
+    score: float
+    box: Box | None
+
+
+def _to_box(raw: np.ndarray) -> Box | None:
+    """Convert the model's [ymin, xmin, ymax, xmax] to (x, y, width, height)."""
+    ymin, xmin, ymax, xmax = np.clip(np.asarray(raw, dtype=float), 0.0, 1.0)
+    if xmax <= xmin or ymax <= ymin:
+        return None
+    return (float(xmin), float(ymin), float(xmax - xmin), float(ymax - ymin))
 
 
 class BirdDetector:
@@ -35,6 +56,7 @@ class BirdDetector:
         self._num_threads = num_threads
         self._interp = None
         self._input: dict | None = None
+        self._boxes: dict | None = None
         self._classes: dict | None = None
         self._scores: dict | None = None
         self._count: dict | None = None
@@ -75,7 +97,7 @@ class BirdDetector:
 
         self._interp = interpreter
         self._input = inp
-        _, self._classes, self._scores, self._count = outputs
+        self._boxes, self._classes, self._scores, self._count = outputs
         logger.info(
             "Bird detector loaded (input %s, score threshold %.2f, %d threads)",
             tuple(inp["shape"]), self._threshold, self._num_threads,
@@ -86,8 +108,8 @@ class BirdDetector:
     def loaded(self) -> bool:
         return self._interp is not None
 
-    def detect(self, rgb: np.ndarray) -> float | None:
-        """Return the best bird score at or above the threshold, else None.
+    def detect(self, rgb: np.ndarray) -> Detection | None:
+        """Return the best bird at or above the threshold, else None.
 
         ``rgb`` is an (h, w, 3) uint8 frame of any size. Blocking: call it
         through ``asyncio.to_thread``.
@@ -112,8 +134,11 @@ class BirdDetector:
         classes = np.asarray(self._interp.get_tensor(self._classes["index"])).reshape(-1)[:n]
         scores = np.asarray(self._interp.get_tensor(self._scores["index"])).reshape(-1)[:n]
 
-        bird_scores = scores[np.rint(classes).astype(int) == BIRD_CLASS_ID]
-        if bird_scores.size == 0:
+        birds = np.flatnonzero(np.rint(classes).astype(int) == BIRD_CLASS_ID)
+        if birds.size == 0:
             return None
-        best = float(bird_scores.max())
-        return best if best >= self._threshold else None
+        best = int(birds[np.argmax(scores[birds])])
+        if float(scores[best]) < self._threshold:
+            return None
+        boxes = np.asarray(self._interp.get_tensor(self._boxes["index"])).reshape(-1, 4)
+        return Detection(float(scores[best]), _to_box(boxes[best]))

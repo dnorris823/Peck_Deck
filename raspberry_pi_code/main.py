@@ -97,9 +97,9 @@ async def _run() -> None:
         ]
         try:
             while True:
-                await trigger.next_event()
+                event = await trigger.next_event()
                 asyncio.create_task(
-                    pipeline.handle_trigger(),
+                    pipeline.handle_trigger(event.box),
                     name="capture",
                 )
         finally:

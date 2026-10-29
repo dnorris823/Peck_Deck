@@ -11,7 +11,8 @@ Each analysis tick runs three steps:
 
 The motion check and the detector see only the region of interest,
 ``CAMERA_ROI``. It is in fractions of the frame, so one setting crops both the
-lores and the main stream.
+lores and the main stream. The detector's box comes back in fractions of the
+crop, so the trigger maps it to the full frame before it hands it on.
 
 The visit rule is the only repeat rule. The pipeline applies none of its own.
 """
@@ -23,9 +24,10 @@ from typing import Callable
 
 import numpy as np
 
+from ..bird_crop import to_frame
 from ..camera.base import CameraBase
 from ..config import FULL_FRAME
-from .base import TriggerBase
+from .base import TriggerBase, TriggerEvent
 from .bird_detector import BirdDetector
 
 logger = logging.getLogger(__name__)
@@ -115,7 +117,7 @@ class CameraTrigger(TriggerBase):
         self._interval = 1.0 / analysis_fps
         self._roi = roi
         self._clock = clock
-        self._queue: asyncio.Queue[float] = asyncio.Queue()
+        self._queue: asyncio.Queue[TriggerEvent] = asyncio.Queue()
         self._task: asyncio.Task | None = None
 
     async def __aenter__(self) -> "CameraTrigger":
@@ -137,7 +139,7 @@ class CameraTrigger(TriggerBase):
             await asyncio.gather(self._task, return_exceptions=True)
             self._task = None
 
-    async def next_event(self) -> float:
+    async def next_event(self) -> TriggerEvent:
         return await self._queue.get()
 
     async def _watch(self) -> None:
@@ -166,12 +168,17 @@ class CameraTrigger(TriggerBase):
         rgb = await self._camera.grab_rgb()
         if rgb is None:
             return False
-        score = await asyncio.to_thread(self._detector.detect, crop(rgb, self._roi))
-        if score is None:
+        detection = await asyncio.to_thread(self._detector.detect, crop(rgb, self._roi))
+        if detection is None:
             return False
 
         if not self._visits.bird_seen(self._clock()):
             return False
-        logger.info("Bird detected (score %.2f). Starting a new visit", score)
-        self._queue.put_nowait(asyncio.get_running_loop().time())
+        box = None if detection.box is None else to_frame(detection.box, self._roi)
+        logger.info(
+            "Bird detected (score %.2f, box %s). Starting a new visit",
+            detection.score,
+            "none" if box is None else ",".join(f"{v:.3f}" for v in box),
+        )
+        self._queue.put_nowait(TriggerEvent(asyncio.get_running_loop().time(), box))
         return True

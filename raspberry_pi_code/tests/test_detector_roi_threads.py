@@ -18,7 +18,7 @@ from raspberry_pi_code.tests.test_camera_trigger import (
     FakeInterpreter,
 )
 from raspberry_pi_code.trigger import bird_detector
-from raspberry_pi_code.trigger.bird_detector import BIRD_CLASS_ID, BirdDetector
+from raspberry_pi_code.trigger.bird_detector import BIRD_CLASS_ID, BirdDetector, Detection
 from raspberry_pi_code.trigger.camera_trigger import CameraTrigger, crop
 
 # ── CAMERA_ROI parsing ────────────────────────────────────────────────────────
@@ -143,7 +143,7 @@ def test_cropped_view_feeds_the_detector():
 
     view = crop(np.zeros((1080, 1920, 3), np.uint8), (0.1, 0.1, 0.3, 0.6))
 
-    assert det.detect(view) == pytest.approx(0.8)
+    assert det.detect(view).score == pytest.approx(0.8)
     assert interp.input_seen.shape == (1, 320, 320, 3)
 
 
@@ -161,7 +161,7 @@ class RecordingDetector:
 
     def detect(self, rgb):
         self.shapes.append(rgb.shape)
-        return 0.9
+        return Detection(0.9, None)
 
 
 class FullSizeCamera(FakeCamera):
