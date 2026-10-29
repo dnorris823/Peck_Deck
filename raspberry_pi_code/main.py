@@ -11,6 +11,7 @@ import asyncio
 import logging
 import sys
 
+from .api_client import BackendClient, UploadOutcome
 from .camera.base import CameraBase
 from .camera.pi_camera import PiCamera
 from .config import Config
@@ -55,6 +56,29 @@ async def _sync_loop(pipeline: Pipeline, interval: int) -> None:
             logging.getLogger(__name__).exception("Sync loop error")
 
 
+async def _heartbeat_loop(client: BackendClient, interval: float) -> None:
+    """Report to the backend every `interval` seconds, starting now.
+
+    Logs only when the result changes, so a backend that is down for an hour
+    costs one warning, not sixty. Nothing here may stop capture.
+    """
+    logger = logging.getLogger(__name__)
+    last_ok: bool | None = None
+    while True:
+        try:
+            outcome = await client.heartbeat()
+        except Exception:
+            logger.exception("Heartbeat error")
+            outcome = UploadOutcome.RETRY
+        ok = bool(outcome)
+        if ok and last_ok is False:
+            logger.info("Heartbeat reaching the backend again")
+        elif not ok and last_ok is not False:
+            logger.warning("Heartbeat failed (%s); the station will show offline", outcome.value)
+        last_ok = ok
+        await asyncio.sleep(interval)
+
+
 async def _run() -> None:
     logging.basicConfig(
         level=logging.INFO,
@@ -94,6 +118,14 @@ async def _run() -> None:
             # Classify and upload run here, one capture at a time, so a slow
             # Tier 2 never holds the camera from the next visit.
             asyncio.create_task(pipeline.run_classifier(), name="classify"),
+            asyncio.create_task(
+                _heartbeat_loop(
+                    BackendClient(config.backend_url, config.device_token,
+                                  config.backend_connect_timeout),
+                    config.heartbeat_interval_seconds,
+                ),
+                name="heartbeat",
+            ),
         ]
         try:
             while True:

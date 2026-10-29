@@ -99,6 +99,18 @@ async def update_device_telemetry(
     return device
 
 
+async def mark_device_seen(db: AsyncSession, device_id: int) -> None:
+    """Record that a device just reached the backend.
+
+    A device that uploads is alive, even if it never sends a heartbeat. Without
+    this the station read "offline" minutes after it sent a sighting.
+    """
+    device = await get_device(db, device_id)
+    if device is not None:
+        device.last_seen = datetime.now(timezone.utc)
+        await db.flush()
+
+
 async def add_device_user(db: AsyncSession, device_id: int, user_id: int) -> None:
     existing = await db.execute(
         select(DeviceUser).where(

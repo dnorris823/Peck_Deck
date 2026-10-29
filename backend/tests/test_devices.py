@@ -54,6 +54,23 @@ def test_heartbeat_updates_telemetry(client):
     assert body["status"] == "online"  # heartbeat refreshes last_seen
 
 
+def test_self_heartbeat_reports_for_the_token_device(client):
+    # The Pi knows its token but not its id, so this route takes neither.
+    res = client.post("/devices/me/heartbeat",
+                      json={"signal": "good"},
+                      headers={"Authorization": "Bearer dev1-token"})
+    assert res.status_code == 200
+    body = res.json()
+    assert body["id"] == IDS["dev1_id"]
+    assert body["status"] == "online"
+    assert body["last_seen"] is not None
+
+
+def test_self_heartbeat_rejects_user_token(client, owner_headers):
+    res = client.post("/devices/me/heartbeat", json={}, headers=owner_headers)
+    assert res.status_code == 401
+
+
 def test_heartbeat_wrong_device_forbidden(client):
     # dev1's token trying to report for dev2
     res = client.post("/devices/%d/heartbeat" % IDS["dev2_id"],
