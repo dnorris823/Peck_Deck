@@ -181,7 +181,6 @@ export function UsersPage() {
 const SETTINGS_SECTIONS = [
   { id: "account", label: "Account" },
   { id: "notifications", label: "Notifications" },
-  { id: "integrations", label: "API keys" },
   { id: "appearance", label: "Appearance" },
 ];
 
@@ -480,20 +479,6 @@ export function SettingsPage() {
                 help="When on, you'll only be alerted the first time a species shows up.">
                 <Toggle on={prefs.notify_new_species_only}
                   onChange={v => savePrefs({ notify_new_species_only: v })} />
-              </Field>
-            </div>
-          )}
-
-          {section === "integrations" && (
-            <div className="settings-section">
-              <h3>API keys</h3>
-              <p className="lead">Stored as environment variables on the gaming PC. Never sent to the Pi —
-                and never editable from the browser. Shown masked for reference only.</p>
-              <Field label="Anthropic Claude" help="Powers Tier 3 cloud classification.">
-                <input type="password" value="sk-ant-•••••••••••••••••0a9b" readOnly />
-              </Field>
-              <Field label="SendGrid" help="Outbound transactional email.">
-                <input type="password" value="SG.•••••••••••••••••8f2c" readOnly />
               </Field>
             </div>
           )}
