@@ -11,6 +11,7 @@ test order. The two fire-and-forget side effects (notification dispatch and the
 Wikipedia URL backfill) are patched to network-free no-ops.
 """
 import asyncio
+import json
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -56,18 +57,21 @@ def _silence_side_effects(monkeypatch):
     monkeypatch.setattr(sighting_aftercare, "enrich_species", _noop)
 
 
-def _upload(client, token, *, delayed, image=_JPEG):
+def _upload(client, token, *, delayed, image=_JPEG, tier_trace=None):
+    data = {
+        "timestamp": "2026-07-19T10:30:00",
+        "common_name": "Sync Sparrow",
+        "scientific_name": "Passer testus",
+        "confidence_score": "0.77",
+        "classification_tier_used": "local",
+        "delayed": delayed,
+    }
+    if tier_trace is not None:
+        data["tier_trace"] = tier_trace
     return client.post(
         "/sightings",
         headers={"Authorization": f"Bearer {token}"},
-        data={
-            "timestamp": "2026-07-19T10:30:00",
-            "common_name": "Sync Sparrow",
-            "scientific_name": "Passer testus",
-            "confidence_score": "0.77",
-            "classification_tier_used": "local",
-            "delayed": delayed,
-        },
+        data=data,
         files={"image": ("bird.jpg", image, "image/jpeg")},
     )
 
@@ -166,3 +170,74 @@ def test_upload_marks_device_seen(client, monkeypatch):
     if seen.tzinfo is None:
         seen = seen.replace(tzinfo=timezone.utc)
     assert datetime.now(timezone.utc) - seen < timedelta(minutes=1)
+
+
+# ── Tier trace ───────────────────────────────────────────────────────────────
+
+# Tier 2 unreachable, Tier 1 answered. The case the trace exists for.
+_TRACE = [
+    {"tier": "gpu", "outcome": "failed", "confidence": None, "threshold": 0.6},
+    {"tier": "local", "outcome": "accepted", "confidence": 0.77, "threshold": 0.85},
+]
+
+
+def test_upload_stores_and_returns_the_tier_trace(client, owner_headers, monkeypatch):
+    _silence_side_effects(monkeypatch)
+    token = asyncio.run(_fresh_device_token())
+
+    res = _upload(client, token, delayed="false", tier_trace=json.dumps(_TRACE))
+    assert res.status_code == 201
+    assert res.json()["tier_trace"] == _TRACE
+
+    got = client.get(f"/sightings/{res.json()['id']}", headers=owner_headers)
+    assert got.json()["tier_trace"] == _TRACE
+
+
+def test_upload_without_a_tier_trace_returns_null(client, monkeypatch):
+    """An older Pi build sends no trace. The upload still lands."""
+    _silence_side_effects(monkeypatch)
+    token = asyncio.run(_fresh_device_token())
+
+    res = _upload(client, token, delayed="false")
+
+    assert res.status_code == 201
+    assert res.json()["tier_trace"] is None
+
+
+def test_every_tier_failed_round_trips(client, monkeypatch):
+    _silence_side_effects(monkeypatch)
+    token = asyncio.run(_fresh_device_token())
+    trace = [
+        {"tier": "gpu", "outcome": "failed", "confidence": None, "threshold": 0.6},
+        {"tier": "local", "outcome": "failed", "confidence": None, "threshold": 0.85},
+    ]
+
+    res = client.post(
+        "/sightings",
+        headers={"Authorization": f"Bearer {token}"},
+        data={
+            "timestamp": "2026-07-19T12:00:00",
+            "common_name": "Unknown",
+            "scientific_name": "",
+            "confidence_score": "0.0",
+            "classification_tier_used": "none",
+            "tier_trace": json.dumps(trace),
+        },
+        files={"image": ("bird.jpg", _JPEG, "image/jpeg")},
+    )
+
+    assert res.status_code == 201
+    assert res.json()["classification_tier_used"] == "none"
+    assert res.json()["tier_trace"] == trace
+
+
+def test_a_malformed_tier_trace_keeps_the_sighting(client, monkeypatch):
+    """A 4xx would make the Pi drop the visit, so a bad trace stores null."""
+    _silence_side_effects(monkeypatch)
+    token = asyncio.run(_fresh_device_token())
+    bad_outcome = [{**_TRACE[0], "outcome": "maybe"}]
+
+    for raw in ("not json", json.dumps({"tier": "gpu"}), json.dumps(bad_outcome)):
+        res = _upload(client, token, delayed="false", tier_trace=raw)
+        assert res.status_code == 201, raw
+        assert res.json()["tier_trace"] is None, raw

@@ -17,6 +17,8 @@ class QueuedSighting:
     scientific_name: str
     confidence: float
     tier_used: str
+    # TierAttempt dicts in chain order. None for a row queued by an older build.
+    tier_trace: list[dict] | None = None
 
 
 class LocalCache:

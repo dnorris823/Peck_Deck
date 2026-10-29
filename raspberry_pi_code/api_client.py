@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from enum import Enum
 from pathlib import Path
@@ -77,9 +78,13 @@ class BackendClient:
         scientific_name: str,
         confidence: float,
         tier_used: str,
+        tier_trace: list[dict] | None = None,
         delayed: bool = False,
     ) -> UploadOutcome:
         """Upload image + sighting metadata in a single multipart POST.
+
+        ``tier_trace`` goes up as a JSON string. None leaves the field out,
+        which is what a sighting queued by an older build carries.
 
         Returns an :class:`UploadOutcome`; it is falsy for every failure, so
         callers that only care whether it worked can still just test it.
@@ -98,6 +103,8 @@ class BackendClient:
                     form.add_field("scientific_name", scientific_name)
                     form.add_field("confidence_score", str(confidence))
                     form.add_field("classification_tier_used", tier_used)
+                    if tier_trace is not None:
+                        form.add_field("tier_trace", json.dumps(tier_trace))
                     form.add_field("delayed", str(delayed).lower())
 
                     async with session.post(

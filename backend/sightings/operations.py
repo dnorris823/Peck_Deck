@@ -60,6 +60,7 @@ async def create_sighting(
     classification_tier_used: str,
     image_data: bytes | None,
     delayed: bool,
+    tier_trace: list[dict] | None = None,
 ) -> Sighting:
     parts = scientific_name.strip().split()
     genus = parts[0] if parts else common_name
@@ -81,6 +82,7 @@ async def create_sighting(
         classification_tier_used=classification_tier_used,
         confidence_score=confidence_score,
         delayed=delayed,
+        tier_trace=tier_trace,
     )
     db.add(sighting)
     await db.flush()

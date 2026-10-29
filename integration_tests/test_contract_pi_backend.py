@@ -82,6 +82,36 @@ def test_pi_client_offline_sync_marks_delayed(ids, tmp_path):
     rows = sightings_for_device(device_id)
     assert len(rows) == 1
     assert rows[0]["delayed"] is True
+    # Called without a trace, like a row queued by an older build.
+    assert rows[0]["tier_trace"] is None
+
+
+def test_pi_client_uploads_the_tier_trace(ids, tmp_path):
+    """The trace survives the multipart form and lands in the jsonb column."""
+    token, device_id = create_throwaway_device("pi-trace")
+    image = _write_jpeg(tmp_path)
+    trace = [
+        {"tier": "gpu", "outcome": "failed", "confidence": None, "threshold": 0.6},
+        {"tier": "local", "outcome": "accepted", "confidence": 0.91, "threshold": 0.85},
+    ]
+
+    with run_server(app) as base_url:
+        client = BackendClient(base_url, token)
+        ok = asyncio.run(
+            client.post_sighting(
+                image_path=image,
+                timestamp="2026-07-19T10:30:00+00:00",
+                common_name="Test Cardinal",
+                scientific_name="Cardinalis testus",
+                confidence=0.91,
+                tier_used="local",
+                tier_trace=trace,
+            )
+        )
+        assert ok is UploadOutcome.OK
+
+    [row] = sightings_for_device(device_id)
+    assert row["tier_trace"] == trace
 
 
 def test_pi_client_rejects_bad_device_token(ids, tmp_path):

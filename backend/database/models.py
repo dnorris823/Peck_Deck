@@ -6,10 +6,12 @@ from sqlalchemy import (
     Float,
     ForeignKey,
     Integer,
+    JSON,
     LargeBinary,
     String,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -171,6 +173,11 @@ class Sighting(Base):
     confidence_score: Mapped[float] = mapped_column(Float, nullable=False)
     weather_conditions: Mapped[str | None] = mapped_column(String, nullable=True)
     delayed: Mapped[bool] = mapped_column(Boolean, default=False)
+    # One entry per tier the Pi's chain held, in chain order. See TierAttempt in
+    # sightings/schemas.py. Null for rows and Pi builds from before the trace.
+    tier_trace: Mapped[list | None] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=True
+    )
 
     species: Mapped["Species"] = relationship("Species", back_populates="sightings")
     device: Mapped["Device"] = relationship("Device", back_populates="sightings")
