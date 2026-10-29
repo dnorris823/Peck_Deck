@@ -23,6 +23,8 @@ logger = logging.getLogger("peckdeck.sightings")
 
 _to_response = sighting_response
 
+IMAGE_CACHE_CONTROL = "private, max-age=31536000, immutable"
+
 
 from dataclasses import dataclass, field
 
@@ -61,7 +63,7 @@ class SightingController(Controller):
                 status_code=400,
                 detail="from_date/to_date must be ISO-8601 (e.g. 2026-07-19 or 2026-07-19T10:00:00)",
             )
-        sightings = await list_sightings(
+        rows = await list_sightings(
             db,
             request.state.user_id,
             device_id=device_id,
@@ -71,7 +73,7 @@ class SightingController(Controller):
             limit=min(limit, 100),
             offset=offset,
         )
-        return [_to_response(s) for s in sightings]
+        return [_to_response(s, has_image=has_image) for s, has_image in rows]
 
     @get("/export", guards=[user_guard])
     async def export(
@@ -172,5 +174,11 @@ class SightingController(Controller):
         return Response(
             content=sighting.image_data,
             media_type="image/jpeg",
-            headers={"Content-Disposition": f'inline; filename="sighting_{sighting_id}.jpg"'},
+            headers={
+                "Content-Disposition": f'inline; filename="sighting_{sighting_id}.jpg"',
+                # A sighting's image never changes after upload, so the browser
+                # may keep it for a year. private keeps shared caches from
+                # storing a response that needed a JWT.
+                "Cache-Control": IMAGE_CACHE_CONTROL,
+            },
         )
