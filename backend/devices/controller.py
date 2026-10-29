@@ -113,6 +113,19 @@ class DeviceController(Controller):
         )
         return await _to_response(db, device)
 
+    @post("/me/heartbeat", guards=[device_guard], status_code=200)
+    async def heartbeat_self(
+        self, data: DeviceHeartbeat, request: Request, db: NamedDependency[AsyncSession]
+    ) -> DeviceResponse:
+        # The Pi holds only its token, not its id. The token names the device.
+        device = await get_device(db, request.state.device_id)
+        if device is None:
+            raise NotFoundException()
+        device = await update_device_telemetry(
+            db, device, battery=data.battery, signal=data.signal
+        )
+        return await _to_response(db, device)
+
     @post("/{device_id:int}/heartbeat", guards=[device_guard], status_code=200)
     async def heartbeat(
         self, device_id: FromPath[int], data: DeviceHeartbeat, request: Request, db: NamedDependency[AsyncSession]

@@ -12,6 +12,7 @@ from litestar.response import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import device_guard, user_guard
+from ..devices.operations import mark_device_seen
 from . import export as export_ops
 from .aftercare import schedule_aftercare
 from .operations import create_sighting, get_sighting, list_sightings
@@ -141,6 +142,9 @@ class SightingController(Controller):
             image_data=image_bytes if image_bytes else None,
             delayed=data.delayed.lower() == "true",
         )
+        # Now, not the capture time: a delayed upload from the offline queue
+        # still proves the station is up.
+        await mark_device_seen(db, request.state.device_id)
 
         logger.info(
             "sighting %d created on device %d (tier=%s, confidence=%.2f, delayed=%s)",

@@ -154,6 +154,9 @@ class Config:
 
     # Background sync
     sync_interval_seconds: int = int(os.getenv("SYNC_INTERVAL_SECONDS", "60"))
+    # The backend calls a station "warn" after 5 silent minutes, so this must
+    # stay well under that.
+    heartbeat_interval_seconds: int = int(os.getenv("HEARTBEAT_INTERVAL_SECONDS", "60"))
 
     def threshold_for(self, tier_name: str) -> float:
         """The confidence a given tier must reach to win outright.

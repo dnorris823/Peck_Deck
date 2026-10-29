@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from enum import Enum
 from pathlib import Path
@@ -119,4 +120,33 @@ class BackendClient:
             return UploadOutcome.RETRY
         except Exception:
             logger.exception("Unexpected error posting sighting")
+            return UploadOutcome.RETRY
+
+    async def heartbeat(self) -> UploadOutcome:
+        """Tell the backend this station is up.
+
+        The backend derives online/offline from when it last heard from the
+        device. Uploads count too, but a quiet feeder uploads nothing, so the
+        heartbeat is what keeps the status true between visits.
+        """
+        try:
+            async with aiohttp.ClientSession(timeout=self._short_timeout) as session:
+                async with session.post(
+                    f"{self._base}/devices/me/heartbeat",
+                    json={},
+                    headers=self._auth(),
+                ) as resp:
+                    outcome = _classify_status(resp.status)
+                    if outcome is UploadOutcome.UNAUTHORIZED:
+                        logger.error(
+                            "Heartbeat refused this device token (HTTP %d) — "
+                            "re-provision DEVICE_TOKEN",
+                            resp.status,
+                        )
+                    return outcome
+        except (aiohttp.ClientError, asyncio.TimeoutError):
+            # A backend that is down is routine. The loop logs the change once.
+            return UploadOutcome.RETRY
+        except Exception:
+            logger.exception("Unexpected error sending heartbeat")
             return UploadOutcome.RETRY

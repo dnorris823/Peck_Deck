@@ -12,6 +12,9 @@ Wikipedia URL backfill) are patched to network-free no-ops.
 """
 import asyncio
 import secrets
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import select
 
 import backend.sightings.aftercare as sighting_aftercare
 from backend.database.connection import get_session_factory
@@ -139,3 +142,27 @@ def test_upload_requires_device_token(client, owner_headers):
         files={"image": ("bird.jpg", _JPEG, "image/jpeg")},
     )
     assert res.status_code == 401
+
+
+async def _last_seen(token: str):
+    async with get_session_factory()() as db:
+        result = await db.execute(select(Device.last_seen).where(Device.token == token))
+        return result.scalar_one()
+
+
+def test_upload_marks_device_seen(client, monkeypatch):
+    # An uploading station is alive. Before this, a Pi that never sent a
+    # heartbeat read "offline" minutes after a sighting.
+    _silence_side_effects(monkeypatch)
+    token = asyncio.run(_fresh_device_token())
+    assert asyncio.run(_last_seen(token)) is None
+
+    # Delayed on purpose: the capture time is old, but the station is up now.
+    res = _upload(client, token, delayed="true")
+    assert res.status_code == 201
+
+    seen = asyncio.run(_last_seen(token))
+    assert seen is not None
+    if seen.tzinfo is None:
+        seen = seen.replace(tzinfo=timezone.utc)
+    assert datetime.now(timezone.utc) - seen < timedelta(minutes=1)
