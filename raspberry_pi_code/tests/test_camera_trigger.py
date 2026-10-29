@@ -14,7 +14,8 @@ from raspberry_pi_code.camera.base import CameraBase
 from raspberry_pi_code.config import Config
 from raspberry_pi_code.main import _build_trigger
 from raspberry_pi_code.pipeline import Capture, Pipeline
-from raspberry_pi_code.trigger.bird_detector import BIRD_CLASS_ID, BirdDetector
+from raspberry_pi_code.trigger.base import TriggerEvent
+from raspberry_pi_code.trigger.bird_detector import BIRD_CLASS_ID, BirdDetector, Detection
 from raspberry_pi_code.trigger.camera_trigger import (
     CameraTrigger,
     MotionDetector,
@@ -65,10 +66,11 @@ class FakeCamera(CameraBase):
 
 
 class FakeDetector:
-    """Stands in for BirdDetector. ``score`` is what detect() returns."""
+    """Stands in for BirdDetector. ``score`` None means no bird."""
 
-    def __init__(self, score: float | None = 0.9, loads: bool = True):
+    def __init__(self, score: float | None = 0.9, loads: bool = True, box=None):
         self.score = score
+        self.box = box
         self.loads = loads
         self.calls = 0
 
@@ -77,7 +79,7 @@ class FakeDetector:
 
     def detect(self, rgb):
         self.calls += 1
-        return self.score
+        return None if self.score is None else Detection(self.score, self.box)
 
 
 class FakeInterpreter:
@@ -85,7 +87,8 @@ class FakeInterpreter:
 
     def __init__(self, detections, input_shape=(1, 320, 320, 3), input_dtype=np.uint8,
                  n_outputs=4):
-        # detections: list of (class_id, score)
+        # detections: list of (class_id, score), or (class_id, score, box) with
+        # box in the model's [ymin, xmin, ymax, xmax] order
         self._detections = detections
         self._input_shape = np.array(input_shape)
         self._input_dtype = input_dtype
@@ -109,13 +112,16 @@ class FakeInterpreter:
         pass
 
     def get_tensor(self, index):
+        boxes = np.zeros((1, self._max, 4), np.float32)
         classes = np.zeros((1, self._max), np.float32)
         scores = np.zeros((1, self._max), np.float32)
-        for i, (cls, score) in enumerate(self._detections):
+        for i, (cls, score, *box) in enumerate(self._detections):
             classes[0, i] = cls
             scores[0, i] = score
+            if box:
+                boxes[0, i] = box[0]
         return {
-            1: np.zeros((1, self._max, 4), np.float32),
+            1: boxes,
             2: classes,
             3: scores,
             4: np.array([len(self._detections)], np.float32),
@@ -217,7 +223,7 @@ def _detector(detections, threshold=0.5, **interp_kwargs):
 def test_bird_above_the_threshold_returns_its_score():
     det, _ = _detector([(BIRD_CLASS_ID, 0.82)])
 
-    assert det.detect(np.zeros((1080, 1920, 3), np.uint8)) == pytest.approx(0.82)
+    assert det.detect(np.zeros((1080, 1920, 3), np.uint8)).score == pytest.approx(0.82)
 
 
 def test_bird_below_the_threshold_returns_none():
@@ -235,7 +241,7 @@ def test_other_classes_never_count_however_confident():
 def test_best_bird_wins_among_mixed_detections():
     det, _ = _detector([(PERSON, 0.99), (BIRD_CLASS_ID, 0.40), (BIRD_CLASS_ID, 0.71)])
 
-    assert det.detect(np.zeros((1080, 1920, 3), np.uint8)) == pytest.approx(0.71)
+    assert det.detect(np.zeros((1080, 1920, 3), np.uint8)).score == pytest.approx(0.71)
 
 
 def test_slots_past_the_detection_count_are_ignored():
@@ -471,7 +477,7 @@ def test_watcher_delivers_an_event_through_next_event():
         async with trigger:
             return await asyncio.wait_for(trigger.next_event(), timeout=2)
 
-    assert isinstance(asyncio.run(run()), float)
+    assert isinstance(asyncio.run(run()), TriggerEvent)
 
 
 def test_zero_analysis_fps_is_rejected():

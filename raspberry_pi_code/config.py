@@ -88,6 +88,9 @@ class Config:
     tier1_confidence_threshold: float | None = _opt_float("TIER1_CONFIDENCE_THRESHOLD")
     tier2_confidence_threshold: float | None = _opt_float("TIER2_CONFIDENCE_THRESHOLD")
     tier3_confidence_threshold: float | None = _opt_float("TIER3_CONFIDENCE_THRESHOLD")
+    # The classifiers get a square crop around the detector's bird box. The
+    # square's side is the box's longer side plus this fraction of it on each side.
+    classify_crop_margin: float = float(os.getenv("CLASSIFY_CROP_MARGIN", "0.25"))
     # Tier 2 is on the LAN and a healthy GPU answers in well under a second.
     # Past 5 s it is down, and Tier 1 should answer instead.
     tier2_request_timeout: int = int(os.getenv("TIER2_REQUEST_TIMEOUT", "5"))

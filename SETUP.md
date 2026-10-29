@@ -304,7 +304,17 @@ region of the lores frame. Motion outside it no longer wakes the detector.
 Unset means the full frame. A value that is not four numbers, or that does not
 fit inside the frame, stops the service at start with a `CAMERA_ROI` error. The
 detector squashes the crop to a square, so a crop close to square distorts the
-bird least. The captured image is not cropped. Tier 2 still gets the full frame.
+bird least. The captured image is not cropped.
+
+### The classifiers see the bird, not the room
+
+The detector reports where the bird is. The pipeline crops each capture to a
+square around that box before Tier 1 and Tier 2 classify it. The square's side is
+the box's longer side plus `CLASSIFY_CROP_MARGIN` of it on each side, 0.25 by
+default. At a frame edge the square slides inside the frame. The sighting still
+stores the full frame. The log line `Classifying a 300x300 crop around the bird
+box` shows the crop size for each visit. If the crop fails, or the detector gave
+no box, the classifiers get the full frame.
 
 To find the numbers, stop the service, because the camera has one owner. Take a
 still with `rpicam-still -o roi.jpg`. Read the feeder's corners in pixels, then

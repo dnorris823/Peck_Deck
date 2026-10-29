@@ -1,10 +1,11 @@
 import asyncio
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
 from .api_client import BackendClient, UploadOutcome
+from .bird_crop import Box, write_crop
 from .camera.base import CameraBase
 from .camera.pi_camera import PiCamera
 from .classification.base import ClassificationResult, ClassifierBase
@@ -35,6 +36,9 @@ class Capture:
     event_id: str
     timestamp: str  # ISO 8601 UTC, when the photo was taken
     image_path: Path
+    # The trigger's bird box, in fractions of the frame. The classifiers see a
+    # crop around it. The sighting keeps the full frame.
+    box: Box | None = None
 
 
 class Pipeline:
@@ -110,8 +114,10 @@ class Pipeline:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    async def handle_trigger(self) -> None:
+    async def handle_trigger(self, box: Box | None = None) -> None:
         """Take the photo for one visit and hand it to ``run_classifier``.
+
+        ``box`` is where the trigger saw the bird, from ``TriggerEvent.box``.
 
         A trigger that fires during another capture waits for the camera. It
         used to be skipped, and the old lock covered classify and upload too, so
@@ -124,7 +130,7 @@ class Pipeline:
                 return
             self._last_capture = now
             capture = await self._capture()
-        self._submit(capture)
+        self._submit(replace(capture, box=box))
 
     async def run_classifier(self) -> None:
         """Classify and upload captures one at a time, in visit order. Runs forever.
@@ -232,7 +238,12 @@ class Pipeline:
         event_id = capture.event_id
         image_path = capture.image_path
 
-        result = await self._classify(image_path)
+        crop_path = await self._crop_for_classifiers(capture)
+        try:
+            result = await self._classify(crop_path or image_path)
+        finally:
+            if crop_path is not None:
+                crop_path.unlink(missing_ok=True)
         if result is None:
             # The trigger already decided this is a visit, so keep it. A tier
             # outage must not lose sightings. It uploads, or queues, as "Unknown".
@@ -273,6 +284,33 @@ class Pipeline:
             else:
                 logger.warning("Backend unreachable — queuing sighting locally")
             self._enqueue_offline(capture, result)
+
+    async def _crop_for_classifiers(self, capture: Capture) -> Path | None:
+        """Write the crop around the bird box. None means classify the full frame.
+
+        The crop lives outside the image cache, so eviction never counts it,
+        and ``_process`` deletes it after classification.
+        """
+        if capture.box is None:
+            return None
+        crop_path = Path(self._cfg.cache_dir) / "crops" / f"{capture.event_id}.jpg"
+        try:
+            size = await asyncio.to_thread(
+                write_crop,
+                capture.image_path,
+                crop_path,
+                capture.box,
+                self._cfg.classify_crop_margin,
+                self._cfg.jpeg_quality,
+            )
+        except Exception:
+            logger.exception(
+                "Could not crop event %s to the bird box. Classifying the full frame",
+                capture.event_id,
+            )
+            return None
+        logger.info("Classifying a %dx%d crop around the bird box", *size)
+        return crop_path
 
     def _enqueue_offline(self, capture: Capture, result: ClassificationResult) -> None:
         self._cache.enqueue(
