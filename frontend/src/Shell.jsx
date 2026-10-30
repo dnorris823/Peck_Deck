@@ -1,5 +1,5 @@
 // Shell — top bar, phone tab bar, More menu, brand mark
-import React, { useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon.jsx";
 import { useData } from "./DataContext.jsx";
 import { useDialog } from "./Modal.jsx";
@@ -34,15 +34,35 @@ export function BrandMark() {
   );
 }
 
-// Says whether GET /events is connected. It used to read "Live" whatever the
-// stream was doing, which is the one thing a live indicator must not do.
+// The stream reports down on every page load until it connects, and on every
+// drop until the first retry, which waits up to 3 s. A pill shown at once would
+// flash through a normal reconnect, so it waits this long first.
+export const LIVE_GRACE_MS = 5000;
+
+// Shows only while GET /events is down. A green "Live" beside Home's "Offline"
+// feeder pill read as a contradiction, and a connected stream needs no notice.
+// The status region stays mounted, so a screen reader announces the change.
 export function LiveStatus() {
   const { live } = useData();
+  const [down, setDown] = useState(false);
+
+  useEffect(() => {
+    if (live) {
+      setDown(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setDown(true), LIVE_GRACE_MS);
+    return () => clearTimeout(timer);
+  }, [live]);
+
   return (
-    <span className={`live-pill ${live ? "on" : ""}`} role="status"
-      title={live ? "New visits appear as they happen" : "Not receiving live updates. Refresh to catch up."}>
-      <span className={`live-dot ${live ? "on" : ""}`} aria-hidden="true" />
-      <span className="live-text">{live ? "Live" : "Not live"}</span>
+    <span className="live-status" role="status">
+      {down && (
+        <span className="live-pill" title="Not receiving live updates. Refresh to catch up.">
+          <span className="live-dot" aria-hidden="true" />
+          <span className="live-text">Reconnecting…</span>
+        </span>
+      )}
     </span>
   );
 }

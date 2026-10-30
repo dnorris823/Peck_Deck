@@ -1,19 +1,22 @@
 // The "Latest bird" navigation: four tabs, More for the rest, and the screen
 // ids an installed app may still deep-link with.
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import React from "react";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { render, screen, fireEvent, within, act } from "@testing-library/react";
+
+// `stream.live` stands in for the GET /events status, so a test can drop it.
+const stream = vi.hoisted(() => ({ live: true }));
 
 vi.mock("./DataContext.jsx", () => ({
   useData: () => ({
     data: { ME: { name: "Dominic Norris", role: "owner" } },
-    live: true,
+    live: stream.live,
     reload: () => {},
     loading: false,
   }),
 }));
 
-import { TABS, TabBar, TopBar, MoreMenu } from "./Shell.jsx";
+import { TABS, TabBar, TopBar, MoreMenu, LIVE_GRACE_MS } from "./Shell.jsx";
 import { initialRoute } from "./App.jsx";
 
 describe("navigation", () => {
@@ -36,12 +39,12 @@ describe("navigation", () => {
     expect(onMore).toHaveBeenCalled();
   });
 
-  it("puts the four tabs in the desktop top bar, with the live status", () => {
+  it("puts the four tabs in the desktop top bar", () => {
     render(<TopBar route="latest" setRoute={() => {}} moreOpen={false} onMore={() => {}} />);
     const tabs = screen.getByRole("navigation", { name: "Primary" });
     expect(within(tabs).getAllByRole("button").map(b => b.textContent))
       .toEqual(["Latest", "Species", "History", "Feeders"]);
-    expect(screen.getByRole("status")).toHaveTextContent("Live");
+    expect(screen.getByRole("button", { name: "Refresh data" })).toBeInTheDocument();
   });
 
   it("keeps Users, Settings and sign out under More", () => {
@@ -59,6 +62,61 @@ describe("navigation", () => {
     expect(onLogout).toHaveBeenCalled();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe("live status", () => {
+  afterEach(() => {
+    stream.live = true;
+    vi.useRealTimers();
+  });
+
+  const topBar = () => <TopBar route="latest" setRoute={() => {}} moreOpen={false} onMore={() => {}} />;
+
+  it("shows nothing while the stream is connected", () => {
+    render(topBar());
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    expect(screen.queryByText("Live")).not.toBeInTheDocument();
+  });
+
+  it("shows the disconnected state once the stream has been down past the grace period", () => {
+    vi.useFakeTimers();
+    stream.live = false;
+    render(topBar());
+    const status = screen.getByRole("status");
+    expect(status).toBeEmptyDOMElement();
+
+    act(() => { vi.advanceTimersByTime(LIVE_GRACE_MS); });
+    expect(status).toHaveTextContent("Reconnecting…");
+    expect(status.querySelector(".live-pill"))
+      .toHaveAttribute("title", "Not receiving live updates. Refresh to catch up.");
+    expect(screen.getByRole("button", { name: "Refresh data" })).toBeInTheDocument();
+  });
+
+  it("does not flash through a reconnect shorter than the grace period", () => {
+    vi.useFakeTimers();
+    const { rerender } = render(topBar());
+    const status = screen.getByRole("status");
+
+    stream.live = false;
+    rerender(topBar());
+    act(() => { vi.advanceTimersByTime(LIVE_GRACE_MS - 1); });
+    stream.live = true;
+    rerender(topBar());
+    act(() => { vi.advanceTimersByTime(LIVE_GRACE_MS); });
+    expect(status).toBeEmptyDOMElement();
+  });
+
+  it("clears the disconnected state when the stream comes back", () => {
+    vi.useFakeTimers();
+    stream.live = false;
+    const { rerender } = render(topBar());
+    act(() => { vi.advanceTimersByTime(LIVE_GRACE_MS); });
+    expect(screen.getByRole("status")).toHaveTextContent("Reconnecting…");
+
+    stream.live = true;
+    rerender(topBar());
+    expect(screen.getByRole("status")).toBeEmptyDOMElement();
   });
 });
 
