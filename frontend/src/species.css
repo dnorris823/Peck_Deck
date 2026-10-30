@@ -1,0 +1,268 @@
+/* === Species list and species page ===
+   Lifted from the approved "Latest bird" mockups, screens 3 and 4. Colours come
+   from the tokens in styles.css. The accent is per species: each row and the
+   species page set their own through useSpeciesAccent(). */
+
+/* ---------- Layout ----------
+   A phone shows the list or the page. From 900px they sit side by side, and the
+   list sticks and scrolls on its own. The breakpoint matches WIDE in Species.jsx. */
+@media (min-width: 900px) {
+  .sp-layout {
+    display: grid;
+    grid-template-columns: 360px minmax(0, 1fr);
+    align-items: start;
+  }
+  .sp-list {
+    position: sticky;
+    top: calc(var(--topbar) + 12px);
+    max-height: calc(100vh - var(--topbar) - 24px);
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+    padding-right: 16px;
+    margin-right: 28px;
+    border-right: 1px solid var(--line);
+  }
+}
+
+/* ---------- List ---------- */
+.sp-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 0 4px 12px; }
+.sp-title { font-size: 31px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.15; }
+.sp-sub { margin: 3px 0 0; font-size: 13px; color: var(--mu); }
+.sp-add { margin-top: 4px; }
+@media (min-width: 900px) {
+  .sp-title { font-size: 26px; }
+}
+
+.sp-sort { display: flex; width: 100%; margin-bottom: 10px; }
+.sp-sort button { flex: 1; }
+
+.sp-rows { list-style: none; margin: 0; padding: 0; }
+.sp-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 12px;
+  text-align: left;
+  transition: background 120ms;
+}
+.sp-row:hover { background: var(--hover); }
+.sp-row.on { background: var(--chip); }
+
+.sp-thumb {
+  position: relative;
+  flex: 0 0 50px;
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--chip);
+}
+@media (min-width: 900px) {
+  .sp-thumb { flex-basis: 46px; width: 46px; height: 46px; border-radius: 11px; }
+}
+
+.sp-text { display: flex; flex-direction: column; min-width: 0; }
+.sp-name {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sp-meta { font-size: 12.5px; color: var(--mu); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.sp-when {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--mu);
+  white-space: nowrap;
+}
+.sp-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--acc); flex: none; }
+
+/* "Needs a name": captures no tier could name. Warn colour, dashed frame. */
+.sp-row.needs .sp-name { color: var(--warn); }
+.sp-row.needs .sp-thumb { overflow: visible; }
+.sp-row.needs .sp-thumb .capture { border-radius: 12px; overflow: hidden; }
+.sp-row.needs .sp-thumb::after {
+  content: "";
+  position: absolute;
+  inset: -3px;
+  border: 2px dashed var(--warn-fill);
+  border-radius: 14px;
+  pointer-events: none;
+}
+
+/* ---------- One species ---------- */
+.sv-hero {
+  position: relative;
+  height: 230px;
+  overflow: hidden;
+  color: #fff;
+  background: var(--stage);
+  border-radius: var(--r-lg);
+}
+/* Full bleed on a phone: cancel the page padding above and either side. These
+   mirror the .page padding in styles.css, safe-area insets included. */
+@media (max-width: 720px) {
+  .sv-hero {
+    border-radius: 0;
+    margin: -20px calc(-1 * max(16px, env(safe-area-inset-right))) 0 calc(-1 * max(16px, env(safe-area-inset-left)));
+  }
+  .sv-film { margin: 0 -16px; padding: 2px 16px 4px; }
+}
+.sv-hero::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.45) 0, transparent 30%, transparent 45%, rgba(0, 0, 0, 0.8));
+}
+.sv-hero .capture-img { object-fit: cover; background: none; }
+.sv-back {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  padding: 6px 12px;
+  border-radius: var(--r-pill);
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.sv-hero-text { position: absolute; left: 20px; right: 20px; bottom: 18px; z-index: 2; }
+.sv-hero-text h1 { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; }
+.sv-hero-text p { margin: 4px 0 0; font-size: 14px; font-weight: 500; font-style: italic; opacity: 0.88; }
+
+@media (min-width: 900px) {
+  .sv-hero { height: 280px; }
+  .sv-hero-text { left: 28px; bottom: 24px; }
+  .sv-hero-text h1 { font-size: 38px; }
+}
+
+.sv-cols { display: grid; grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 1100px) {
+  .sv-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 30px; padding-top: 6px; }
+}
+
+.sv-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--line);
+}
+/* dt comes first in the markup, as a dl needs. The number reads first on screen. */
+.sv-stats div { display: flex; flex-direction: column-reverse; justify-content: flex-end; }
+.sv-stats dd { margin: 0; font-size: 19px; font-weight: 800; line-height: 1.3; }
+.sv-stats dt { font-size: 12px; color: var(--mu); }
+
+.sv-sec {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 0 8px;
+}
+.sv-sec h2 {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mu);
+}
+.sv-range button { padding: 4px 10px; font-size: 12px; }
+
+.sv-link { font-size: 13px; font-weight: 700; color: var(--acc); text-decoration: none; }
+.sv-link:hover { text-decoration: underline; }
+.sv-wiki { display: inline-block; margin-top: 18px; }
+
+/* ---------- The dial ---------- */
+.sv-when { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 14px; align-items: center; }
+@media (min-width: 900px) {
+  .sv-when { grid-template-columns: 200px minmax(0, 1fr); gap: 16px; }
+}
+.sv-dial { display: block; width: 100%; height: auto; overflow: visible; transition: opacity 160ms; }
+.sv-dial.loading { opacity: 0.5; }
+.sv-facts { margin: 0; }
+.sv-facts div { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.sv-facts div:last-child { border-bottom: 0; }
+.sv-facts dt { font-size: 11.5px; font-weight: 600; color: var(--mu); }
+.sv-facts dd { margin: 0; font-size: 15px; font-weight: 800; }
+@media (min-width: 900px) {
+  .sv-facts dd { font-size: 16px; }
+}
+.sv-note { margin: 0; font-size: 13.5px; color: var(--mu); line-height: 1.45; }
+
+/* ---------- Recent visits ----------
+   A phone scrolls a strip sideways. Wide screens show a grid of six. */
+.sv-film {
+  list-style: none;
+  margin: 0;
+  padding: 2px 0 4px;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.sv-film::-webkit-scrollbar { display: none; }
+.sv-visit { display: block; width: 60px; text-align: center; }
+.sv-visit-img {
+  position: relative;
+  display: block;
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--chip);
+}
+.sv-visit-time { display: block; margin-top: 4px; font-size: 11px; font-weight: 600; color: var(--mu); white-space: nowrap; }
+.sv-visit:focus-visible { outline: none; }
+.sv-visit:focus-visible .sv-visit-img { outline: 2.5px solid var(--acc); outline-offset: 2px; }
+
+@media (min-width: 900px) {
+  .sv-film {
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    overflow: visible;
+  }
+  .sv-film li:nth-child(n + 7) { display: none; }
+  .sv-visit { position: relative; width: 100%; }
+  .sv-visit-img { width: 100%; height: auto; aspect-ratio: 1; }
+  /* A shade under the time, so white text reads on a pale photo. */
+  .sv-visit-img::after {
+    content: "";
+    position: absolute;
+    inset: 55% 0 0;
+    background: linear-gradient(180deg, transparent, rgba(0, 0, 0, 0.55));
+    pointer-events: none;
+  }
+  .sv-visit-time {
+    position: absolute;
+    left: 8px;
+    bottom: 6px;
+    margin: 0;
+    color: #fff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  }
+}
+
+@media (max-width: 340px) {
+  .sv-when { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+  .sv-dial { max-width: 200px; }
+  .sv-facts { width: 100%; }
+}
