@@ -1,13 +1,125 @@
-// Species library — gridded specimen plates with counts
-import React, { useMemo, useRef, useState } from "react";
+// Species: the list of every bird the feeders have caught, and one species'
+// page. On a phone the page replaces the list. On a wide screen they sit side
+// by side and the page shows the top row until you pick another.
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { BirdPlate } from "./BirdPlate.jsx";
 import { Icon } from "./Icon.jsx";
 import { useData } from "./DataContext.jsx";
-import { Modal, TextInput, FormNote, useDialog } from "./Modal.jsx";
+import { Modal, TextInput, FormNote } from "./Modal.jsx";
 import { Empty } from "./Empty.jsx";
 import { SightingImage } from "./SightingImage.jsx";
-import { createSpecies, fmtRelative } from "./data.js";
+import { SpeciesView } from "./SpeciesView.jsx";
+import { createSpecies } from "./data.js";
 import { useSpeciesAccent } from "./accent.js";
+import { fetchSpeciesSightings, fmtSeen, fmtSince, isUnknown, usualTime } from "./speciesData.js";
+import "./species.css";
+
+// Matches the side-by-side breakpoint in species.css.
+const WIDE = "(min-width: 900px)";
+
+const ORDERS = [["recent", "Recent"], ["count", "Most seen"], ["name", "A to Z"]];
+
+export function sortSpecies(list, order) {
+  const time = (s) => s.lastSeenAt?.getTime() ?? 0;
+  return [...list].sort((a, b) => {
+    if (order === "count") return b.count - a.count || a.common.localeCompare(b.common);
+    if (order === "name") return a.common.localeCompare(b.common);
+    return time(b) - time(a);
+  });
+}
+
+function useMediaQuery(query) {
+  const read = () => typeof window !== "undefined" && !!window.matchMedia?.(query).matches;
+  const [matches, setMatches] = useState(read);
+  useEffect(() => {
+    const mql = window.matchMedia?.(query);
+    if (!mql) return;
+    const update = () => setMatches(mql.matches);
+    update();
+    mql.addEventListener?.("change", update);
+    return () => mql.removeEventListener?.("change", update);
+  }, [query]);
+  return matches;
+}
+
+// The newest photo per species. The loaded feed covers the last 100 visits, so
+// a species seen only before that gets one small lookup of its own, once.
+function useLatestPhotos(rows, data) {
+  const fromFeed = useMemo(() => {
+    const by = new Map();
+    for (const s of data.SIGHTINGS) {
+      if (s.hasImage && !by.has(s.species.id)) by.set(s.species.id, s);
+    }
+    return by;
+  }, [data.SIGHTINGS]);
+  const [looked, setLooked] = useState(() => new Map());
+  const asked = useRef(new Set());
+
+  useEffect(() => {
+    for (const sp of rows) {
+      if (fromFeed.has(sp.id) || asked.current.has(sp.id)) continue;
+      asked.current.add(sp.id);
+      fetchSpeciesSightings(sp.id, data, { limit: 5 })
+        .then((list) => {
+          const photo = list.find((s) => s.hasImage);
+          if (photo) setLooked((m) => new Map(m).set(sp.id, photo));
+        })
+        .catch(() => { /* The plate stays. A missing thumbnail is not an error. */ });
+    }
+  }, [rows, fromFeed, data]);
+
+  return (id) => fromFeed.get(id) ?? looked.get(id);
+}
+
+function Thumb({ species, photo }) {
+  return (
+    <span className="sp-thumb">
+      {photo ? <SightingImage sighting={photo} alt="" /> : <span className="capture"><BirdPlate species={species} /></span>}
+    </span>
+  );
+}
+
+function SpeciesRow({ s, photo, active, onOpen }) {
+  const accent = useSpeciesAccent(s);
+  const when = usualTime(s.peakHours);
+  return (
+    <li>
+      <button className={`sp-row ${active ? "on" : ""}`} onClick={() => onOpen(s)}
+        aria-current={active ? "true" : undefined} style={accent}>
+        <Thumb species={s} photo={photo} />
+        <span className="sp-text">
+          <span className="sp-name">{s.common}</span>
+          <span className="sp-meta">
+            {fmtSeen(s.lastSeenAt)} · <span className="tnum">{s.count.toLocaleString()}</span>{" "}
+            {s.count === 1 ? "visit" : "visits"}
+          </span>
+        </span>
+        {when && (
+          <span className="sp-when" title="When it usually comes, last 30 days">
+            <i className="sp-dot" aria-hidden="true" />{when}
+          </span>
+        )}
+      </button>
+    </li>
+  );
+}
+
+function NeedsName({ s, photo, onOpen }) {
+  return (
+    <li>
+      <button className="sp-row needs" onClick={onOpen}>
+        <Thumb species={s} photo={photo} />
+        <span className="sp-text">
+          <span className="sp-name">Needs a name</span>
+          <span className="sp-meta">
+            <span className="tnum">{s.count.toLocaleString()}</span> {s.count === 1 ? "visit" : "visits"}
+            {" · "}{fmtSeen(s.lastSeenAt)}
+          </span>
+        </span>
+      </button>
+    </li>
+  );
+}
 
 function AddSpeciesModal({ onClose, onDone }) {
   const [form, setForm] = useState({ common_name: "", genus: "", species_name: "", order_name: "" });
@@ -54,168 +166,90 @@ function AddSpeciesModal({ onClose, onDone }) {
   );
 }
 
-// The card leads with this species' newest photo when the loaded window has
-// one, and falls back to the field-guide plate.
-function Specimen({ s, idx, photo, onClick }) {
-  return (
-    <button type="button" className="specimen" onClick={() => onClick(s)}>
-      <div className="specimen-plate">
-        {photo ? <SightingImage sighting={photo} /> : <BirdPlate species={s} />}
-        <span className="tile-badge tile-badge-l">№ {String(idx + 1).padStart(3, "0")}</span>
-      </div>
-      <div className="specimen-body">
-        <div className="specimen-common">{s.common}</div>
-        <div className="specimen-sci">{s.sci}</div>
-        <div className="specimen-meta">
-          <div>
-            Visits
-            <strong className="tnum">{s.count.toLocaleString()}</strong>
-          </div>
-          <div className="specimen-meta-r">
-            First seen
-            <strong>{s.firstSeen}</strong>
-          </div>
-        </div>
-      </div>
-    </button>
-  );
-}
-
-function SpeciesDetail({ s, photo, lastSeen, onClose, onViewSightings }) {
-  const panelRef = useRef(null);
-  useDialog(onClose, panelRef);
-  const accent = useSpeciesAccent(s);
-  return (
-    <div className="modal-bg" onClick={onClose}>
-      <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={accent}
-        ref={panelRef} role="dialog" aria-modal="true" aria-label={`${s.common} details`} tabIndex={-1}>
-        <button className="modal-close" onClick={onClose} aria-label="Close dialog"><Icon name="x" className="" /></button>
-        <div className="modal-grid">
-          <div className={`modal-img ${photo ? "" : "modal-img-plate"}`}>
-            {photo ? <SightingImage sighting={photo} large /> : <BirdPlate species={s} />}
-          </div>
-          <div className="modal-side">
-            <div className="label">{s.order !== "—" ? s.order : "Species"}</div>
-            <h2 className="modal-title">{s.common}</h2>
-            <div className="modal-sci">{s.sci}</div>
-
-            <dl className="facts">
-              <div>
-                <dt className="label">Total visits</dt>
-                <dd className="tnum">{s.count.toLocaleString()}</dd>
-              </div>
-              <div>
-                <dt className="label">First seen</dt>
-                <dd>{s.firstSeen}</dd>
-              </div>
-              {lastSeen && (
-                <div>
-                  <dt className="label">Last seen</dt>
-                  <dd>{fmtRelative(lastSeen)}</dd>
-                </div>
-              )}
-            </dl>
-
-            {s.note && <p className="modal-note">{s.note}</p>}
-
-            <div className="modal-actions">
-              <button className="btn primary" onClick={onViewSightings}>
-                View sightings <Icon name="arrow" className="" />
-              </button>
-              {s.wiki && (
-                <a className="btn ghost" href={s.wiki} target="_blank" rel="noopener noreferrer">
-                  <Icon name="extlink" className="" /> Wikipedia
-                </a>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-export function SpeciesPage({ go }) {
+export function SpeciesPage({ go, openSighting }) {
   const { data, reload } = useData();
-  const { SPECIES_COUNTS, SIGHTINGS } = data;
-  // Newest sighting per species (any), and newest with a photo.
-  const { latestBy, photoBy } = useMemo(() => {
-    const latestBy = new Map();
-    const photoBy = new Map();
-    for (const s of SIGHTINGS) {
-      if (!latestBy.has(s.species.id)) latestBy.set(s.species.id, s);
-      if (s.hasImage && !photoBy.has(s.species.id)) photoBy.set(s.species.id, s);
-    }
-    return { latestBy, photoBy };
-  }, [SIGHTINGS]);
-  const [order, setOrder] = useState("count");
-  const [openSp, setOpenSp] = useState(null);
+  const wide = useMediaQuery(WIDE);
+  const [order, setOrder] = useState("recent");
+  const [openId, setOpenId] = useState(null);
   const [adding, setAdding] = useState(false);
+  const listScroll = useRef(0);
 
-  const sorted = [...SPECIES_COUNTS].sort((a, b) => {
-    if (order === "count") return b.count - a.count;
-    if (order === "name") return a.common.localeCompare(b.common);
-    if (order === "recent") {
-      // Species with a visit in the loaded window first, newest visit first.
-      const ta = latestBy.get(a.id)?.datetime.getTime() ?? 0;
-      const tb = latestBy.get(b.id)?.datetime.getTime() ?? 0;
-      return tb - ta;
-    }
-    return 0;
-  });
+  const unknown = data.SPECIES_COUNTS.find(isUnknown);
+  const named = useMemo(() => data.SPECIES_COUNTS.filter((s) => !isUnknown(s)), [data.SPECIES_COUNTS]);
+  const sorted = useMemo(() => sortSpecies(named, order), [named, order]);
+  const photoRows = useMemo(() => (unknown ? [unknown, ...sorted] : sorted), [unknown, sorted]);
+  const photoOf = useLatestPhotos(photoRows, data);
 
-  return (
-    <>
-      <div className="page-header">
-        <div>
-          <div className="label">Recorded by your feeders</div>
-          <h1 className="page-title">Species</h1>
-          <p className="page-lede">Every species your feeders have caught on camera. Open one for field notes.</p>
-        </div>
-        <div className="page-meta">
-          <span className="page-meta-num tnum">{SPECIES_COUNTS.length}</span>
-          <span className="label">species seen</span>
-        </div>
-      </div>
+  const since = named.reduce((min, s) => (s.firstSeenAt && (!min || s.firstSeenAt < min) ? s.firstSeenAt : min), null);
+  const shown = named.find((s) => s.id === openId) ?? (wide ? sorted[0] : null);
 
-      <div className="toolbar">
-        <div className="segmented" role="group" aria-label="Sort species">
-          {[["count", "Most visits"], ["recent", "Recently seen"], ["name", "A to Z"]].map(([id, label]) => (
-            <button key={id} className={order === id ? "active" : ""} aria-pressed={order === id}
-              onClick={() => setOrder(id)}>{label}</button>
-          ))}
-        </div>
-        <span className="toolbar-end">
-          <button className="btn sm" onClick={() => setAdding(true)}>
-            <Icon name="plus" className="" /> Add species
-          </button>
-        </span>
-      </div>
+  function open(s) {
+    if (!wide) listScroll.current = window.scrollY || 0;
+    setOpenId(s.id);
+    window.scrollTo?.(0, 0);
+  }
+  function back() {
+    setOpenId(null);
+    // Wait for the list to render before restoring where it was.
+    requestAnimationFrame(() => window.scrollTo?.(0, listScroll.current));
+  }
 
-      {sorted.length > 0 ? (
-        <div className="species-grid">
-          {sorted.map((s, i) => (
-            <Specimen key={s.id} s={s} idx={i} photo={photoBy.get(s.id)} onClick={setOpenSp} />
-          ))}
-        </div>
-      ) : (
+  if (data.SPECIES_COUNTS.length === 0) {
+    return (
+      <>
         <Empty
-          icon="📖"
-          title="No species catalogued yet"
-          hint="Species appear here as your stations identify them — or add one by hand."
+          icon="🪶"
+          title="No species yet"
+          hint="Species appear here as your feeders identify them. You can also add one by hand."
           action={<button className="btn primary sm" onClick={() => setAdding(true)}>
             <Icon name="plus" className="" /> Add species
           </button>}
         />
-      )}
+        {adding && <AddSpeciesModal onClose={() => setAdding(false)} onDone={reload} />}
+      </>
+    );
+  }
 
-      {openSp && (
-        <SpeciesDetail s={openSp} photo={photoBy.get(openSp.id)}
-          lastSeen={latestBy.get(openSp.id)?.datetime}
-          onClose={() => setOpenSp(null)}
-          onViewSightings={() => go("history", { species: openSp.id })} />
-      )}
+  const list = (
+    <nav className="sp-list" aria-label="Species">
+      <div className="sp-top">
+        <div>
+          <h1 className="sp-title">Species</h1>
+          <p className="sp-sub">
+            {named.length.toLocaleString()} at your feeders{since ? ` since ${fmtSince(since)}` : ""}
+          </p>
+        </div>
+        <button className="icon-btn sp-add" onClick={() => setAdding(true)} aria-label="Add a species" title="Add a species">
+          <Icon name="plus" className="" />
+        </button>
+      </div>
+      <div className="segmented sp-sort" role="group" aria-label="Sort species">
+        {ORDERS.map(([id, label]) => (
+          <button key={id} className={order === id ? "active" : ""} aria-pressed={order === id}
+            onClick={() => setOrder(id)}>{label}</button>
+        ))}
+      </div>
+      <ul className="sp-rows">
+        {unknown && (
+          <NeedsName s={unknown} photo={photoOf(unknown.id)}
+            onOpen={() => go("history", { species: unknown.id })} />
+        )}
+        {sorted.map((s) => (
+          <SpeciesRow key={s.id} s={s} photo={photoOf(s.id)} active={wide && shown?.id === s.id} onOpen={open} />
+        ))}
+      </ul>
+    </nav>
+  );
+
+  const page = shown && (
+    <SpeciesView key={shown.id} species={shown} go={go} openSighting={openSighting}
+      onBack={wide ? null : back} />
+  );
+
+  return (
+    <div className="sp-layout">
+      {wide ? <>{list}{page}</> : (page || list)}
       {adding && <AddSpeciesModal onClose={() => setAdding(false)} onDone={reload} />}
-    </>
+    </div>
   );
 }
