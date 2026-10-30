@@ -135,6 +135,7 @@
 .home-visit:hover .home-thumb { transform: translateY(-2px); }
 .home-visit[aria-current] .home-thumb { outline: 3px solid var(--acc); outline-offset: 2px; }
 .home-visit.unnamed .home-thumb { outline: 2px dashed var(--warn-fill); outline-offset: 2px; }
+.home-visit.unnamed[aria-current] .home-thumb { outline: 3px solid var(--acc); }
 .home-visit.unnamed .home-visit-label { color: var(--warn); }
 
 /* Today, 6 am to 9 pm. */
