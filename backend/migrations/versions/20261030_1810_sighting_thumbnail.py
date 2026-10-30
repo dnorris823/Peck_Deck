@@ -6,7 +6,7 @@ Nullable, because rows from before this migration have none until
 since decoding every image would hold up the container's start.
 
 Revision ID: 7c41e9a2d5b3
-Revises: 0d25a81712db
+Revises: 67d2b2042099
 Create Date: 2026-10-30 12:00:00.000000+00:00
 """
 from typing import Sequence, Union
@@ -16,7 +16,7 @@ import sqlalchemy as sa
 
 
 revision: str = '7c41e9a2d5b3'
-down_revision: Union[str, None] = '0d25a81712db'
+down_revision: Union[str, None] = '67d2b2042099'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

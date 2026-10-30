@@ -139,6 +139,42 @@ async def get_sighting_device(db: AsyncSession, sighting_id: int) -> tuple[int, 
     return (row.device_id, row.owner_id) if row else None
 
 
+async def user_can_access_device(
+    db: AsyncSession, user_id: int, role: str, device_id: int, owner_id: int
+) -> bool:
+    """The device owner, a member of the device, or any owner-role user."""
+    if role == "owner" or owner_id == user_id:
+        return True
+    result = await db.execute(
+        select(DeviceUser.device_id).where(
+            DeviceUser.device_id == device_id, DeviceUser.user_id == user_id
+        )
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def correct_species(
+    db: AsyncSession, sighting_id: int, *, species_id: int, user_id: int
+) -> tuple[Sighting, bool]:
+    """Set a person's species on a sighting, with its ``has_image`` flag.
+
+    Keeps the Pi's tier, confidence and trace. The first correction moves the
+    Pi's species to ``original_species_id``, and a later one leaves it there,
+    so the tier's answer survives any number of corrections.
+    """
+    result = await db.execute(
+        select(Sighting, HAS_IMAGE).options(SKIP_IMAGE).where(Sighting.id == sighting_id)
+    )
+    sighting, has_image = result.one()
+    if sighting.original_species_id is None:
+        sighting.original_species_id = sighting.species_id
+    sighting.species_id = species_id
+    sighting.corrected_by = user_id
+    sighting.corrected_at = datetime.now(timezone.utc)
+    await db.flush()
+    return sighting, bool(has_image)
+
+
 async def delete_sighting(db: AsyncSession, sighting_id: int) -> None:
     # The image is the row's `image_data` column, so it goes with the row.
     await db.execute(delete(Sighting).where(Sighting.id == sighting_id))

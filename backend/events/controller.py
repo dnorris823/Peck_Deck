@@ -51,7 +51,7 @@ from ..database.connection import get_session_factory
 from ..database.models import Sighting
 from ..sightings.operations import _accessible_device_ids
 from ..sightings.schemas import sighting_response
-from .hub import RESYNC, SightingDeleted, SightingEvent, sighting_hub
+from .hub import RESYNC, SightingDeleted, SightingEvent, SightingUpdated, sighting_hub
 
 logger = logging.getLogger("peckdeck.events")
 
@@ -162,7 +162,7 @@ async def _generate(
                     yield ServerSentEventMessage(event="resync", data="overflow")
                     continue
 
-                assert isinstance(item, (SightingEvent, SightingDeleted))
+                assert isinstance(item, (SightingEvent, SightingDeleted, SightingUpdated))
                 if item.device_id not in device_ids:
                     continue
                 if isinstance(item, SightingDeleted):
@@ -173,6 +173,13 @@ async def _generate(
                     yield ServerSentEventMessage(
                         event="sighting_deleted",
                         data=json.dumps({"id": item.sighting_id}),
+                    )
+                    continue
+                if isinstance(item, SightingUpdated):
+                    # No `id`, for the same reason as a delete. An update names
+                    # an older row, and its id would move the resume point back.
+                    yield ServerSentEventMessage(
+                        event="sighting_updated", data=json.dumps(item.payload)
                     )
                     continue
                 yield ServerSentEventMessage(

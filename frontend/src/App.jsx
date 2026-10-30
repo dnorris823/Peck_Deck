@@ -13,7 +13,7 @@ import { AppearanceProvider } from "./Appearance.jsx";
 import { OfflineBanner, useOnline } from "./Offline.jsx";
 import { getToken, clearToken } from "./api.js";
 import { useSpeciesAccent } from "./accent.js";
-import { fetchSighting } from "./data.js";
+import { fetchSighting, mapAgainst } from "./data.js";
 
 // Home-screen shortcuts in the web manifest deep-link with ?screen=<id>, so a
 // long-press on the installed icon can open straight to History or Species.
@@ -88,10 +88,15 @@ function useOpenSighting() {
  * The open sighting as an object. From the loaded list when it is there, else
  * fetched by id, for a push about a visit older than the loaded window. Both
  * go through mapSighting in data.js, the same as streamed ones.
+ *
+ * Also returns a setter for the row a species correction sends back. A loaded
+ * sighting updates through DataContext, but a fetched one is held only here.
+ * The row is mapped at render, against data that by then holds its species.
  */
 function useSightingById(id, data, onMissing) {
   const loaded = id == null ? null : data?.SIGHTINGS.find((s) => s.id === id) || null;
   const [fetched, setFetched] = useState(null);
+  const [corrected, setCorrected] = useState(null);
 
   useEffect(() => {
     if (id == null || loaded || !data || fetched?.id === id) return;
@@ -107,8 +112,10 @@ function useSightingById(id, data, onMissing) {
     return () => { cancelled = true; };
   }, [id, loaded, data, fetched, onMissing]);
 
-  if (loaded) return loaded;
-  return fetched?.id === id ? fetched : null;
+  if (loaded) return [loaded, setCorrected];
+  if (fetched?.id !== id) return [null, setCorrected];
+  const remapped = corrected?.id === id ? mapAgainst(corrected, data) : null;
+  return [remapped || fetched, setCorrected];
 }
 
 export default function App() {
@@ -142,7 +149,7 @@ function AppShell({ onLogout }) {
   const online = useOnline();
   const [route, setRoute] = useState(initialRoute);
   const { openId, show: openSighting, close: closeSighting } = useOpenSighting();
-  const sighting = useSightingById(openId, data, closeSighting);
+  const [sighting, onCorrected] = useSightingById(openId, data, closeSighting);
   const [moreOpen, setMoreOpen] = useState(false);
   // Species filter handed to Sightings, so "View sightings" on a species lands
   // on that species' visits rather than the whole list.
@@ -201,7 +208,7 @@ function AppShell({ onLogout }) {
         {/* Beside the page on desktop, over it on a phone. sighting-detail.css. */}
         {sighting && (
           <SightingDetail s={sighting} onClose={closeSighting} onMove={openSighting}
-            backLabel={NAV.find(n => n.id === route)?.label} />
+            onCorrected={onCorrected} backLabel={NAV.find(n => n.id === route)?.label} />
         )}
       </div>
       <TabBar route={route} setRoute={go} moreOpen={moreOpen} onMore={toggleMore} />

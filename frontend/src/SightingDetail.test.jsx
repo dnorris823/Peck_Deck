@@ -1,27 +1,39 @@
-// The sighting detail view: the delete button and its confirm step, the accent,
-// the tiers row with and without a trace, the day's strip, and the helpers
-// behind the context line.
+// The sighting detail view: the delete button and its confirm step, the species
+// picker, the accent, the tiers row with and without a trace, the day's strip,
+// and the helpers behind the context line.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 const applyDeleted = vi.fn();
+const applyUpdated = vi.fn();
 let me;
 let sightings;
+let species;
+let counts;
 vi.mock("./DataContext.jsx", () => ({
-  useData: () => ({ data: { SPECIES_COUNTS: [], ME: me, SIGHTINGS: sightings }, applyDeleted }),
+  useData: () => ({
+    data: {
+      SPECIES: species, SPECIES_COUNTS: counts, ME: me, SIGHTINGS: sightings,
+      USERS: [{ id: 3, name: "Robin" }],
+    },
+    applyDeleted,
+    applyUpdated,
+  }),
 }));
 
 vi.mock("./data.js", async (importOriginal) => ({
   ...(await importOriginal()),
   deleteSighting: vi.fn(),
   fetchSpeciesHours: vi.fn(),
+  correctSighting: vi.fn(),
+  createSpecies: vi.fn(),
 }));
 
-import { deleteSighting, fetchSpeciesHours } from "./data.js";
+import { correctSighting, createSpecies, deleteSighting, fetchSpeciesHours } from "./data.js";
 import {
   SightingDetail, canDeleteSighting, dayStrip, visitOrdinal, ordinal, busyPhrase,
-  contextLine, tierChips, thresholdFor,
+  contextLine, tierChips, thresholdFor, pickerOptions, correctedByName,
 } from "./SightingDetail.jsx";
 import { speciesAccent } from "./accent.js";
 
@@ -30,6 +42,8 @@ const SQUIRREL = {
   palette: ["#777", "#333", "#ccc"], silhouette: "songbird",
 };
 const UNKNOWN = { id: 9, common: "Unknown", sci: "", palette: [], silhouette: "songbird" };
+const FINCH = { id: 2, common: "House Finch", sci: "Haemorhous mexicanus", palette: [], silhouette: "songbird" };
+const JAY = { id: 3, common: "Blue Jay", sci: "Cyanocitta cristata", palette: [], silhouette: "songbird" };
 const WINDOW = { id: 4, name: "Window", ownerId: 7 };
 const PORCH = { id: 5, name: "Porch", ownerId: 7 };
 
@@ -55,6 +69,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   me = { id: 7, role: "viewer" };
   sightings = [];
+  species = [SQUIRREL, FINCH, JAY, UNKNOWN];
+  counts = [];
   fetchSpeciesHours.mockResolvedValue({ peak_hours: [] });
 });
 
@@ -105,6 +121,113 @@ describe("delete button", () => {
     me = { id: 8, role: "viewer" };
     render(<SightingDetail s={S} onClose={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+  });
+});
+
+describe("species picker", () => {
+  const ROW = { id: 12, species_id: 2, corrected_at: "2026-10-30T18:00:00+00:00" };
+
+  it("opens from 'Wrong bird?' and saves the pick", async () => {
+    correctSighting.mockResolvedValue(ROW);
+    applyUpdated.mockResolvedValue();
+    const onCorrected = vi.fn();
+    render(<SightingDetail s={S} onClose={vi.fn()} onCorrected={onCorrected} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Wrong bird?" }));
+    fireEvent.click(screen.getByRole("button", { name: /House Finch/ }));
+
+    await waitFor(() => expect(onCorrected).toHaveBeenCalledWith(ROW));
+    expect(correctSighting).toHaveBeenCalledWith(12, 2);
+    expect(applyUpdated).toHaveBeenCalledWith(ROW);
+    expect(screen.queryByRole("heading", { name: "Which bird is this?" })).toBeNull();
+  });
+
+  it("opens from the 'Needs a name' title", () => {
+    render(<SightingDetail s={{ ...S, species: UNKNOWN }} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Needs a name" }));
+    expect(screen.getByRole("heading", { name: "Which bird is this?" })).toBeInTheDocument();
+    // Unknown is not an answer, so the picker doesn't offer it.
+    expect(screen.queryByRole("button", { name: /^Unknown/ })).toBeNull();
+  });
+
+  it("marks the current species and won't pick it again", () => {
+    render(<SightingDetail s={S} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Wrong bird?" }));
+    expect(screen.getByRole("button", { name: /Gray Squirrel/ })).toBeDisabled();
+  });
+
+  it("closes on Escape without closing the sighting", () => {
+    const onClose = vi.fn();
+    render(<SightingDetail s={S} onClose={onClose} />);
+    fireEvent.click(screen.getByRole("button", { name: "Wrong bird?" }));
+
+    fireEvent.keyDown(document, { key: "Escape" });
+
+    expect(screen.queryByRole("heading", { name: "Which bird is this?" })).toBeNull();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("keeps the picker open and says why when the save fails", async () => {
+    correctSighting.mockRejectedValue(new Error("Forbidden"));
+    render(<SightingDetail s={S} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Wrong bird?" }));
+    fireEvent.click(screen.getByRole("button", { name: /House Finch/ }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Forbidden");
+    expect(applyUpdated).not.toHaveBeenCalled();
+  });
+
+  it("adds a species the library lacks, then saves it", async () => {
+    createSpecies.mockResolvedValue({ id: 40 });
+    correctSighting.mockResolvedValue({ ...ROW, species_id: 40 });
+    render(<SightingDetail s={S} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Wrong bird?" }));
+
+    fireEvent.change(screen.getByLabelText("Search species"), { target: { value: "Purple Finch" } });
+    fireEvent.click(screen.getByRole("button", { name: "Not listed? Add a species" }));
+    fireEvent.change(screen.getByLabelText(/Scientific name/), { target: { value: "Haemorhous purpureus" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add and save" }));
+
+    await waitFor(() => expect(correctSighting).toHaveBeenCalledWith(12, 40));
+    expect(createSpecies).toHaveBeenCalledWith({
+      common_name: "Purple Finch", genus: "Haemorhous", species_name: "purpureus",
+    });
+  });
+});
+
+describe("a corrected sighting", () => {
+  const background = { ...UNKNOWN, id: 10, common: "Background" };
+  const corrected = {
+    ...S, species: FINCH, originalSpecies: background, tier: "local",
+    correctedBy: 3, correctedAt: new Date(2026, 9, 30, 11),
+  };
+
+  it("shows who named it and what the tier said", () => {
+    render(<SightingDetail s={corrected} onClose={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "House Finch" })).toBeInTheDocument();
+    expect(screen.getByText("Robin, Oct 30")).toBeInTheDocument();
+    expect(screen.getByText("No name")).toBeInTheDocument();
+    // The tier chip still describes the tier's own answer.
+    expect(screen.getByText("Pi, no name")).toBeInTheDocument();
+    expect(screen.getByText("90%")).toBeInTheDocument();
+  });
+
+  it("names the viewer as you", () => {
+    expect(correctedByName(corrected, { id: 3 }, [])).toBe("you");
+    expect(correctedByName(corrected, { id: 7 }, [])).toBe("someone");
+    expect(correctedByName(S, { id: 7 }, [])).toBeNull();
+  });
+});
+
+describe("pickerOptions", () => {
+  it("leaves out placeholders, puts the most seen first, then A to Z", () => {
+    const opts = pickerOptions(species, [{ id: 3, count: 5 }], "");
+    expect(opts.map(x => x.common)).toEqual(["Blue Jay", "Gray Squirrel", "House Finch"]);
+  });
+
+  it("matches the common or the scientific name", () => {
+    expect(pickerOptions(species, [], "finch").map(x => x.id)).toEqual([2]);
+    expect(pickerOptions(species, [], "cyano").map(x => x.id)).toEqual([3]);
   });
 });
 
