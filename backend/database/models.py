@@ -170,6 +170,13 @@ class Sighting(Base):
     device_id: Mapped[int] = mapped_column(Integer, ForeignKey("devices.id"), nullable=False)
     datetime: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     image_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
+    # About 400 px on the long side, made at upload. Null when there is no image,
+    # or when Pillow could not decode it. The image route then serves the full
+    # image in its place. Deferred with raiseload, so no query reads it unless it
+    # asks, and a stray touch raises instead of loading it one row at a time.
+    thumbnail_data: Mapped[bytes | None] = mapped_column(
+        LargeBinary, nullable=True, deferred=True, deferred_raiseload=True
+    )
     video_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True)
     classification_tier_used: Mapped[str] = mapped_column(String, nullable=False)
     confidence_score: Mapped[float] = mapped_column(Float, nullable=False)

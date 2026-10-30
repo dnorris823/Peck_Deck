@@ -15,3 +15,6 @@ cryptography>=42.0
 # IANA zone data for zoneinfo. Slim images and Windows may not ship it, and the
 # local-hour stats reject a zone zoneinfo cannot find.
 tzdata>=2024.1
+# Sighting thumbnails for the gallery grids, made at upload and by
+# backend/backfill_thumbnails.py. 10.3 fixes CVE-2024-28219.
+Pillow>=10.3
