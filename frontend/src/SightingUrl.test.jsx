@@ -29,11 +29,14 @@ vi.mock("./data.js", async (importOriginal) => ({
   fetchSighting: vi.fn(),
   fetchSpeciesHours: () => Promise.resolve({ peak_hours: [] }),
 }));
-// The Home screen is another thread's work. A stub that opens a sighting the
-// way every screen does is all this test needs.
+// A stub Home that opens a sighting the way every screen does, and reports the
+// visit it was told to outline.
 vi.mock("./Dashboard.jsx", () => ({
-  Dashboard: ({ openSighting }) => (
-    <button onClick={() => openSighting(DATA.SIGHTINGS[1])}>open 11</button>
+  Dashboard: ({ openSighting, selectedId }) => (
+    <>
+      <button onClick={() => openSighting(DATA.SIGHTINGS[1])}>open 11</button>
+      <output aria-label="Outlined visit">{selectedId ?? "none"}</output>
+    </>
   ),
 }));
 
@@ -126,5 +129,20 @@ describe("opening from a screen", () => {
     });
     expect(dialog()).toBeNull();
     expect(window.location.search).toBe("");
+  });
+
+  it("tells Home which visit is open, as it moves and when it closes", () => {
+    render(<App />);
+    const outlined = () => screen.getByRole("status", { name: "Outlined visit" });
+    expect(outlined()).toHaveTextContent("none");
+
+    fireEvent.click(screen.getByRole("button", { name: "open 11" }));
+    expect(outlined()).toHaveTextContent("11");
+
+    fireEvent.keyDown(document, { key: "ArrowLeft" });
+    expect(outlined()).toHaveTextContent("12");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close sighting" }));
+    expect(outlined()).toHaveTextContent("none");
   });
 });

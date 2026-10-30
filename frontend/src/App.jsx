@@ -188,7 +188,7 @@ function AppShell({ onLogout }) {
       <div className="app-body">
         <main className="main">
           <div className="page" data-screen-label={NAV.find(n => n.id === route)?.label || route}>
-            {route === "latest" && <Dashboard openSighting={openSighting} go={go} />}
+            {route === "latest" && <Dashboard openSighting={openSighting} go={go} selectedId={openId} />}
             {route === "history" && (
               <Sightings key={speciesFilter} openSighting={openSighting} initialSpecies={speciesFilter} />
             )}
