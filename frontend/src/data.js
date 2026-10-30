@@ -84,6 +84,11 @@ function mapSighting(s, speciesById, devicesById) {
     tier: s.classification_tier_used,
     hasImage: s.has_image,
     hasVideo: false, // no video pipeline yet — kept for the tile's clip badge
+    // True when the Pi's offline queue sent it after the fact.
+    delayed: !!s.delayed,
+    // What each tier did, in chain order. Null for sightings from before the Pi
+    // sent a trace.
+    tierTrace: Array.isArray(s.tier_trace) ? s.tier_trace : null,
   };
 }
 
@@ -205,6 +210,40 @@ export async function loadAll() {
   return mapAll(await fetchRaw());
 }
 
+/**
+ * Fetch one sighting by id and map it against the loaded species and feeders.
+ * For a sighting outside the loaded window, such as an old push notification.
+ * Resolves to null when the sighting names a species or feeder this client has
+ * not loaded, the same rule mapAll applies.
+ */
+export async function fetchSighting(id, data) {
+  const raw = await apiGet(`/sightings/${id}`);
+  const s = mapSighting(
+    raw,
+    new Map(data.SPECIES.map(x => [x.id, x])),
+    new Map(data.DEVICES.map(d => [d.id, d])),
+  );
+  return s.species && s.device ? s : null;
+}
+
+// A species' busy hours barely move within a session, so each species is
+// asked once.
+const hourStatsCache = new Map();
+
+/** Visits per local hour for one species over the last 30 days, cached. */
+export function fetchSpeciesHours(speciesId) {
+  if (!hourStatsCache.has(speciesId)) {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const params = new URLSearchParams({ species_id: String(speciesId), days: "30", tz });
+    const pending = apiGet(`/stats/hours?${params}`).catch((e) => {
+      hourStatsCache.delete(speciesId); // a failure is worth a retry next time
+      throw e;
+    });
+    hourStatsCache.set(speciesId, pending);
+  }
+  return hourStatsCache.get(speciesId);
+}
+
 export async function deleteSighting(id) {
   return apiDelete(`/sightings/${id}`);
 }
@@ -287,7 +326,7 @@ export function fmtDateFull(d) {
 // colouring every tier against one shared scale.
 export const TIERS = {
   local: { short: "Pi", long: "On the Pi (TFLite)", threshold: 0.85 },
-  gpu: { short: "PC", long: "Gaming PC GPU", threshold: 0.6 },
+  gpu: { short: "GPU", long: "Gaming PC GPU", threshold: 0.6 },
   cloud: { short: "Claude", long: "Claude API", threshold: 0.5 },
   none: { short: "None", long: "No tier answered", threshold: Infinity },
 };

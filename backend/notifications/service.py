@@ -237,7 +237,8 @@ class NotificationService:
                 "sighting_id": sighting.id,
                 "species_id": species.id,
                 "device_id": device.id,
-                "url": "/",
+                # The web app opens the detail view for ?sighting=<id>.
+                "url": f"/?sighting={sighting.id}",
             },
         }
         result = await send_push(to_target(sub), payload)

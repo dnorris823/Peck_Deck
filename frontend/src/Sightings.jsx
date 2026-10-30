@@ -1,16 +1,13 @@
-// Sightings gallery — filters + day-grouped photo grid + detail modal
-import React, { useRef, useState, useMemo } from "react";
+// Sightings gallery — filters + day-grouped photo grid. The detail view is
+// SightingDetail.jsx.
+import React, { useState, useMemo } from "react";
 import { SightingImage } from "./SightingImage.jsx";
 import { Icon } from "./Icon.jsx";
 import { Empty } from "./Empty.jsx";
-import { useDialog } from "./Modal.jsx";
 import { useData } from "./DataContext.jsx";
-import { apiObjectUrl } from "./api.js";
 import {
-  confidenceLevel, deleteSighting, downloadExport, fmtDateLabel, fmtDayHeading, fmtRelative,
-  fmtTime, tierInfo,
+  confidenceLevel, downloadExport, fmtDateLabel, fmtDayHeading, fmtTime, tierInfo,
 } from "./data.js";
-import { useSpeciesAccent } from "./accent.js";
 
 // Inclusive lower bound (ms since epoch) for a named range, or 0 for "all time".
 export function rangeCutoff(range, now = Date.now()) {
@@ -66,146 +63,6 @@ export function SightingTile({ s, onClick, showDate = false }) {
         </div>
       </div>
     </button>
-  );
-}
-
-// Saves the original capture. Same reason as the CSV export: the image route
-// needs the Bearer token, so it goes through fetch and a temporary link.
-function DownloadPhotoButton({ s }) {
-  const [busy, setBusy] = useState(false);
-  async function run() {
-    setBusy(true);
-    try {
-      const url = await apiObjectUrl(`/sightings/${s.id}/image`);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `peck-deck-${s.id}-${s.species.common.replace(/\W+/g, "-").toLowerCase()}.jpg`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    } catch {
-      /* The button stays; a second try is the only useful recovery. */
-    } finally {
-      setBusy(false);
-    }
-  }
-  return (
-    <button className="btn" onClick={run} disabled={busy}>
-      <Icon name="download" className="" /> {busy ? "Saving…" : "Save photo"}
-    </button>
-  );
-}
-
-// The device owner or an owner-role user may delete. The route enforces the
-// same rule; this only hides a button that would get a 403.
-export function canDeleteSighting(s, me) {
-  return me.role === "owner" || s.device.ownerId === me.id;
-}
-
-// Two clicks, so a stray tap can't remove a capture. Kept plain on purpose: the
-// detail view is due a rebuild, and the route is the part that lasts.
-function DeleteSightingButton({ s, onDeleted }) {
-  const { applyDeleted } = useData();
-  const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(null);
-
-  async function run() {
-    setBusy(true);
-    setError(null);
-    try {
-      await deleteSighting(s.id);
-    } catch (e) {
-      setError(e.message || "Delete failed.");
-      setBusy(false);
-      return;
-    }
-    applyDeleted(s.id);
-    onDeleted();
-  }
-
-  if (!confirming) {
-    return (
-      <button type="button" className="btn ghost" onClick={() => setConfirming(true)}>
-        Delete
-      </button>
-    );
-  }
-  return (
-    <>
-      <button type="button" className="btn danger" onClick={run} disabled={busy}>
-        {busy ? "Deleting…" : "Delete this sighting"}
-      </button>
-      <button type="button" className="btn ghost" onClick={() => setConfirming(false)} disabled={busy}>
-        Cancel
-      </button>
-      {error && <div className="field-help field-error" role="alert">{error}</div>}
-    </>
-  );
-}
-
-export function SightingDetail({ s, onClose }) {
-  const { data } = useData();
-  const panelRef = useRef(null);
-  useDialog(onClose, panelRef);
-  const accent = useSpeciesAccent(s?.species);
-  if (!s) return null;
-  const tier = tierInfo(s.tier);
-  const speciesCount = data.SPECIES_COUNTS.find(x => x.id === s.species.id)?.count || 1;
-  return (
-    <div className="modal-bg" onClick={onClose}>
-      <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={accent}
-        ref={panelRef} role="dialog" aria-modal="true" aria-label={`${s.species.common} sighting`} tabIndex={-1}>
-        <button className="modal-close" onClick={onClose} aria-label="Close dialog"><Icon name="x" className="" /></button>
-        <div className="modal-grid">
-          <div className="modal-img">
-            <SightingImage sighting={s} large />
-          </div>
-          <div className="modal-side">
-            <div className="label">Sighting № {String(s.id).padStart(4, "0")}</div>
-            <h2 className="modal-title">{s.species.common}</h2>
-            <div className="modal-sci">{s.species.sci}</div>
-
-            <dl className="facts">
-              <div>
-                <dt className="label">Confidence</dt>
-                <dd><ConfidenceChip s={s} long /></dd>
-              </div>
-              <div>
-                <dt className="label">Identified by</dt>
-                <dd>{tier.long}</dd>
-              </div>
-              <div>
-                <dt className="label">Captured</dt>
-                <dd>{fmtDateLabel(s.datetime)}, {fmtTime(s.datetime)}
-                  <span className="facts-sub"> · {fmtRelative(s.datetime)}</span></dd>
-              </div>
-              <div>
-                <dt className="label">Feeder</dt>
-                <dd>{s.device.name}</dd>
-              </div>
-              <div>
-                <dt className="label">Visits, this species</dt>
-                <dd className="tnum">{speciesCount.toLocaleString()}</dd>
-              </div>
-            </dl>
-
-            {s.species.note && <p className="modal-note">{s.species.note}</p>}
-
-            <div className="modal-actions">
-              {s.hasImage && <DownloadPhotoButton s={s} />}
-              {s.species.wiki && (
-                <a className="btn ghost" href={s.species.wiki} target="_blank" rel="noopener noreferrer">
-                  <Icon name="extlink" className="" /> Wikipedia
-                </a>
-              )}
-              {canDeleteSighting(s, data.ME) && <DeleteSightingButton s={s} onDeleted={onClose} />}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
   );
 }
 
