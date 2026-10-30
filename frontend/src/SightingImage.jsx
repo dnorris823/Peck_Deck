@@ -14,6 +14,11 @@
 // The plate stays underneath as the placeholder, so a tile is never an empty box
 // while loading, and a sighting with no stored image (or a failed fetch) simply
 // keeps showing the plate.
+//
+// Small tiles fetch `?size=thumb`, about 400 px on the long side and a fraction
+// of the bytes. Only `large` fetches the full capture. The two URLs differ, so
+// the browser caches them as two entries and a grid never serves a thumb to the
+// detail view's main photo.
 import React, { useEffect, useRef, useState } from "react";
 import { BirdPlate } from "./BirdPlate.jsx";
 import { apiObjectUrl } from "./api.js";
@@ -21,6 +26,10 @@ import { apiObjectUrl } from "./api.js";
 // Start fetching this far before the tile reaches the viewport, so the image is
 // usually decoded by the time it's actually on screen.
 const PREFETCH_MARGIN = "300px";
+
+function imagePath(id, large) {
+  return large ? `/sightings/${id}/image` : `/sightings/${id}/image?size=thumb`;
+}
 
 export function SightingImage({ sighting, large = false, alt }) {
   const holder = useRef(null);
@@ -57,7 +66,7 @@ export function SightingImage({ sighting, large = false, alt }) {
     let url = null;
     let cancelled = false;
 
-    apiObjectUrl(`/sightings/${sighting.id}/image`)
+    apiObjectUrl(imagePath(sighting.id, large))
       .then((objectUrl) => {
         url = objectUrl;
         if (cancelled) URL.revokeObjectURL(objectUrl);
@@ -74,7 +83,7 @@ export function SightingImage({ sighting, large = false, alt }) {
       // JPEG it passed.
       if (url) URL.revokeObjectURL(url);
     };
-  }, [visible, sighting?.hasImage, sighting?.id]);
+  }, [visible, sighting?.hasImage, sighting?.id, large]);
 
   return (
     // While a photo is on its way the plate is dimmed, so a cartoon bird

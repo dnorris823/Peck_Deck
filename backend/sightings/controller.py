@@ -1,6 +1,7 @@
+import asyncio
 import logging
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from litestar import Controller, Request, delete, get, post
 from litestar.background_tasks import BackgroundTask
@@ -20,11 +21,13 @@ from .aftercare import schedule_aftercare
 from .operations import (
     create_sighting,
     delete_sighting,
+    get_image_bytes,
     get_sighting,
     get_sighting_device,
     list_sightings,
 )
 from .schemas import SightingResponse, parse_tier_trace, sighting_response
+from .thumbnails import make_thumbnail
 
 logger = logging.getLogger("peckdeck.sightings")
 
@@ -32,6 +35,10 @@ logger = logging.getLogger("peckdeck.sightings")
 _to_response = sighting_response
 
 IMAGE_CACHE_CONTROL = "private, max-age=31536000, immutable"
+# A thumbnail request answered with the full image, because the row has no
+# thumbnail yet. A day, not a year, so the browser picks up the real thumbnail
+# once the backfill has run.
+FALLBACK_CACHE_CONTROL = "private, max-age=86400"
 
 
 async def _announce_deleted(event: SightingDeleted) -> None:
@@ -148,6 +155,9 @@ class SightingController(Controller):
         db: NamedDependency[AsyncSession],
     ) -> SightingResponse:
         image_bytes = await data.image.read()
+        # Off the event loop, since a decode takes tens of milliseconds. It
+        # returns None rather than raise, so a bad image never fails the upload.
+        thumbnail = await asyncio.to_thread(make_thumbnail, image_bytes) if image_bytes else None
         sighting = await create_sighting(
             db,
             device_id=request.state.device_id,
@@ -159,6 +169,7 @@ class SightingController(Controller):
             image_data=image_bytes if image_bytes else None,
             delayed=data.delayed.lower() == "true",
             tier_trace=parse_tier_trace(data.tier_trace),
+            thumbnail_data=thumbnail,
         )
         # Now, not the capture time: a delayed upload from the offline queue
         # still proves the station is up.
@@ -183,19 +194,30 @@ class SightingController(Controller):
         return _to_response(sighting)
 
     @get("/{sighting_id:int}/image", guards=[user_guard])
-    async def get_image(self, sighting_id: FromPath[int], db: NamedDependency[AsyncSession]) -> Response[bytes]:
-        sighting = await get_sighting(db, sighting_id)
-        if sighting is None or sighting.image_data is None:
+    async def get_image(
+        self,
+        sighting_id: FromPath[int],
+        db: NamedDependency[AsyncSession],
+        size: FromQuery[Literal["full", "thumb"]] = "full",
+    ) -> Response[bytes]:
+        """The capture as a JPEG. ``size=thumb`` returns about 400 px on the long
+        side, or the full image if the sighting has no thumbnail."""
+        found = await get_image_bytes(db, sighting_id, thumb=size == "thumb")
+        if found is None:
             raise NotFoundException()
+        content, is_thumb = found
+        suffix = "_thumb" if is_thumb else ""
         return Response(
-            content=sighting.image_data,
+            content=content,
             media_type="image/jpeg",
             headers={
-                "Content-Disposition": f'inline; filename="sighting_{sighting_id}.jpg"',
+                "Content-Disposition": f'inline; filename="sighting_{sighting_id}{suffix}.jpg"',
                 # A sighting's image never changes after upload, so the browser
                 # may keep it for a year. private keeps shared caches from
                 # storing a response that needed a JWT.
-                "Cache-Control": IMAGE_CACHE_CONTROL,
+                "Cache-Control": (
+                    FALLBACK_CACHE_CONTROL if size == "thumb" and not is_thumb else IMAGE_CACHE_CONTROL
+                ),
             },
         )
 

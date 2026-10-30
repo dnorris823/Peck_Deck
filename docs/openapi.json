@@ -2662,6 +2662,22 @@
             "schema": {
               "type": "integer"
             }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": "full",
+              "enum": [
+                "full",
+                "thumb"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {
