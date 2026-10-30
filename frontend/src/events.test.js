@@ -150,6 +150,19 @@ describe("openSightingStream", () => {
     expect(onSighting).not.toHaveBeenCalled();
   });
 
+  it("delivers an updated sighting's row", async () => {
+    const { res, push } = streamingResponse();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(res));
+    const onUpdated = vi.fn();
+
+    stop = openSightingStream({ onSighting: vi.fn(), onUpdated, onResync: vi.fn() });
+    await flush();
+    push('event: sighting_updated\r\ndata: {"id":7,"species_id":2}\r\n\r\n');
+    await flush();
+
+    expect(onUpdated).toHaveBeenCalledWith({ id: 7, species_id: 2 });
+  });
+
   it("passes a server resync straight through", async () => {
     const { res, push } = streamingResponse();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(res));
