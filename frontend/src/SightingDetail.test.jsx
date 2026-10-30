@@ -17,6 +17,7 @@ vi.mock("./data.js", async (importOriginal) => ({
 
 import { deleteSighting } from "./data.js";
 import { SightingDetail, canDeleteSighting } from "./Sightings.jsx";
+import { speciesAccent } from "./accent.js";
 
 const S = {
   id: 12,
@@ -83,5 +84,20 @@ describe("delete button", () => {
     me = { id: 8, role: "viewer" };
     render(<SightingDetail s={S} onClose={vi.fn()} />);
     expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+  });
+});
+
+describe("accent", () => {
+  const accentOf = () => screen.getByRole("dialog").style.getPropertyValue("--acc-day");
+
+  it("takes the accent from the sighting's species", () => {
+    render(<SightingDetail s={S} onClose={vi.fn()} />);
+    expect(accentOf()).toBe(speciesAccent(S.species).day.acc);
+  });
+
+  it("falls back to the neutral accent for a species with no palette", () => {
+    const sparrow = { ...S, species: { ...S.species, palette: [] } };
+    render(<SightingDetail s={sparrow} onClose={vi.fn()} />);
+    expect(accentOf()).toBe(speciesAccent(null).day.acc);
   });
 });

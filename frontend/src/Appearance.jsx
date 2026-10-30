@@ -1,29 +1,16 @@
-// Appearance — client-only visual preferences (theme/accent/font/density),
-// persisted to localStorage. Both App (applies it) and Settings (edits it)
-// read from this one context so changes are live and survive reload.
+// Appearance — client-only visual preferences (theme and density), persisted
+// to localStorage. Both App (applies it) and Settings (edits it) read from this
+// one context so changes are live and survive reload. The accent colour is not
+// a preference: it comes from the bird on screen (see accent.js).
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 
 const STORAGE_KEY = "peckdeck_appearance";
 
+// Settings labels the themes Light and Dark. The ids stay "day" and "dusk" so
+// choices saved before the redesign still apply.
 export const DEFAULT_APPEARANCE = {
   theme: "auto",         // auto | day | dusk; auto follows the OS setting
-  accent: "cardinal",    // cardinal | forest | yolk | plum
-  displayFont: "newsreader", // newsreader | instrument | playfair | eb
   density: "comfortable",    // compact | comfortable | spacious
-};
-
-const ACCENTS = {
-  cardinal: { primary: "#b8412c", deep: "#8a2f1e" },
-  forest: { primary: "#2d4a36", deep: "#1d3225" },
-  yolk: { primary: "#d4a23a", deep: "#a37a1f" },
-  plum: { primary: "#6b4570", deep: "#4a2f51" },
-};
-
-const FONTS = {
-  newsreader: '"Newsreader", "Times New Roman", serif',
-  instrument: '"Instrument Serif", "Times New Roman", serif',
-  playfair: '"Playfair Display", "Times New Roman", serif',
-  eb: '"EB Garamond", "Times New Roman", serif',
 };
 
 // Density is expressed through the root font size (all layout uses rem-ish
@@ -33,7 +20,14 @@ const DENSITY_SCALE = { compact: 0.93, comfortable: 1, spacious: 1.07 };
 function load() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...DEFAULT_APPEARANCE, ...JSON.parse(raw) };
+    if (raw) {
+      // Known keys only. Older builds also stored an accent and a display font.
+      const saved = JSON.parse(raw);
+      return {
+        theme: saved.theme ?? DEFAULT_APPEARANCE.theme,
+        density: saved.density ?? DEFAULT_APPEARANCE.density,
+      };
+    }
   } catch {
     /* ignore malformed/unavailable storage — fall back to defaults */
   }
@@ -50,10 +44,6 @@ function resolveTheme(theme) {
 export function applyAppearance(a) {
   const root = document.documentElement;
   root.dataset.theme = resolveTheme(a.theme);
-  const accent = ACCENTS[a.accent] || ACCENTS.cardinal;
-  root.style.setProperty("--cardinal", accent.primary);
-  root.style.setProperty("--cardinal-deep", accent.deep);
-  root.style.setProperty("--display", FONTS[a.displayFont] || FONTS.newsreader);
   root.style.fontSize = `${14 * (DENSITY_SCALE[a.density] || 1)}px`;
 }
 

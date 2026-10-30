@@ -37,8 +37,8 @@ alert to a real phone before relying on it.
 
 | Piece | Where | Notes |
 |---|---|---|
-| Manifest + icons | `frontend/public/` | Icons are generated from the sidebar's own brand mark and committed. |
-| Service worker | `frontend/public/sw.js` | Hand-written. Network-first app shell, cache-first hashed assets, and the push and notification-click handlers. It never caches an API response, a non-GET or a non-200. No `skipWaiting`, so a new worker takes over on the next visit. |
+| Manifest + icons | `frontend/public/` | Icons are generated from the app's brand mark and committed. |
+| Service worker | `frontend/public/sw.js` | Hand-written. Network-first app shell, cache-first hashed assets, the self-hosted font precached at install, and the push and notification-click handlers. It never caches an API response, a non-GET or a non-200. No `skipWaiting`, so a new worker takes over on the next visit. |
 | Offline banner | `frontend/src/Offline.jsx` | Says "You're offline" and offers a retry. The page shows what it already loaded. |
 | Push transport | `backend/notifications/push_sender.py` | RFC 8291 encryption + RFC 8292 VAPID on `cryptography` + `aiohttp`. Not `pywebpush`, which is synchronous and would need a thread per send. |
 | Push routes | `GET /push/config`, `POST`/`DELETE /push/subscriptions` | Config reports `enabled:false` when no keys are set, and the web app hides the opt-in. |

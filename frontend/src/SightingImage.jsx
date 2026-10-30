@@ -80,7 +80,7 @@ export function SightingImage({ sighting, large = false, alt }) {
     // While a photo is on its way the plate is dimmed, so a cartoon bird
     // doesn't flash at full strength for the second or two the JPEG takes.
     <div className={`capture ${sighting?.hasImage && !src && !failed ? "pending" : ""}`} ref={holder}>
-      <BirdPlate species={sighting.species} showLabel={false} large={large} />
+      <BirdPlate species={sighting.species} />
       {src && (
         <img
           className="capture-img"

@@ -7,15 +7,18 @@
  *   1. App shell        - network-first, cache fallback.
  *   2. Hashed assets    - cache-first. Filenames are content-addressed, so a
  *                         cached entry can never be stale.
+ *   3. Icons and fonts  - cache-first, precached at install. Not hashed, so
+ *                         a change to one needs a VERSION bump.
  *
  * API responses are never cached. A page that loads offline shows the shell
  * and the app says it is offline.
  *
- * Bump VERSION to invalidate every cache. Registration lives in
+ * Bump VERSION to invalidate every cache. Bump it too when a file in
+ * public/fonts changes, because those URLs carry no content hash. Registration lives in
  * src/registerSW.js and only runs in production builds. A service worker in
  * front of the Vite dev server would serve stale modules and fight HMR.
  */
-const VERSION = "v2";
+const VERSION = "v3";
 const SHELL_CACHE = `peckdeck-shell-${VERSION}`;
 const ASSET_CACHE = `peckdeck-assets-${VERSION}`;
 const CURRENT_CACHES = [SHELL_CACHE, ASSET_CACHE];
@@ -32,16 +35,26 @@ const SHELL_URLS = [
   "/icons/apple-touch-icon-180.png",
 ];
 
+// The self-hosted font. Precached at install, not left to the runtime cache:
+// on the very first visit the page fetches its fonts before this worker
+// controls it, so a runtime cache would miss them and the first offline
+// launch would fall back to the system face. Keep in step with the
+// @font-face rules in src/styles.css.
+const FONT_URLS = [
+  "/fonts/plus-jakarta-sans-latin-wght-normal.woff2",
+  "/fonts/plus-jakarta-sans-latin-wght-italic.woff2",
+  "/fonts/plus-jakarta-sans-latin-ext-wght-normal.woff2",
+  "/fonts/plus-jakarta-sans-latin-ext-wght-italic.woff2",
+];
+
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(SHELL_CACHE).then((cache) =>
-      // addAll is atomic: one 404 would fail the whole install and leave the
-      // previous worker in place, so shell URLs are added individually.
-      Promise.all(
-        SHELL_URLS.map((url) => cache.add(new Request(url, { cache: "reload" })).catch(() => {}))
-      )
-    )
-  );
+  // addAll is atomic: one 404 would fail the whole install and leave the
+  // previous worker in place, so each URL is added on its own.
+  const precache = (cacheName, urls) =>
+    caches.open(cacheName).then((cache) =>
+      Promise.all(urls.map((url) => cache.add(new Request(url, { cache: "reload" })).catch(() => {})))
+    );
+  event.waitUntil(Promise.all([precache(SHELL_CACHE, SHELL_URLS), precache(ASSET_CACHE, FONT_URLS)]));
   // No skipWaiting: a new worker takes over on the next visit instead of
   // swapping caches out from under a page that is still running.
 });
@@ -77,9 +90,13 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (url.origin !== self.location.origin) return; // fonts etc. — leave alone
+  if (url.origin !== self.location.origin) return; // other origins — leave alone
 
-  if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/icons/")) {
+  if (
+    url.pathname.startsWith("/assets/") ||
+    url.pathname.startsWith("/icons/") ||
+    url.pathname.startsWith("/fonts/")
+  ) {
     event.respondWith(cacheFirst(request, ASSET_CACHE));
   }
 });

@@ -1,4 +1,4 @@
-// Bird plate SVGs — stylized field-guide silhouettes.
+// Bird plate SVGs — flat species silhouettes.
 // Each plate uses the species' palette and a silhouette type.
 import React from "react";
 
@@ -35,62 +35,30 @@ const SILHOUETTES = {
   ),
 };
 
-export function BirdPlate({ species, large = false, showLabel = true, no }) {
-  const [c1, c2, c3] = species.palette;
+// A species with no palette (one the Pi created) is drawn in a neutral slate.
+const FALLBACK_PALETTE = ["#7a8a8c", "#2a3032", "#d4cdb8"];
+
+// The tile for a sighting with no photo, and the placeholder while one loads.
+// Flat ground and silhouette only: the paper grain, vignette and serif label of
+// the field-guide design are gone.
+export function BirdPlate({ species }) {
+  const palette = species.palette?.length >= 3 ? species.palette : FALLBACK_PALETTE;
+  const [c1, c2, c3] = palette;
   const sil = SILHOUETTES[species.silhouette] || SILHOUETTES.songbird;
   return (
-    <svg className="bird-plate" viewBox="0 0 240 160" preserveAspectRatio="xMidYMid slice">
-      <defs>
-        <pattern id={`grain-${species.id}`} width="2" height="2" patternUnits="userSpaceOnUse">
-          <rect width="2" height="2" fill={c3} />
-          <circle cx="0.5" cy="0.5" r="0.3" fill={c2} opacity="0.04" />
-        </pattern>
-        <linearGradient id={`bg-${species.id}`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={c3} stopOpacity="0.9" />
-          <stop offset="100%" stopColor={c3} stopOpacity="0.55" />
-        </linearGradient>
-        <radialGradient id={`vig-${species.id}`} cx="50%" cy="50%" r="60%">
-          <stop offset="60%" stopColor="rgba(0,0,0,0)" />
-          <stop offset="100%" stopColor="rgba(28,38,32,0.18)" />
-        </radialGradient>
-      </defs>
+    <svg className="bird-plate" viewBox="0 0 240 160" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+      <rect width="240" height="160" fill={c3} opacity="0.75" />
 
-      <rect width="240" height="160" fill={`url(#bg-${species.id})`} />
-      <rect width="240" height="160" fill={`url(#grain-${species.id})`} opacity="0.5" />
-
-      {/* horizon line / branch */}
-      <line x1="0" y1="138" x2="240" y2="138" stroke={c2} strokeOpacity="0.18" strokeWidth="1" strokeDasharray="2 3" />
-      <path d={`M 0 138 Q 80 130 240 134`} stroke={c2} strokeOpacity="0.35" strokeWidth="2" fill="none" strokeLinecap="round" />
-
-      {/* feet */}
+      {/* branch and feet */}
+      <path d="M 0 138 Q 80 130 240 134" stroke={c2} strokeOpacity="0.35" strokeWidth="2" fill="none" strokeLinecap="round" />
       <path d="M 100 138 L 100 130 M 110 138 L 110 130" stroke={c2} strokeWidth="1.2" strokeLinecap="round" />
 
-      {/* silhouette */}
-      <g fill={c2} stroke={c1} strokeWidth="0.5" transform="translate(0, 0)">
+      <g fill={c2} stroke={c1} strokeWidth="0.5">
         {sil}
       </g>
 
-      {/* accent dot for eye */}
+      {/* eye */}
       <circle cx="155" cy="70" r="1.4" fill={c3} />
-
-      {/* vignette */}
-      <rect width="240" height="160" fill={`url(#vig-${species.id})`} />
-
-      {/* corner number */}
-      {no && (
-        <text x="14" y="22" fill={c2} opacity="0.55"
-          fontFamily="'Geist Mono', monospace" fontSize="9" letterSpacing="2">
-          {no}
-        </text>
-      )}
-
-      {showLabel && (
-        <g transform="translate(14, 148)">
-          <text fill={c2} fontFamily="'Newsreader', serif" fontSize="11" fontStyle="italic" opacity="0.7">
-            {species.sci}
-          </text>
-        </g>
-      )}
     </svg>
   );
 }

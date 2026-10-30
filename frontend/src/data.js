@@ -6,12 +6,12 @@
 import { apiDelete, apiDownload, apiGet, apiSend } from "./api.js";
 
 // ── Fallbacks for presentation-only fields ────────────────────────────────
-// The backend now carries palette/silhouette/note (see seed.py), but a species
-// created ad-hoc by the Pi may lack them — fall back so BirdPlate still renders.
-const DEFAULT_PALETTE = ["#7a8a8c", "#2a3032", "#d4cdb8"];
-const AV_COLORS = [
-  "var(--cardinal)", "var(--forest)", "var(--sky-deep)", "var(--yolk-deep)", "var(--plum)",
-];
+// The backend carries palette/silhouette/note (see seed.py), but a species
+// created ad hoc by the Pi may lack them. An empty palette stays empty, so the
+// accent (accent.js) can tell "no palette" from a real one. BirdPlate has its
+// own fallback colours.
+// Avatar grounds. Fixed colours, each with white initials at 4.5:1 or better.
+const AV_COLORS = ["#a6533d", "#3f6e89", "#56663a", "#86641d", "#6b4570"];
 
 function initials(name) {
   const parts = (name || "").trim().split(/\s+/).filter(Boolean);
@@ -27,7 +27,7 @@ function mapSpecies(s) {
     common: s.common_name,
     sci: `${s.genus} ${s.species_name}`.trim(),
     order: s.order_name || "—",
-    palette: s.palette && s.palette.length ? s.palette : DEFAULT_PALETTE,
+    palette: Array.isArray(s.palette) ? s.palette : [],
     silhouette: s.silhouette || "songbird",
     wiki: s.wiki_url || null,
     note: s.note || "",

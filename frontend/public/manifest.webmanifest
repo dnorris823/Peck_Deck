@@ -1,13 +1,13 @@
 {
-  "name": "Peck Deck — Field Station",
+  "name": "Peck Deck",
   "short_name": "Peck Deck",
-  "description": "Watch what visits your bird feeder: live sightings, species identifications, and station health.",
+  "description": "Watch what visits your bird feeder: live sightings, species identifications, and feeder health.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#f3ede0",
-  "theme_color": "#f3ede0",
+  "background_color": "#faf9f7",
+  "theme_color": "#faf9f7",
   "lang": "en",
   "dir": "ltr",
   "categories": ["lifestyle", "utilities"],
@@ -33,13 +33,13 @@
   ],
   "shortcuts": [
     {
-      "name": "Sightings",
-      "short_name": "Sightings",
-      "url": "/?screen=sightings",
+      "name": "History",
+      "short_name": "History",
+      "url": "/?screen=history",
       "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
     },
     {
-      "name": "Species Library",
+      "name": "Species",
       "short_name": "Species",
       "url": "/?screen=species",
       "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
