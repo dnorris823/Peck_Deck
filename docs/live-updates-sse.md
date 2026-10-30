@@ -43,5 +43,12 @@ Notes that will bite otherwise:
   refetch therefore never counts the deleted row. The event has no SSE `id:`
   line, because replay selects ids above the resume point. A tab that was
   disconnected during a delete misses it, and its next full load drops the row.
+- **`PATCH /sightings/{id}` publishes a `sighting_updated` event** carrying the
+  whole row, such as a corrected species. It goes out after the commit and has
+  no `id:` line, for the same reasons as a delete. The web app swaps the row in
+  and refetches the aggregates. When the row names a species the tab has not
+  loaded, it fetches the species list first, because `mapAll` drops a sighting
+  it cannot join to a species. The tab that made the change applies it itself,
+  then ignores the echo on the stream by `id` and `corrected_at`.
 - A subscriber's device scope is resolved **once, at connect**, so a device
   shared with a user mid-stream appears on their next reconnect.

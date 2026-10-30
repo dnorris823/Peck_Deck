@@ -157,7 +157,9 @@ class Species(Base):
     silhouette: Mapped[str | None] = mapped_column(String, nullable=True)
     note: Mapped[str | None] = mapped_column(String, nullable=True)
 
-    sightings: Mapped[list["Sighting"]] = relationship("Sighting", back_populates="species")
+    sightings: Mapped[list["Sighting"]] = relationship(
+        "Sighting", back_populates="species", foreign_keys="Sighting.species_id"
+    )
 
 
 class Sighting(Base):
@@ -178,6 +180,21 @@ class Sighting(Base):
     tier_trace: Mapped[list | None] = mapped_column(
         JSON().with_variant(JSONB(), "postgresql"), nullable=True
     )
+    # Set when a person corrects the species through PATCH /sightings/{id}.
+    # `species_id` then holds their answer, and `original_species_id` keeps the
+    # species the Pi's chain named, next to its tier and confidence. All three
+    # are null on a sighting nobody has corrected.
+    original_species_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("species.id"), nullable=True
+    )
+    corrected_by: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    corrected_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
-    species: Mapped["Species"] = relationship("Species", back_populates="sightings")
+    species: Mapped["Species"] = relationship(
+        "Species", back_populates="sightings", foreign_keys=[species_id]
+    )
     device: Mapped["Device"] = relationship("Device", back_populates="sightings")

@@ -22,6 +22,7 @@ from backend.events.hub import (
     SightingDeleted,
     SightingEvent,
     SightingHub,
+    SightingUpdated,
     sighting_hub,
 )
 
@@ -194,6 +195,25 @@ def test_forwards_a_delete_without_moving_the_resume_point(client, owner_devices
     assert out[0].event == "sighting_deleted"
     assert json.loads(out[0].data) == {"id": 9_000_011}
     # Replay selects ids above the resume point, so a delete must not set it.
+    assert out[0].id is None
+
+
+def test_forwards_an_update_without_moving_the_resume_point(client, owner_devices):
+    from backend.tests.conftest import IDS
+
+    unreachable = max(owner_devices) + 500
+    payload = {"id": 9_000_013, "device_id": owner_devices[0], "species_id": 2}
+    _, out = _drive(
+        IDS["owner_id"],
+        publish=[
+            SightingUpdated(sighting_id=9_000_012, device_id=unreachable, payload={"id": 9_000_012}),
+            SightingUpdated(sighting_id=9_000_013, device_id=owner_devices[0], payload=payload),
+        ],
+    )
+
+    assert out[0].event == "sighting_updated"
+    assert json.loads(out[0].data) == payload
+    # An update names an older row, so its id would move the resume point back.
     assert out[0].id is None
 
 

@@ -53,11 +53,14 @@ export function parseRecord(raw) {
  * @param {object} handlers
  * @param {(sighting: object) => void} handlers.onSighting  a new visit arrived
  * @param {(id: number) => void} [handlers.onDeleted]  a sighting was deleted
+ * @param {(sighting: object) => void} [handlers.onUpdated]  a sighting changed
  * @param {() => void} handlers.onResync   the stream lost track; refetch everything
  * @param {(live: boolean) => void} [handlers.onStatus]  connected / disconnected
  * @param {() => void} [handlers.onAuthError]  the token was rejected
  */
-export function openSightingStream({ onSighting, onDeleted, onResync, onStatus, onAuthError }) {
+export function openSightingStream({
+  onSighting, onDeleted, onUpdated, onResync, onStatus, onAuthError,
+}) {
   let stopped = false;
   let controller = null;
   let timer = null;
@@ -145,6 +148,13 @@ export function openSightingStream({ onSighting, onDeleted, onResync, onStatus, 
       // The record has no SSE `id:` line, so it never moves the resume point.
       try {
         onDeleted?.(JSON.parse(data).id);
+      } catch {
+        onResync();
+      }
+    } else if (event === "sighting_updated") {
+      // No `id:` line either. The row is an older one.
+      try {
+        onUpdated?.(JSON.parse(data));
       } catch {
         onResync();
       }

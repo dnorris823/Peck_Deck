@@ -1,8 +1,9 @@
 import logging
+from dataclasses import asdict
 from datetime import datetime
 from typing import Annotated
 
-from litestar import Controller, Request, delete, get, post
+from litestar import Controller, Request, delete, get, patch, post
 from litestar.background_tasks import BackgroundTask
 from litestar.datastructures import UploadFile
 from litestar.di import NamedDependency
@@ -14,17 +15,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import device_guard, user_guard
 from ..devices.operations import mark_device_seen
-from ..events.hub import SightingDeleted, sighting_hub
+from ..events.hub import SightingDeleted, SightingUpdated, sighting_hub
+from ..species.operations import get_species
 from . import export as export_ops
 from .aftercare import schedule_aftercare
 from .operations import (
+    correct_species,
     create_sighting,
     delete_sighting,
     get_sighting,
     get_sighting_device,
     list_sightings,
+    user_can_access_device,
 )
-from .schemas import SightingResponse, parse_tier_trace, sighting_response
+from .schemas import CorrectSpecies, SightingResponse, parse_tier_trace, sighting_response
 
 logger = logging.getLogger("peckdeck.sightings")
 
@@ -34,7 +38,7 @@ _to_response = sighting_response
 IMAGE_CACHE_CONTROL = "private, max-age=31536000, immutable"
 
 
-async def _announce_deleted(event: SightingDeleted) -> None:
+async def _announce(event: SightingDeleted | SightingUpdated) -> None:
     # BackgroundTask awaits its function, and publish() is sync.
     sighting_hub.publish(event)
 
@@ -199,6 +203,51 @@ class SightingController(Controller):
             },
         )
 
+    @patch("/{sighting_id:int}", guards=[user_guard])
+    async def correct(
+        self,
+        sighting_id: FromPath[int],
+        data: CorrectSpecies,
+        request: Request,
+        db: NamedDependency[AsyncSession],
+    ) -> Response[SightingResponse]:
+        """Set the species a person says this is. Any user with access to the device.
+
+        The Pi's tier, confidence and trace stay as uploaded, and
+        `original_species_id` keeps the species the tier named.
+        """
+        target = await get_sighting_device(db, sighting_id)
+        if target is None:
+            raise NotFoundException()
+        device_id, owner_id = target
+        if not await user_can_access_device(
+            db, request.state.user_id, request.state.role, device_id, owner_id
+        ):
+            raise HTTPException(status_code=403, detail="Forbidden")
+        if await get_species(db, data.species_id) is None:
+            raise HTTPException(status_code=400, detail=f"No species with id {data.species_id}")
+
+        sighting, has_image = await correct_species(
+            db, sighting_id, species_id=data.species_id, user_id=request.state.user_id
+        )
+        logger.info(
+            "sighting %d on device %d set to species %d by user %d (tier %s said species %d)",
+            sighting_id, device_id, sighting.species_id, request.state.user_id,
+            sighting.classification_tier_used, sighting.original_species_id,
+        )
+
+        body = _to_response(sighting, has_image=has_image)
+        # After the commit, for the reason given on delete_one below.
+        return Response(
+            content=body,
+            background=BackgroundTask(
+                _announce,
+                SightingUpdated(
+                    sighting_id=sighting_id, device_id=device_id, payload=asdict(body)
+                ),
+            ),
+        )
+
     @delete("/{sighting_id:int}", guards=[user_guard], status_code=204)
     async def delete_one(
         self, sighting_id: FromPath[int], request: Request, db: NamedDependency[AsyncSession]
@@ -226,7 +275,7 @@ class SightingController(Controller):
             content=None,
             status_code=204,
             background=BackgroundTask(
-                _announce_deleted,
+                _announce,
                 SightingDeleted(sighting_id=sighting_id, device_id=device_id),
             ),
         )

@@ -1,15 +1,17 @@
 // Sighting detail — one visit: the photo, the day's strip, and how sure the
 // classifier was. A full-screen view on a phone, a side panel on desktop. App
-// mounts it and owns the ?sighting=<id> URL.
+// mounts it and owns the ?sighting=<id> URL. The species picker corrects a
+// wrong or missing name.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { SightingImage } from "./SightingImage.jsx";
 import { Icon } from "./Icon.jsx";
-import { useDialog } from "./Modal.jsx";
+import { FormNote, Modal, TextInput, useDialog } from "./Modal.jsx";
 import { useData } from "./DataContext.jsx";
 import { apiFetchBinary, apiObjectUrl } from "./api.js";
 import {
-  SIGHTING_WINDOW, deleteSighting, fetchSpeciesHours, fmtTime, startOfToday, tierInfo,
-  confidenceLevel,
+  SIGHTING_WINDOW, correctSighting, createSpecies, deleteSighting, fetchSpeciesHours,
+  fmtDateLabel, fmtTime, startOfToday, tierInfo, confidenceLevel,
 } from "./data.js";
 import { useSpeciesAccent } from "./accent.js";
 import "./sighting-detail.css";
@@ -21,8 +23,34 @@ import "./sighting-detail.css";
 // camera already saw a bird in both, so neither is a name.
 const NOT_A_NAME = new Set(["unknown", "background"]);
 
+export function isPlaceholder(species) {
+  return NOT_A_NAME.has(species.common.trim().toLowerCase());
+}
+
 export function needsName(s) {
-  return NOT_A_NAME.has(s.species.common.trim().toLowerCase());
+  return isPlaceholder(s.species);
+}
+
+/** Who corrected the species: "you", a name, or "someone". Null if nobody did. */
+export function correctedByName(s, me, users = []) {
+  if (s.correctedBy == null) return null;
+  if (s.correctedBy === me?.id) return "you";
+  return users.find(u => u.id === s.correctedBy)?.name || "someone";
+}
+
+/**
+ * The species the picker offers for `query`, matched on the common or
+ * scientific name. The birds this user sees most come first, then A to Z.
+ * Unknown and Background are not answers, so they are left out.
+ */
+export function pickerOptions(species, counts, query) {
+  const seen = new Map(counts.map(c => [c.id, c.count]));
+  const q = query.trim().toLowerCase();
+  return species
+    .filter(x => !isPlaceholder(x))
+    .filter(x => !q || x.common.toLowerCase().includes(q) || x.sci.toLowerCase().includes(q))
+    .sort((a, b) => (seen.get(b.id) || 0) - (seen.get(a.id) || 0)
+      || a.common.localeCompare(b.common));
 }
 
 // The device owner or an owner-role user may delete. The route enforces the
@@ -117,8 +145,9 @@ export function tierChips(s) {
   if (!s.tierTrace) {
     if (s.tier === "none") return [{ tier: "none", label: "No tier answered", state: "off" }];
     const short = tierInfo(s.tier).short;
-    // A tier that answered "Background" gave no name, however sure it was.
-    if (needsName(s)) return [{ tier: s.tier, label: `${short}, no name`, state: "low" }];
+    // A tier that answered "Background" gave no name, however sure it was. On a
+    // corrected sighting that is the tier's species, not the person's.
+    if (isPlaceholder(s.originalSpecies || s.species)) return [{ tier: s.tier, label: `${short}, no name`, state: "low" }];
     const sure = confidenceLevel(s) === "sure";
     return [{
       tier: s.tier,
@@ -251,9 +280,112 @@ function ShareButton({ s, title }) {
   );
 }
 
+const PICKER_LIMIT = 40;
+
+// The species picker. A pick saves at once, since a wrong pick is fixed the
+// same way. A bird the library has never seen can be added from here.
+function SpeciesPicker({ s, onClose, onCorrected }) {
+  const { data, applyUpdated } = useData();
+  const [query, setQuery] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [sci, setSci] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const options = useMemo(
+    () => pickerOptions(data.SPECIES || [], data.SPECIES_COUNTS || [], query),
+    [data.SPECIES, data.SPECIES_COUNTS, query],
+  );
+
+  async function save(speciesId) {
+    setBusy(true);
+    setError(null);
+    try {
+      const raw = await correctSighting(s.id, speciesId);
+      await applyUpdated(raw);
+      onCorrected?.(raw);
+      onClose();
+    } catch (e) {
+      setError(e.message || "Couldn't save the species.");
+      setBusy(false);
+    }
+  }
+
+  async function addAndSave() {
+    const common = query.trim();
+    const [genus, ...rest] = sci.trim().split(/\s+/);
+    if (!common || !genus || !rest.length) {
+      setError("Give the common name and the two-part scientific name.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    let created;
+    try {
+      created = await createSpecies({ common_name: common, genus, species_name: rest.join(" ") });
+    } catch (e) {
+      setError(e.status === 409 ? "That species is already in the library." : e.message);
+      setBusy(false);
+      return;
+    }
+    await save(created.id);
+  }
+
+  const shown = options.slice(0, PICKER_LIMIT);
+  // On document.body, because the desktop panel is sticky, and a sticky box
+  // would keep the dialog under the top bar.
+  return createPortal(
+    <Modal title="Which bird is this?" subtitle="The tier's answer stays on the record."
+      onClose={onClose}>
+      <TextInput label="Search species" value={query} onChange={setQuery}
+        placeholder="House Finch" disabled={busy} />
+      {adding ? (
+        <>
+          <TextInput label="Scientific name" value={sci} onChange={setSci}
+            placeholder="Haemorhous mexicanus" disabled={busy}
+            help={`Adds "${query.trim() || "this bird"}" to the species library.`} />
+          <div className="row" style={{ justifyContent: "flex-end", gap: 8 }}>
+            <button type="button" className="btn" onClick={() => setAdding(false)} disabled={busy}>Back</button>
+            <button type="button" className="btn primary" onClick={addAndSave} disabled={busy}>
+              {busy ? "Saving…" : "Add and save"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <ul className="sd-picks" aria-label="Species">
+            {shown.map(x => {
+              const current = x.id === s.species.id;
+              return (
+                <li key={x.id}>
+                  <button type="button" className="sd-pick" disabled={busy || current}
+                    aria-current={current ? "true" : undefined} onClick={() => save(x.id)}>
+                    <b>{x.common}</b>
+                    {x.sci && <i>{x.sci}</i>}
+                    {current && <span className="sd-pick-tag">Current</span>}
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+          {options.length > PICKER_LIMIT && (
+            <div className="field-help">Showing {PICKER_LIMIT} of {options.length}. Type to narrow it.</div>
+          )}
+          {!options.length && <div className="field-help">No species in the library matches.</div>}
+          <button type="button" className="btn" onClick={() => setAdding(true)} disabled={busy}>
+            Not listed? Add a species
+          </button>
+        </>
+      )}
+      <FormNote error={error} />
+    </Modal>,
+    document.body,
+  );
+}
+
 // Two taps, so a stray one can't remove a capture. While confirming, the
 // confirm pair takes the whole row.
-function Actions({ s, title, canDelete, onDeleted }) {
+function Actions({ s, title, canDelete, onDeleted, onPickSpecies }) {
   const { applyDeleted } = useData();
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -292,6 +424,9 @@ function Actions({ s, title, canDelete, onDeleted }) {
         ) : (
           <>
             <ShareButton s={s} title={title} />
+            <button type="button" className="sd-act" onClick={onPickSpecies}>
+              {needsName(s) ? "Name it" : "Wrong bird?"}
+            </button>
             {canDelete && (
               <button type="button" className="sd-act" onClick={() => setConfirming(true)}>Delete</button>
             )}
@@ -330,12 +465,25 @@ function Strip({ strip, current, onPick }) {
  * @param s          the sighting on screen
  * @param onClose    closes the view
  * @param onMove     shows another sighting from the strip, in place
+ * @param onCorrected  gets the raw row after a species correction saves
  * @param backLabel  the screen the phone's back button returns to
  */
-export function SightingDetail({ s, onClose, onMove, backLabel = "Back" }) {
+export function SightingDetail({ s, onClose, onMove, onCorrected, backLabel = "Back" }) {
   const { data } = useData();
   const panelRef = useRef(null);
-  useDialog(onClose, panelRef);
+  // The picker is a dialog over this one. Escape and the arrow keys belong to
+  // it while it is open. A ref, because this view's key listeners stay put.
+  const [picking, setPicking] = useState(false);
+  const pickingRef = useRef(false);
+  const showPicker = useCallback((open) => {
+    pickingRef.current = open;
+    setPicking(open);
+  }, []);
+  const closeUnlessPicking = useCallback(() => {
+    if (!pickingRef.current) onClose();
+  }, [onClose]);
+  useDialog(closeUnlessPicking, panelRef);
+  useEffect(() => { showPicker(false); }, [s?.id, showPicker]);
   // useDialog focuses the first control, which on desktop is the phone's
   // hidden back button. Focus the panel itself when that misses.
   useEffect(() => {
@@ -356,7 +504,7 @@ export function SightingDetail({ s, onClose, onMove, backLabel = "Back" }) {
   // form control has focus, since the panel sits beside the History filters.
   useEffect(() => {
     function onKey(e) {
-      if (e.altKey || e.ctrlKey || e.metaKey) return;
+      if (e.altKey || e.ctrlKey || e.metaKey || pickingRef.current) return;
       if (e.target.closest?.("input, select, textarea")) return;
       if (e.key === "ArrowLeft") step(-1);
       else if (e.key === "ArrowRight") step(1);
@@ -399,6 +547,8 @@ export function SightingDetail({ s, onClose, onMove, backLabel = "Back" }) {
 
   const title = unnamed ? "Needs a name" : s.species.common;
   const context = contextLine(s, visitOrdinal(sightings, s), unnamed ? null : peaks);
+  const correctedBy = correctedByName(s, data.ME, data.USERS);
+  const tierSaid = s.originalSpecies;
 
   return (
     <aside className="sd" style={accent} ref={panelRef} role="dialog"
@@ -428,7 +578,14 @@ export function SightingDetail({ s, onClose, onMove, backLabel = "Back" }) {
       </div>
 
       <div className="sd-sheet">
-        <h2 className={`sd-name ${unnamed ? "unnamed" : ""}`}>{title}</h2>
+        <h2 className={`sd-name ${unnamed ? "unnamed" : ""}`}>
+          {unnamed ? (
+            <button type="button" className="sd-name-btn" onClick={() => showPicker(true)}
+              title="Choose the species">
+              {title}
+            </button>
+          ) : title}
+        </h2>
         {unnamed
           ? <div className="sd-sci">No tier was sure enough to name this bird.</div>
           : s.species.sci && <div className="sd-sci">{s.species.sci}</div>}
@@ -436,6 +593,18 @@ export function SightingDetail({ s, onClose, onMove, backLabel = "Back" }) {
         {context && <div className="sd-note">{context}</div>}
 
         <dl className="sd-details">
+          {correctedBy && (
+            <div>
+              <dt>Named by</dt>
+              <dd>{correctedBy === "you" ? "You" : correctedBy}, {fmtDateLabel(s.correctedAt)}</dd>
+            </div>
+          )}
+          {correctedBy && tierSaid && (
+            <div>
+              <dt>Tier said</dt>
+              <dd>{isPlaceholder(tierSaid) ? "No name" : tierSaid.common}</dd>
+            </div>
+          )}
           <div>
             <dt>Confidence</dt>
             <dd><ConfidenceBar s={s} /></dd>
@@ -454,8 +623,12 @@ export function SightingDetail({ s, onClose, onMove, backLabel = "Back" }) {
           </div>
         </dl>
 
-        <Actions s={s} title={title} canDelete={canDeleteSighting(s, data.ME)} onDeleted={onClose} />
+        <Actions s={s} title={title} canDelete={canDeleteSighting(s, data.ME)} onDeleted={onClose}
+          onPickSpecies={() => showPicker(true)} />
       </div>
+      {picking && (
+        <SpeciesPicker s={s} onClose={() => showPicker(false)} onCorrected={onCorrected} />
+      )}
     </aside>
   );
 }
