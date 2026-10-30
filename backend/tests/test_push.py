@@ -531,6 +531,8 @@ def test_dispatch_pushes_to_every_subscription_of_a_recipient(client, monkeypatc
     assert "Ithaca — NY" in payload["body"]
     # The worker has no session and cannot look anything up, so ids ride along.
     assert payload["data"]["sighting_id"] == sid
+    # A click opens this sighting, not the home screen.
+    assert payload["data"]["url"] == f"/?sighting={sid}"
     assert payload["tag"] == f"peckdeck-device-{did}"
 
 

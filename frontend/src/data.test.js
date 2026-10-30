@@ -8,7 +8,7 @@ vi.mock("./api.js", () => ({
 
 import { apiGet, apiSend } from "./api.js";
 import {
-  loadAll, saveMe, savePreferences,
+  loadAll, saveMe, savePreferences, fetchSighting,
   fmtRelative, fmtTime, fmtDateFull,
   confidenceLevel, countToday, toLocalGrid, fmtDayHeading,
   speciesCountsPath,
@@ -98,10 +98,54 @@ describe("loadAll", () => {
     expect(data.SIGHTINGS[0].species.common).toBe("Northern Cardinal");
   });
 
+  it("carries the tier trace and the delayed flag", async () => {
+    const trace = [
+      { tier: "gpu", outcome: "accepted", confidence: 0.71, threshold: 0.6 },
+      { tier: "local", outcome: "not_run", confidence: null, threshold: 0.85 },
+    ];
+    routeApiGet({
+      "/sightings?limit=100": [
+        { id: 1000, species_id: 1, device_id: 10, datetime: "2026-07-19T12:00:00Z",
+          confidence_score: 0.71, classification_tier_used: "gpu", has_image: true,
+          delayed: true, tier_trace: trace },
+        { id: 1002, species_id: 1, device_id: 10, datetime: "2026-07-19T11:00:00Z",
+          confidence_score: 0.9, classification_tier_used: "gpu", has_image: true,
+          delayed: false, tier_trace: null },
+      ],
+    });
+    const data = await loadAll();
+    expect(data.SIGHTINGS[0]).toMatchObject({ delayed: true, tierTrace: trace });
+    expect(data.SIGHTINGS[1]).toMatchObject({ delayed: false, tierTrace: null });
+  });
+
   it("clamps heatmap counts into the CSS heat range (0..4)", async () => {
     routeApiGet();
     const data = await loadAll();
     expect(data.HEATMAP).toEqual([[0, 1, 4]]);
+  });
+});
+
+describe("fetchSighting", () => {
+  it("maps one sighting through the same mapper as the list", async () => {
+    routeApiGet({
+      "/sightings/77": { id: 77, species_id: 1, device_id: 10, datetime: "2026-07-01T12:00:00Z",
+        confidence_score: 0.8, classification_tier_used: "gpu", has_image: false,
+        delayed: false, tier_trace: null },
+    });
+    const data = await loadAll();
+    const s = await fetchSighting(77, data);
+    expect(s).toMatchObject({ id: 77, tier: "gpu", tierTrace: null, hasImage: false });
+    expect(s.species.common).toBe("Northern Cardinal");
+    expect(s.datetime).toBeInstanceOf(Date);
+  });
+
+  it("is null for a sighting whose species was never loaded", async () => {
+    routeApiGet({
+      "/sightings/78": { id: 78, species_id: 999, device_id: 10, datetime: "2026-07-01T12:00:00Z",
+        confidence_score: 0.8, classification_tier_used: "gpu", has_image: false },
+    });
+    const data = await loadAll();
+    expect(await fetchSighting(78, data)).toBeNull();
   });
 });
 
