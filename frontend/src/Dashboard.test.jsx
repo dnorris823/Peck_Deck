@@ -1,11 +1,16 @@
-// Home: the latest bird first, today's other visits under it, and the two
-// empty states.
+// Home: the latest bird first, today's other visits under it, the quiet-day
+// fallbacks, and the two empty states.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import React from "react";
-import { render, screen, fireEvent, within } from "@testing-library/react";
+import { act, render, screen, fireEvent, within } from "@testing-library/react";
 
 let mockData;
 vi.mock("./DataContext.jsx", () => ({ useData: () => ({ data: mockData }) }));
+const counts = vi.fn();
+vi.mock("./data.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  fetchSpeciesCountsBetween: (...args) => counts(...args),
+}));
 
 import { Dashboard } from "./Dashboard.jsx";
 
@@ -30,6 +35,8 @@ function renderHome(sightings, { devices = [MAPLE], ...props } = {}) {
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date", "setInterval", "clearInterval"] });
   vi.setSystemTime(NOW);
+  // Pending unless a test says otherwise, so the yesterday line stays out.
+  counts.mockReset().mockReturnValue(new Promise(() => {}));
 });
 afterEach(() => vi.useRealTimers());
 
@@ -71,12 +78,64 @@ describe("Home", () => {
     expect(openSighting).toHaveBeenLastCalledWith(today[1]);
   });
 
-  it("strips today's other visits only, and marks an Unknown one Name?", () => {
-    renderHome(today);
+  it("strips today's other visits only on a busy day, and marks an Unknown one Name?", () => {
+    const busy = [visit(14, JAY, new Date(2026, 9, 29, 19, 35)), ...today];
+    renderHome(busy);
+    expect(screen.getByRole("heading", { name: "Earlier today" })).toBeInTheDocument();
     const strip = screen.getByRole("list");
     const items = within(strip).getAllByRole("button");
-    expect(items.map(b => b.textContent)).toEqual(["7:29 pm", "Name?"]);
-    expect(items[1]).toHaveAccessibleName("Unnamed bird at 2:33 pm");
+    expect(items.map(b => b.textContent)).toEqual(["7:31 pm", "7:29 pm", "Name?"]);
+    expect(items[2]).toHaveAccessibleName("Unnamed bird at 2:33 pm");
+  });
+
+  it("falls back to recent visits from any day when today is quiet", () => {
+    const older = [
+      visit(9, JAY, new Date(2026, 9, 27, 8, 5)),
+      visit(8, FINCH, new Date(2026, 9, 12, 7, 0)),
+    ];
+    const { openSighting } = renderHome([...today, ...older]);
+    expect(screen.queryByRole("heading", { name: "Earlier today" })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Recent visits" })).toBeInTheDocument();
+    const items = within(screen.getByRole("list")).getAllByRole("button");
+    expect(items.map(b => b.textContent)).toEqual(["7:29 pm", "Name?", "Yesterday", "Tue", "Oct 12"]);
+    expect(items[2]).toHaveAccessibleName("Blue Jay, Yesterday, 5:24 pm");
+    fireEvent.click(items[3]);
+    expect(openSighting).toHaveBeenLastCalledWith(older[0]);
+  });
+
+  it("caps the recent strip at eight, after the hero", () => {
+    const many = Array.from({ length: 12 }, (_, i) => visit(100 - i, JAY, new Date(2026, 9, 28, 18, 50 - i)));
+    renderHome(many);
+    expect(within(screen.getByRole("list")).getAllByRole("button")).toHaveLength(8);
+  });
+
+  it("sums up yesterday under the timeline and opens it in History", async () => {
+    counts.mockResolvedValue([
+      { id: 4, common: "Northern Cardinal", count: 14 },
+      { id: 5, common: "American Goldfinch", count: 9 },
+      { id: 2, common: "Blue Jay", count: 6 },
+      { id: 3, common: "Unknown", count: 2 },
+      { id: 6, common: "Mourning Dove", count: 5 },
+      { id: 7, common: "House Finch", count: 5 },
+    ]);
+    const { go } = renderHome([today[3]]);
+    const line = await screen.findByRole("button", { name: /^Yesterday/ });
+    expect(line).toHaveTextContent(
+      "Yesterday41 visits Northern Cardinal 14, American Goldfinch 9, Blue Jay 6 and 2 more species.");
+    // Asked of the backend for the whole local day, not counted from the window.
+    const [start, end] = counts.mock.calls[0];
+    expect(start).toEqual(new Date(2026, 9, 28));
+    expect(end).toEqual(new Date(new Date(2026, 9, 29).getTime() - 1));
+    fireEvent.click(line);
+    expect(go).toHaveBeenCalledWith("history", { day: new Date(2026, 9, 28) });
+  });
+
+  it("leaves the yesterday line out when yesterday had no visits", async () => {
+    const empty = Promise.resolve([]);
+    counts.mockReturnValue(empty);
+    renderHome(today);
+    await act(() => empty);
+    expect(screen.queryByRole("button", { name: /^Yesterday/ })).not.toBeInTheDocument();
   });
 
   it("marks today's visits on the timeline", () => {

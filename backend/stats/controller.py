@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 
 from litestar import Controller, Request, get
 from litestar.di import NamedDependency
@@ -65,9 +66,27 @@ class StatsController(Controller):
         request: Request,
         db: NamedDependency[AsyncSession],
         tz: FromQuery[str | None] = None,
+        from_date: FromQuery[str | None] = None,
+        to_date: FromQuery[str | None] = None,
     ) -> list[SpeciesCountResponse]:
+        """Per-species totals, most frequent first.
+
+        `from_date` and `to_date` are inclusive ISO-8601 bounds, as on
+        `GET /sightings`. With them, counts cover only that range. Home sends
+        the bounds of the viewer's local yesterday.
+        """
         zone = _zone_or_400(tz) if tz is not None else None
-        rows = await operations.species_counts(db, request.state.user_id, tz=zone)
+        try:
+            from_dt = datetime.fromisoformat(from_date) if from_date else None
+            to_dt = datetime.fromisoformat(to_date) if to_date else None
+        except ValueError:
+            raise HTTPException(
+                status_code=400,
+                detail="from_date/to_date must be ISO-8601 (e.g. 2026-07-19 or 2026-07-19T10:00:00Z)",
+            )
+        rows = await operations.species_counts(
+            db, request.state.user_id, tz=zone, from_date=from_dt, to_date=to_dt
+        )
         return [_species_count_response(r) for r in rows]
 
     @get("/hours")

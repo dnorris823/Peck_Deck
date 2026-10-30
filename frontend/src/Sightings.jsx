@@ -22,6 +22,13 @@ export function rangeCutoff(range, now = Date.now()) {
   return 0; // all
 }
 
+// The local calendar day starting at `day`, as [start, next midnight) in ms.
+export function dayBounds(day) {
+  const start = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+  const next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
+  return [start.getTime(), next.getTime()];
+}
+
 const RANGES = [
   ["today", "Today"],
   ["week", "7 days"],
@@ -114,22 +121,25 @@ function groupByDay(sightings) {
   return groups;
 }
 
-export function Sightings({ openSighting, initialSpecies = "all" }) {
+// `initialDay` opens History on one local day, as Home's yesterday line does.
+// That day shows as its own choice before the named ranges.
+export function Sightings({ openSighting, initialSpecies = "all", initialDay = null }) {
   const { data } = useData();
   const { SIGHTINGS, SPECIES, DEVICES } = data;
   const [device, setDevice] = useState("all");
   const [species, setSpecies] = useState(initialSpecies);
   // Coming from a species page, start wide: that species' visits may be old.
-  const [range, setRange] = useState(initialSpecies === "all" ? "week" : "all");
+  const [range, setRange] = useState(initialDay ? "day" : initialSpecies === "all" ? "week" : "all");
+  const ranges = initialDay ? [["day", fmtDayHeading(initialDay)], ...RANGES] : RANGES;
 
   const filtered = useMemo(() => {
-    const cutoff = rangeCutoff(range);
+    const [from, to] = range === "day" ? dayBounds(initialDay) : [rangeCutoff(range), Infinity];
     return SIGHTINGS.filter(s =>
       (device === "all" || s.device.id === device) &&
       (species === "all" || s.species.id === species) &&
-      s.datetime.getTime() >= cutoff
+      s.datetime.getTime() >= from && s.datetime.getTime() < to
     );
-  }, [SIGHTINGS, device, species, range]);
+  }, [SIGHTINGS, device, species, range, initialDay]);
 
   const groups = useMemo(() => groupByDay(filtered), [filtered]);
   const hasAny = SIGHTINGS.length > 0;
@@ -154,7 +164,7 @@ export function Sightings({ openSighting, initialSpecies = "all" }) {
 
       <div className="toolbar">
         <div className="segmented" role="group" aria-label="Time range">
-          {RANGES.map(([id, label]) => (
+          {ranges.map(([id, label]) => (
             <button key={id} className={range === id ? "active" : ""} aria-pressed={range === id}
               onClick={() => setRange(id)}>{label}</button>
           ))}

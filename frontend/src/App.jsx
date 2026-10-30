@@ -154,12 +154,15 @@ function AppShell({ onLogout }) {
   // Species filter handed to Sightings, so "View sightings" on a species lands
   // on that species' visits rather than the whole list.
   const [speciesFilter, setSpeciesFilter] = useState("all");
+  // A day handed to Sightings, so Home's yesterday line opens that day.
+  const [historyDay, setHistoryDay] = useState(null);
 
   // Navigating always closes the More menu and the sighting, and starts at
   // the top.
-  const go = useCallback((r, { species = "all" } = {}) => {
+  const go = useCallback((r, { species = "all", day = null } = {}) => {
     setRoute(r);
     setSpeciesFilter(species);
+    setHistoryDay(day);
     setMoreOpen(false);
     closeSighting();
     window.scrollTo?.(0, 0);
@@ -197,7 +200,8 @@ function AppShell({ onLogout }) {
           <div className="page" data-screen-label={NAV.find(n => n.id === route)?.label || route}>
             {route === "latest" && <Dashboard openSighting={openSighting} go={go} selectedId={openId} />}
             {route === "history" && (
-              <Sightings key={speciesFilter} openSighting={openSighting} initialSpecies={speciesFilter} />
+              <Sightings key={`${speciesFilter}|${historyDay?.getTime()}`} openSighting={openSighting}
+                initialSpecies={speciesFilter} initialDay={historyDay} />
             )}
             {route === "species" && <SpeciesPage go={go} openSighting={openSighting} />}
             {route === "feeders" && <DevicesPage />}

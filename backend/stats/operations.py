@@ -147,17 +147,41 @@ async def hours(
     }
 
 
+def _utc(dt: datetime) -> datetime:
+    """``dt`` in UTC, with a naive value read as UTC.
+
+    SQLite stores the wall clock without its offset, so a bound parameter has
+    to be in UTC to compare against it.
+    """
+    return _aware(dt).astimezone(timezone.utc)
+
+
 async def species_counts(
-    db: AsyncSession, user_id: int, tz: str | None = None
+    db: AsyncSession,
+    user_id: int,
+    tz: str | None = None,
+    *,
+    from_date: datetime | None = None,
+    to_date: datetime | None = None,
 ) -> list[dict]:
     """Per-species totals with first and last seen, most frequent first.
 
     With ``tz``, each row also has ``peak_hours`` in local hours over the last
     30 days. Without it, ``peak_hours`` is None.
+
+    ``from_date`` and ``to_date`` are inclusive, as on ``GET /sightings``. With
+    either, ``count``, ``first_seen`` and ``last_seen`` cover only that range,
+    and a species with no visit in it is left out. ``peak_hours`` keeps its
+    30-day window.
     """
     accessible = await _accessible_device_ids(db, user_id)
     if not accessible:
         return []
+    filters = [Sighting.device_id.in_(accessible)]
+    if from_date is not None:
+        filters.append(Sighting.datetime >= _utc(from_date))
+    if to_date is not None:
+        filters.append(Sighting.datetime <= _utc(to_date))
     rows = await db.execute(
         select(
             Species,
@@ -166,7 +190,7 @@ async def species_counts(
             func.max(Sighting.datetime).label("last_seen"),
         )
         .join(Sighting, Sighting.species_id == Species.id)
-        .where(Sighting.device_id.in_(accessible))
+        .where(*filters)
         .group_by(Species.id)
     )
 

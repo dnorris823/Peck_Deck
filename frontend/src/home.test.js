@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { fmtClock, heroWhen, isUnknown, statusLine, timelinePos } from "./home.js";
+import {
+  fmtClock, heroWhen, isUnknown, statusLine, stripLabel, timelinePos, yesterdayBounds, yesterdayLine,
+} from "./home.js";
 
 // Fixed reference: Thu 2026-10-29, 7:42 pm local time.
 const NOW = new Date(2026, 9, 29, 19, 42);
@@ -77,4 +79,49 @@ it("fmtClock is lower case", () => {
 it("treats the Unknown species as unnamed", () => {
   expect(isUnknown({ common: "Unknown" })).toBe(true);
   expect(isUnknown({ common: "House Finch" })).toBe(false);
+});
+
+describe("stripLabel", () => {
+  it("gives today's visits the time and older ones the day", () => {
+    expect(stripLabel(at(14, 33), NOW)).toBe("2:33 pm");
+    expect(stripLabel(at(17, 24, 28), NOW)).toBe("Yesterday");
+    expect(stripLabel(at(8, 5, 27), NOW)).toBe("Tue");
+    expect(stripLabel(at(8, 5, 12), NOW)).toBe("Oct 12");
+  });
+});
+
+describe("yesterdayBounds", () => {
+  it("covers the whole local day before today", () => {
+    const { start, end } = yesterdayBounds(NOW);
+    expect(start).toEqual(new Date(2026, 9, 28));
+    expect(end.getTime()).toBe(new Date(2026, 9, 29).getTime() - 1);
+  });
+});
+
+describe("yesterdayLine", () => {
+  const row = (common, count) => ({ common, count });
+
+  it("names the top three species and counts the rest", () => {
+    expect(yesterdayLine([
+      row("Cardinal", 14), row("Goldfinch", 9), row("Blue Jay", 6), row("Sparrow", 4),
+      row("Wren", 3), row("Dove", 2), row("Robin", 1), row("Junco", 1), row("Finch", 1),
+    ])).toEqual({
+      visits: "41 visits",
+      species: "Cardinal 14, Goldfinch 9, Blue Jay 6 and 6 more species.",
+    });
+  });
+
+  it("lists a short day in full", () => {
+    expect(yesterdayLine([row("Cardinal", 1)])).toEqual({ visits: "1 visit", species: "Cardinal 1." });
+    expect(yesterdayLine([row("Cardinal", 3), row("Wren", 2)]).species).toBe("Cardinal 3 and Wren 2.");
+  });
+
+  it("counts Unknown visits but never names them as a species", () => {
+    expect(yesterdayLine([row("Unknown", 5), row("Wren", 2)])).toEqual({ visits: "7 visits", species: "Wren 2." });
+    expect(yesterdayLine([row("Unknown", 2)]).species).toBe("None named.");
+  });
+
+  it("is null when yesterday had no visits", () => {
+    expect(yesterdayLine([])).toBeNull();
+  });
 });

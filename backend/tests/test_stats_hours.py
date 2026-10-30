@@ -6,7 +6,8 @@ this suite covers the Python path. integration_tests/test_api_postgres.py runs
 the same assertions on the Postgres path.
 """
 import asyncio
-from datetime import timezone
+from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -124,6 +125,46 @@ def test_species_counts_without_tz_has_no_peak_hours(client, station):
     assert rows
     assert all(r["peak_hours"] is None for r in rows)
     assert all(r["last_seen"] is not None for r in rows)
+
+
+def _local_day(days_ago: int) -> tuple[str, str]:
+    """Inclusive ISO bounds of a Los Angeles calendar day, as Home sends them."""
+    zone = ZoneInfo(HOUR_STATION_TZ)
+    day = datetime.now(zone).date() - timedelta(days=days_ago)
+    start = datetime.combine(day, time.min, tzinfo=zone)
+    end = datetime.combine(day, time.max, tzinfo=zone)
+    return start.isoformat(), end.isoformat()
+
+
+def test_species_counts_for_one_local_day(client, station):
+    start, end = _local_day(2)
+    rows = client.get(
+        "/stats/species-counts",
+        params={"from_date": start, "to_date": end},
+        headers=_auth(station["user_id"]),
+    ).json()
+    # Only the 19:05 visit two days ago. In UTC it falls on the next day, so a
+    # UTC day boundary would miss it.
+    assert [(r["id"], r["count"]) for r in rows] == [(IDS["spA_id"], 1)]
+    assert rows[0]["first_seen"] == rows[0]["last_seen"]
+
+
+def test_species_counts_range_in_utc_z_form(client, station):
+    start, end = _local_day(1)
+    to_utc = lambda s: datetime.fromisoformat(s).astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    rows = client.get(
+        "/stats/species-counts",
+        params={"from_date": to_utc(start), "to_date": to_utc(end)},
+        headers=_auth(station["user_id"]),
+    ).json()
+    assert [(r["id"], r["count"]) for r in rows] == [(IDS["spB_id"], 1)]
+
+
+def test_species_counts_bad_date_is_400(client, station):
+    res = client.get(
+        "/stats/species-counts", params={"from_date": "yesterday"}, headers=_auth(station["user_id"])
+    )
+    assert res.status_code == 400
 
 
 def _day(**visits: int) -> list[int]:

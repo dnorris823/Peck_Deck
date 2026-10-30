@@ -142,6 +142,16 @@ export function speciesCountsPath(zone = browserZone()) {
   return `/stats/species-counts?tz=${encodeURIComponent(zone)}`;
 }
 
+/**
+ * Visits per species between two times, inclusive, as `[{ common, count }]`.
+ * Counted by the backend, so a busy day past the loaded window still adds up.
+ */
+export async function fetchSpeciesCountsBetween(start, end) {
+  const params = new URLSearchParams({ from_date: start.toISOString(), to_date: end.toISOString() });
+  const rows = await apiGet(`/stats/species-counts?${params}`);
+  return rows.map(r => ({ id: r.id, common: r.common_name, count: r.count }));
+}
+
 // ── Loader ────────────────────────────────────────────────────────────────
 // Fetch and mapping are separate so a streamed sighting can patch the *raw*
 // payloads and re-map them through this same function. Mapping is not

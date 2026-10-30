@@ -87,7 +87,8 @@
 @keyframes home-in { from { opacity: 0; } to { opacity: 1; } }
 
 /* ---------- Under the hero ---------- */
-.home-under { display: grid; gap: 0 28px; margin-top: 18px; }
+/* minmax(0, 1fr), so a long strip scrolls instead of widening the page. */
+.home-under { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0 28px; margin-top: 18px; }
 .home-status { margin: 0; font-size: 15px; line-height: 1.4; color: var(--mu); }
 .home-status b { color: var(--fg); font-weight: 700; }
 .home-status-warn { color: var(--warn); font-weight: 600; }
@@ -162,6 +163,20 @@
 .home-tl-axis span { position: absolute; top: 0; white-space: nowrap; transform: translateX(-50%); }
 .home-tl-axis span:first-child { transform: none; }
 .home-tl-axis span:last-child { transform: translateX(-100%); }
+
+/* Yesterday: one tap target, heading row and line, that opens History. */
+.home-yday { display: block; width: 100%; margin-top: 8px; text-align: left; border-radius: 10px; }
+.home-yday-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--acc);
+}
+.home-yday-count svg { width: 12px; height: 12px; }
+.home-yday-line { display: block; font-size: 13.5px; line-height: 1.4; color: var(--mu); }
+.home-yday:hover .home-yday-count { text-decoration: underline; }
 
 /* ---------- Wide: timeline beside the strip ---------- */
 @container (min-width: 760px) {

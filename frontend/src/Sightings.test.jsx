@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { rangeCutoff } from "./Sightings.jsx";
+import { dayBounds, rangeCutoff } from "./Sightings.jsx";
 
 // Fixed reference: 2026-07-19 15:30 local time.
 const NOW = new Date(2026, 6, 19, 15, 30, 0).getTime();
@@ -34,5 +34,13 @@ describe("rangeCutoff", () => {
     expect(today).toBeGreaterThan(week);
     expect(week).toBeGreaterThan(month);
     expect(month).toBeGreaterThan(all);
+  });
+});
+
+describe("dayBounds", () => {
+  it("covers one local day, midnight to the next midnight", () => {
+    const [from, to] = dayBounds(new Date(2026, 6, 18, 17, 24));
+    expect(from).toBe(new Date(2026, 6, 18).getTime());
+    expect(to).toBe(new Date(2026, 6, 19).getTime());
   });
 });
