@@ -216,7 +216,7 @@ export function mapAll(raw) {
     .map(s => mapSighting(s, speciesById, devicesById))
     .filter(s => s.species && s.device);
 
-  // Backend returns raw hourly counts; the heatmap CSS defines heat-0..heat-4.
+  // Backend returns raw hourly counts, clamped here to levels 0 to 4.
   const HEATMAP = heatmap.map(row => row.map(v => Math.min(4, v)));
 
   return {
