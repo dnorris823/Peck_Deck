@@ -122,7 +122,8 @@ export function Dashboard({ openSighting, go, selectedId = null }) {
   const today = SIGHTINGS.filter(s => isToday(s.datetime, now));
   const capped = SIGHTINGS.length >= SIGHTING_WINDOW && today.length === SIGHTINGS.length;
   const earlier = today.slice(1);
-  const { quiet, count } = statusLine(hero, today, { now, capped });
+  const tier2Down = DEVICES.some(d => d.tierMix?.tier2Down);
+  const { quiet, count, warning } = statusLine(hero, today, { now, capped, tier2Down });
 
   return (
     <div className="home" style={accent}>
@@ -148,6 +149,7 @@ export function Dashboard({ openSighting, go, selectedId = null }) {
         <div className="home-main">
           <p className="home-status">
             {quiet && <b>{quiet}</b>} {count}
+            {warning && <span className="home-status-warn"> {warning}</span>}
           </p>
           {earlier.length > 0 && (
             <section className="home-sec">

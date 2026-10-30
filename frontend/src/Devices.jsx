@@ -5,7 +5,7 @@ import { useData } from "./DataContext.jsx";
 import { Modal, TextInput, FormNote, useDialog } from "./Modal.jsx";
 import { Empty } from "./Empty.jsx";
 import { SightingImage } from "./SightingImage.jsx";
-import { createDevice, fmtRelative } from "./data.js";
+import { createDevice, fmtRelative, tierInfo } from "./data.js";
 
 function RegisterDeviceModal({ onClose, onDone }) {
   const [form, setForm] = useState({ name: "", city: "", state: "", feed_type: "" });
@@ -93,6 +93,30 @@ function Battery({ value }) {
   );
 }
 
+/** "Last 24 h: 41 GPU, 3 Pi, 0 none". Claude only shows once it has answered. */
+export function tierMixText(mix) {
+  const { gpu, local, cloud, none } = mix.counts;
+  const parts = [`${gpu} ${tierInfo("gpu").short}`, `${local} ${tierInfo("local").short}`];
+  if (cloud > 0) parts.push(`${cloud} ${tierInfo("cloud").short}`);
+  parts.push(`${none} none`);
+  return `Last ${mix.hours} h: ${parts.join(", ")}`;
+}
+
+function TierMix({ mix }) {
+  if (!mix) return null;
+  return (
+    <div className="station-tiers">
+      <span className="tnum">{tierMixText(mix)}</span>
+      {mix.tier2Down && (
+        <span className="station-tiers-warn"
+          title={`${mix.tier2Missed} of ${mix.tier2Asked} captures got no answer from the GPU server.`}>
+          GPU not answering
+        </span>
+      )}
+    </div>
+  );
+}
+
 function DeviceListCard({ d, latest, onClick }) {
   return (
     <button type="button" className="station-card" onClick={() => onClick(d)}>
@@ -134,6 +158,7 @@ function DeviceListCard({ d, latest, onClick }) {
             <div className="device-stat-lbl">All time</div>
           </div>
         </div>
+        <TierMix mix={d.tierMix} />
         <div className="station-seen">Last heard from {d.lastSeen}</div>
       </div>
     </button>

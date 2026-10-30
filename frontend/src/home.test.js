@@ -25,6 +25,7 @@ describe("statusLine", () => {
     expect(statusLine(today[0], today, { now: NOW })).toEqual({
       quiet: "Quiet for 11 minutes.",
       count: "2 visits today, all House Finch.",
+      warning: null,
     });
   });
 
@@ -47,7 +48,12 @@ describe("statusLine", () => {
 
   it("says so when nothing came today", () => {
     expect(statusLine(visit("Blue Jay", at(17, 24, 28)), [], { now: NOW }))
-      .toEqual({ quiet: null, count: "No visits yet today." });
+      .toEqual({ quiet: null, count: "No visits yet today.", warning: null });
+  });
+
+  it("adds the Tier 2 warning, even on a day with no visits", () => {
+    expect(statusLine(visit("Blue Jay", at(17, 24, 28)), [], { now: NOW, tier2Down: true }).warning)
+      .toBe("The gaming PC has stopped naming birds, so names may be rougher until it is back.");
   });
 });
 

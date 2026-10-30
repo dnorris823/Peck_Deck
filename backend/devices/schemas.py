@@ -29,6 +29,25 @@ class AddDeviceUser:
 
 
 @dataclass
+class TierMix:
+    """Which tier named the device's recent captures, and the Tier 2 warning.
+
+    The four counts come from ``classification_tier_used``. ``tier2_asked`` and
+    ``tier2_missed`` come from the trace: captures that asked Tier 2, and those
+    that got no answer. See ``tier2_missed`` in devices/operations.py.
+    """
+
+    window_hours: int
+    gpu: int
+    local: int
+    cloud: int
+    none: int
+    tier2_asked: int
+    tier2_missed: int
+    tier2_warning: bool
+
+
+@dataclass
 class DeviceResponse:
     id: int
     name: str
@@ -43,6 +62,7 @@ class DeviceResponse:
     today_sightings: int
     week_sightings: int
     all_time_sightings: int
+    tier_mix: TierMix
 
 
 @dataclass
