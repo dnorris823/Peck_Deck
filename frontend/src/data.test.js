@@ -11,6 +11,7 @@ import {
   loadAll, saveMe, savePreferences, fetchSighting,
   fmtRelative, fmtTime, fmtDateFull,
   confidenceLevel, countToday, toLocalGrid, fmtDayHeading,
+  speciesCountsPath,
 } from "./data.js";
 
 // Route each apiGet(path) call to a fixture keyed by path.
@@ -23,7 +24,7 @@ function routeApiGet(overrides = {}) {
       // Sparse species (Pi-created): missing silhouette/wiki → defaults.
       { id: 2, common_name: "Mystery Bird", genus: "Ignotus", species_name: "avis" },
     ],
-    "/stats/species-counts": [
+    [speciesCountsPath()]: [
       { id: 1, common_name: "Northern Cardinal", genus: "Cardinalis", species_name: "cardinalis",
         count: 12, first_seen: "2026-05-01T08:00:00Z" },
     ],

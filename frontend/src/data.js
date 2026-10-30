@@ -39,6 +39,11 @@ function mapSpeciesCount(s) {
     ...mapSpecies(s),
     count: s.count,
     firstSeen: s.first_seen ? fmtDateFull(new Date(s.first_seen)) : "—",
+    firstSeenAt: s.first_seen ? new Date(s.first_seen) : null,
+    lastSeenAt: s.last_seen ? new Date(s.last_seen) : null,
+    // Local hours with the most visits over 30 days, busiest first. Null when
+    // the request sent no time zone.
+    peakHours: Array.isArray(s.peak_hours) ? s.peak_hours : null,
   };
 }
 
@@ -74,7 +79,7 @@ function mapUser(u, i) {
   };
 }
 
-function mapSighting(s, speciesById, devicesById) {
+export function mapSighting(s, speciesById, devicesById) {
   return {
     id: s.id,
     species: speciesById.get(s.species_id),
@@ -104,6 +109,20 @@ function mapMe(u) {
   };
 }
 
+/** The browser's IANA time zone, such as "America/Los_Angeles". */
+export function browserZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  } catch {
+    return "UTC";
+  }
+}
+
+// Sent with the viewer's zone, so each row's peak_hours are local hours.
+export function speciesCountsPath(zone = browserZone()) {
+  return `/stats/species-counts?tz=${encodeURIComponent(zone)}`;
+}
+
 // ── Loader ────────────────────────────────────────────────────────────────
 // Fetch and mapping are separate so a streamed sighting can patch the *raw*
 // payloads and re-map them through this same function. Mapping is not
@@ -112,7 +131,7 @@ export async function fetchRaw() {
   const [species, counts, devices, users, sightings, heatmap, dashboard, me, prefs] =
     await Promise.all([
       apiGet("/species"),
-      apiGet("/stats/species-counts"),
+      apiGet(speciesCountsPath()),
       apiGet("/devices"),
       apiGet("/users"),
       apiGet("/sightings?limit=100"),
@@ -136,7 +155,7 @@ export async function fetchRaw() {
 // first-ever visit would otherwise arrive and silently vanish.
 export async function fetchAggregates({ withSpecies = false } = {}) {
   const [counts, heatmap, dashboard, devices, species] = await Promise.all([
-    apiGet("/stats/species-counts"),
+    apiGet(speciesCountsPath()),
     apiGet("/stats/heatmap"),
     apiGet("/stats/dashboard"),
     apiGet("/devices"),

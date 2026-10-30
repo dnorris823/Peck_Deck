@@ -192,7 +192,7 @@ function AppShell({ onLogout }) {
             {route === "history" && (
               <Sightings key={speciesFilter} openSighting={openSighting} initialSpecies={speciesFilter} />
             )}
-            {route === "species" && <SpeciesPage go={go} />}
+            {route === "species" && <SpeciesPage go={go} openSighting={openSighting} />}
             {route === "feeders" && <DevicesPage />}
             {route === "users" && <UsersPage />}
             {route === "settings" && <SettingsPage />}
