@@ -37,5 +37,11 @@ Notes that will bite otherwise:
   The fix is Postgres `LISTEN/NOTIFY` behind the same `publish`/`subscribe`
   pair — asyncpg has `add_listener`, and the database is already what both
   processes share.
+- **`DELETE /sightings/{id}` publishes a `sighting_deleted` event** carrying only
+  the id. It goes out from a background task, which Litestar runs after the
+  response is sent and so after the `db` session commits. A tab's aggregate
+  refetch therefore never counts the deleted row. The event has no SSE `id:`
+  line, because replay selects ids above the resume point. A tab that was
+  disconnected during a delete misses it, and its next full load drops the row.
 - A subscriber's device scope is resolved **once, at connect**, so a device
   shared with a user mid-stream appears on their next reconnect.

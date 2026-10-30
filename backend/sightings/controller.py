@@ -2,7 +2,8 @@ import logging
 from datetime import datetime
 from typing import Annotated
 
-from litestar import Controller, Request, get, post
+from litestar import Controller, Request, delete, get, post
+from litestar.background_tasks import BackgroundTask
 from litestar.datastructures import UploadFile
 from litestar.di import NamedDependency
 from litestar.enums import RequestEncodingType
@@ -13,9 +14,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import device_guard, user_guard
 from ..devices.operations import mark_device_seen
+from ..events.hub import SightingDeleted, sighting_hub
 from . import export as export_ops
 from .aftercare import schedule_aftercare
-from .operations import create_sighting, get_sighting, list_sightings
+from .operations import (
+    create_sighting,
+    delete_sighting,
+    get_sighting,
+    get_sighting_device,
+    list_sightings,
+)
 from .schemas import SightingResponse, sighting_response
 
 logger = logging.getLogger("peckdeck.sightings")
@@ -24,6 +32,11 @@ logger = logging.getLogger("peckdeck.sightings")
 _to_response = sighting_response
 
 IMAGE_CACHE_CONTROL = "private, max-age=31536000, immutable"
+
+
+async def _announce_deleted(event: SightingDeleted) -> None:
+    # BackgroundTask awaits its function, and publish() is sync.
+    sighting_hub.publish(event)
 
 
 from dataclasses import dataclass, field
@@ -181,4 +194,36 @@ class SightingController(Controller):
                 # storing a response that needed a JWT.
                 "Cache-Control": IMAGE_CACHE_CONTROL,
             },
+        )
+
+    @delete("/{sighting_id:int}", guards=[user_guard], status_code=204)
+    async def delete_one(
+        self, sighting_id: FromPath[int], request: Request, db: NamedDependency[AsyncSession]
+    ) -> Response[None]:
+        """Remove a sighting and its image. Device owner or owner role only."""
+        target = await get_sighting_device(db, sighting_id)
+        if target is None:
+            raise NotFoundException()
+        device_id, owner_id = target
+        if owner_id != request.state.user_id and request.state.role != "owner":
+            raise HTTPException(status_code=403, detail="Forbidden")
+
+        await delete_sighting(db, sighting_id)
+        logger.info(
+            "sighting %d deleted from device %d by user %d",
+            sighting_id, device_id, request.state.user_id,
+        )
+
+        # Published from a background task, which Litestar runs after the
+        # response is sent. The `db` session commits before the send, so open
+        # tabs hear of the delete only once it has landed. Their aggregate
+        # refetch then cannot still count the row, and a failed commit sends
+        # an error response and publishes nothing.
+        return Response(
+            content=None,
+            status_code=204,
+            background=BackgroundTask(
+                _announce_deleted,
+                SightingDeleted(sighting_id=sighting_id, device_id=device_id),
+            ),
         )

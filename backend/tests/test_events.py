@@ -16,7 +16,14 @@ import json
 import pytest
 
 from backend.events import controller as events
-from backend.events.hub import MAX_PENDING, RESYNC, SightingEvent, SightingHub, sighting_hub
+from backend.events.hub import (
+    MAX_PENDING,
+    RESYNC,
+    SightingDeleted,
+    SightingEvent,
+    SightingHub,
+    sighting_hub,
+)
 
 
 def _event(sighting_id: int, device_id: int) -> SightingEvent:
@@ -169,6 +176,25 @@ def test_viewer_gets_their_own_devices(client, viewer_headers):
 
     _, out = _drive(IDS["viewer_id"], publish=[_event(9_000_005, visible[0])])
     assert out[0].id == 9_000_005
+
+
+def test_forwards_a_delete_without_moving_the_resume_point(client, owner_devices):
+    from backend.tests.conftest import IDS
+
+    unreachable = max(owner_devices) + 500
+    _, out = _drive(
+        IDS["owner_id"],
+        publish=[
+            SightingDeleted(sighting_id=9_000_010, device_id=unreachable),
+            SightingDeleted(sighting_id=9_000_011, device_id=owner_devices[0]),
+        ],
+    )
+
+    # Scoped like a new sighting: the unreachable one is skipped.
+    assert out[0].event == "sighting_deleted"
+    assert json.loads(out[0].data) == {"id": 9_000_011}
+    # Replay selects ids above the resume point, so a delete must not set it.
+    assert out[0].id is None
 
 
 def test_heartbeat_when_idle(client, monkeypatch):

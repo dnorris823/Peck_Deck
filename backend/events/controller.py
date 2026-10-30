@@ -51,7 +51,7 @@ from ..database.connection import get_session_factory
 from ..database.models import Sighting
 from ..sightings.operations import _accessible_device_ids
 from ..sightings.schemas import sighting_response
-from .hub import RESYNC, SightingEvent, sighting_hub
+from .hub import RESYNC, SightingDeleted, SightingEvent, sighting_hub
 
 logger = logging.getLogger("peckdeck.events")
 
@@ -162,8 +162,18 @@ async def _generate(
                     yield ServerSentEventMessage(event="resync", data="overflow")
                     continue
 
-                assert isinstance(item, SightingEvent)
+                assert isinstance(item, (SightingEvent, SightingDeleted))
                 if item.device_id not in device_ids:
+                    continue
+                if isinstance(item, SightingDeleted):
+                    # No `id`. The client resumes from the last id it saw, and
+                    # replay selects rows above it, so a delete's id must never
+                    # move that point. A tab offline during a delete misses it,
+                    # and its next full load drops the row.
+                    yield ServerSentEventMessage(
+                        event="sighting_deleted",
+                        data=json.dumps({"id": item.sighting_id}),
+                    )
                     continue
                 yield ServerSentEventMessage(
                     event="sighting",
