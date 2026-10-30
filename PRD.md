@@ -187,6 +187,7 @@ Species records are created on-demand — the table is empty at startup and a ne
 | video_path | str | Relative path to stored video (nullable) |
 | classification_tier_used | str | Which tier produced the result |
 | confidence_score | float | 0.0–1.0 |
+| tier_trace | json | What each tier in the Pi's chain did, in order (nullable) |
 | weather_conditions | str | Optional |
 
 ### 6.2 API Endpoints

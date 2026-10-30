@@ -67,6 +67,7 @@ def sightings_for_device(device_id: int) -> list[dict]:
                     "delayed": s.delayed,
                     "has_image": s.image_data is not None,
                     "image_len": len(s.image_data) if s.image_data else 0,
+                    "tier_trace": s.tier_trace,
                 }
                 for s in rows
             ]

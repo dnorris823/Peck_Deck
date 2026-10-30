@@ -24,7 +24,7 @@ from .operations import (
     get_sighting_device,
     list_sightings,
 )
-from .schemas import SightingResponse, sighting_response
+from .schemas import SightingResponse, parse_tier_trace, sighting_response
 
 logger = logging.getLogger("peckdeck.sightings")
 
@@ -51,6 +51,8 @@ class SightingUploadForm:
     confidence_score: str
     classification_tier_used: str
     delayed: str = "false"
+    # JSON list of TierAttempt objects. Older Pi builds leave it out.
+    tier_trace: str | None = None
 
 
 class SightingController(Controller):
@@ -156,6 +158,7 @@ class SightingController(Controller):
             classification_tier_used=data.classification_tier_used,
             image_data=image_bytes if image_bytes else None,
             delayed=data.delayed.lower() == "true",
+            tier_trace=parse_tier_trace(data.tier_trace),
         )
         # Now, not the capture time: a delayed upload from the offline queue
         # still proves the station is up.

@@ -139,6 +139,10 @@ def test_full_queue_warns_and_keeps_the_photo(tmp_path, caplog):
     assert [Path(s.image_path) for s in pending] == [camera.captured[2]]
     assert pending[0].common_name == "Unknown"
     assert pending[0].tier_used == "none"
+    # No tier saw it, and the trace says so.
+    assert pending[0].tier_trace == [
+        {"tier": "gpu", "outcome": "not_run", "confidence": None, "threshold": 0.60}
+    ]
     assert camera.captured[2].exists()
     # The other two still went through the worker.
     assert [p["image_path"] for p in client.posts] == camera.captured[:2]

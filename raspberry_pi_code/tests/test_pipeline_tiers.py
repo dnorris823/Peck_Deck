@@ -64,8 +64,14 @@ def _pipeline(tmp_path, threshold: float | None = 0.5, **overrides) -> Pipeline:
 
 
 def _run(pipeline: Pipeline, *classifiers: _StubClassifier):
+    return _run_traced(pipeline, *classifiers)[0]
+
+
+def _run_traced(pipeline: Pipeline, *classifiers: _StubClassifier):
+    """The result and the trace, as ``(result, [(tier, outcome, confidence, threshold)])``."""
     pipeline._classifiers_for_preference = lambda: list(classifiers)
-    return asyncio.run(pipeline._classify(_IMAGE))
+    result, trace = asyncio.run(pipeline._classify(_IMAGE))
+    return result, [(a.tier, a.outcome, a.confidence, a.threshold) for a in trace]
 
 
 def test_confident_first_tier_wins_without_calling_the_rest(tmp_path):
@@ -306,3 +312,71 @@ def test_capture_queues_with_no_species_when_every_tier_and_the_backend_fail(tmp
     assert queued[0].common_name == "Unknown"
     assert queued[0].tier_used == "none"
     assert Path(queued[0].image_path).exists()
+
+
+# ── Tier trace ───────────────────────────────────────────────────────────────
+
+def test_trace_shows_tier2_failed_and_tier1_accepted(tmp_path):
+    """The case the trace exists for: under "gpu", was Tier 2 down or unsure?"""
+    tier2 = _StubClassifier("gpu", None)
+    tier1 = _StubClassifier("local", 0.91)
+
+    result, trace = _run_traced(_pipeline(tmp_path, threshold=None), tier2, tier1)
+
+    assert result.tier_used == "local"
+    assert trace == [
+        ("gpu", "failed", None, 0.60),
+        ("local", "accepted", 0.91, 0.85),
+    ]
+
+
+def test_trace_marks_the_tiers_after_the_answer_not_run(tmp_path):
+    tier2 = _StubClassifier("gpu", 0.72)
+    tier1 = _StubClassifier("local", 0.99)
+
+    _, trace = _run_traced(_pipeline(tmp_path, threshold=None), tier2, tier1)
+
+    assert trace == [
+        ("gpu", "accepted", 0.72, 0.60),
+        ("local", "not_run", None, 0.85),
+    ]
+
+
+def test_trace_keeps_below_threshold_on_a_best_effort_answer(tmp_path):
+    # classification_tier_used names the winner. The trace keeps the truth that
+    # no tier cleared its bar.
+    tier2 = _StubClassifier("gpu", 0.44)
+    tier1 = _StubClassifier("local", 0.20)
+
+    result, trace = _run_traced(_pipeline(tmp_path, threshold=0.5), tier2, tier1)
+
+    assert result.tier_used == "gpu"
+    assert trace == [
+        ("gpu", "below_threshold", 0.44, 0.5),
+        ("local", "below_threshold", 0.20, 0.5),
+    ]
+
+
+def test_every_tier_failed_uploads_a_trace_of_failures(tmp_path):
+    pipeline, client = _dead_chain_pipeline(tmp_path, UploadOutcome.OK)
+
+    asyncio.run(_capture_and_process(pipeline))
+
+    post = client.posts[0]
+    assert post["tier_used"] == "none"
+    assert post["tier_trace"] == [
+        {"tier": "gpu", "outcome": "failed", "confidence": None, "threshold": 0.60},
+        {"tier": "local", "outcome": "failed", "confidence": None, "threshold": 0.85},
+    ]
+
+
+def test_a_queued_sighting_keeps_its_trace(tmp_path):
+    pipeline, _ = _dead_chain_pipeline(tmp_path, UploadOutcome.RETRY)
+
+    asyncio.run(_capture_and_process(pipeline))
+
+    [queued] = pipeline._cache.get_pending()
+    assert [(a["tier"], a["outcome"]) for a in queued.tier_trace] == [
+        ("gpu", "failed"),
+        ("local", "failed"),
+    ]

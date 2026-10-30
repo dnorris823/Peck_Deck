@@ -10,6 +10,7 @@ hardware, when a stale ``DEVICE_TOKEN`` made every upload fail:
 """
 import asyncio
 import json
+from dataclasses import asdict, replace
 from pathlib import Path
 
 import pytest
@@ -176,9 +177,11 @@ class _StubClient:
     def __init__(self, outcome: UploadOutcome):
         self.outcome = outcome
         self.calls = 0
+        self.posts: list[dict] = []
 
     async def post_sighting(self, **kwargs) -> UploadOutcome:
         self.calls += 1
+        self.posts.append(kwargs)
         return self.outcome
 
     async def is_reachable(self) -> bool:
@@ -225,3 +228,36 @@ def test_unauthorized_abandons_the_rest_of_the_sync_pass(tmp_path):
 
     assert client.calls == 1, "should stop after the first rejected token"
     assert len(pipeline._cache.get_pending()) == 4, "backlog must survive intact"
+
+
+# ── Tier trace ───────────────────────────────────────────────────────────────
+
+_TRACE = [
+    {"tier": "gpu", "outcome": "failed", "confidence": None, "threshold": 0.6},
+    {"tier": "local", "outcome": "below_threshold", "confidence": 0.42, "threshold": 0.85},
+]
+
+
+def test_sync_uploads_the_queued_trace(tmp_path):
+    pipeline, client = _pipeline_with(tmp_path, UploadOutcome.OK)
+    path = _add_image(pipeline._cache, "e1", mtime=1000)
+    pipeline._cache.enqueue(replace(_queued("e1", path), tier_trace=_TRACE))
+
+    asyncio.run(pipeline.sync_offline_queue())
+
+    assert client.posts[0]["tier_trace"] == _TRACE
+    assert client.posts[0]["delayed"] is True
+
+
+def test_a_row_queued_before_the_trace_existed_still_loads(tmp_path):
+    """A queue.json written by an older build has no tier_trace key."""
+    cache = _cache(tmp_path)
+    path = _add_image(cache, "old", mtime=1000)
+    row = asdict(_queued("old", path))
+    del row["tier_trace"]
+    (tmp_path / "cache" / "queue.json").write_text(json.dumps([row]), encoding="utf-8")
+
+    [pending] = cache.get_pending()
+
+    assert pending.id == "old"
+    assert pending.tier_trace is None

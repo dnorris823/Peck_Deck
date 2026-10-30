@@ -10,7 +10,7 @@ from pathlib import Path
 import numpy as np
 
 from raspberry_pi_code.classification import tier1_tflite
-from raspberry_pi_code.classification.base import ClassificationResult, ClassifierBase
+from raspberry_pi_code.classification.base import ClassificationResult, ClassifierBase, TierAttempt
 from raspberry_pi_code.classification.tier1_tflite import TFLiteClassifier, _Taxon
 from raspberry_pi_code.config import Config
 from raspberry_pi_code.pipeline import Pipeline
@@ -68,7 +68,7 @@ class _StubGpu(ClassifierBase):
         return ClassificationResult("House Finch", "Haemorhous mexicanus", 0.91, "gpu")
 
 
-def _classify(tmp_path, *classifiers) -> ClassificationResult | None:
+def _classify(tmp_path, *classifiers) -> tuple[ClassificationResult | None, list[TierAttempt]]:
     pipeline = Pipeline(Config(cache_dir=str(tmp_path / "cache"), device_token="test-token"))
     pipeline._classifiers_for_preference = lambda: list(classifiers)
     return asyncio.run(pipeline._classify(_IMAGE))
@@ -92,14 +92,18 @@ def test_tier1_still_answers_a_real_species(monkeypatch):
 def test_chain_moves_to_the_next_tier_when_tier1_says_background(monkeypatch, tmp_path):
     gpu = _StubGpu()
 
-    result = _classify(tmp_path, _tier1(monkeypatch, [0.05, 0.03, 0.92]), gpu)
+    result, trace = _classify(tmp_path, _tier1(monkeypatch, [0.05, 0.03, 0.92]), gpu)
 
     assert gpu.calls == 1
     assert result.tier_used == "gpu"
     assert result.common_name == "House Finch"
+    assert [(a.tier, a.outcome) for a in trace] == [("local", "failed"), ("gpu", "accepted")]
 
 
 def test_background_is_not_kept_as_a_best_effort_answer(monkeypatch, tmp_path):
     # With no other tier, the chain returns nothing. The pipeline then uploads
     # the capture as "Unknown" with tier "none" rather than as "Background".
-    assert _classify(tmp_path, _tier1(monkeypatch, [0.05, 0.03, 0.92])) is None
+    result, trace = _classify(tmp_path, _tier1(monkeypatch, [0.05, 0.03, 0.92]))
+
+    assert result is None
+    assert [(a.tier, a.outcome) for a in trace] == [("local", "failed")]

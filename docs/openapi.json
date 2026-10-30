@@ -585,6 +585,19 @@
           "species_id": {
             "type": "integer"
           },
+          "tier_trace": {
+            "oneOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TierAttempt"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "weather_conditions": {
             "oneOf": [
               {
@@ -605,6 +618,7 @@
           "has_image",
           "id",
           "species_id",
+          "tier_trace",
           "weather_conditions"
         ],
         "title": "SightingResponse",
@@ -632,6 +646,16 @@
           },
           "scientific_name": {
             "type": "string"
+          },
+          "tier_trace": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "timestamp": {
             "type": "string"
@@ -908,6 +932,43 @@
           "user_agent"
         ],
         "title": "SubscriptionResponse",
+        "type": "object"
+      },
+      "TierAttempt": {
+        "properties": {
+          "confidence": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "outcome": {
+            "enum": [
+              "accepted",
+              "below_threshold",
+              "failed",
+              "not_run"
+            ],
+            "type": "string"
+          },
+          "threshold": {
+            "type": "number"
+          },
+          "tier": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "confidence",
+          "outcome",
+          "threshold",
+          "tier"
+        ],
+        "title": "TierAttempt",
         "type": "object"
       },
       "TokenResponse": {

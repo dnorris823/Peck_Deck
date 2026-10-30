@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from dataclasses import dataclass, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -8,7 +8,7 @@ from .api_client import BackendClient, UploadOutcome
 from .bird_crop import Box, write_crop
 from .camera.base import CameraBase
 from .camera.pi_camera import PiCamera
-from .classification.base import ClassificationResult, ClassifierBase
+from .classification.base import ClassificationResult, ClassifierBase, TierAttempt
 from .classification.tier1_tflite import TFLiteClassifier
 from .classification.tier2_gpu import GPUServerClassifier
 from .classification.tier3_cloud import CloudClassifier
@@ -159,6 +159,7 @@ class Pipeline:
                 scientific_name=sighting.scientific_name,
                 confidence=sighting.confidence,
                 tier_used=sighting.tier_used,
+                tier_trace=sighting.tier_trace,
                 delayed=True,
             )
             if outcome is UploadOutcome.OK:
@@ -218,7 +219,8 @@ class Pipeline:
             self._work.qsize(),
             capture.event_id,
         )
-        self._enqueue_offline(capture, _UNCLASSIFIED)
+        trace = self._not_run(self._classifiers_for_preference())
+        self._enqueue_offline(capture, _UNCLASSIFIED, trace)
         self._in_flight.discard(capture.image_path)
 
     async def _process(self, capture: Capture) -> None:
@@ -227,7 +229,7 @@ class Pipeline:
 
         crop_path = await self._crop_for_classifiers(capture)
         try:
-            result = await self._classify(crop_path or image_path)
+            result, trace = await self._classify(crop_path or image_path)
         finally:
             if crop_path is not None:
                 crop_path.unlink(missing_ok=True)
@@ -254,6 +256,7 @@ class Pipeline:
             scientific_name=result.scientific_name,
             confidence=result.confidence,
             tier_used=result.tier_used,
+            tier_trace=_trace_json(trace),
             delayed=False,
         )
 
@@ -270,7 +273,7 @@ class Pipeline:
                              "upload until DEVICE_TOKEN is re-provisioned")
             else:
                 logger.warning("Backend unreachable — queuing sighting locally")
-            self._enqueue_offline(capture, result)
+            self._enqueue_offline(capture, result, trace)
 
     async def _crop_for_classifiers(self, capture: Capture) -> Path | None:
         """Write the crop around the bird box. None means classify the full frame.
@@ -299,7 +302,9 @@ class Pipeline:
         logger.info("Classifying a %dx%d crop around the bird box", *size)
         return crop_path
 
-    def _enqueue_offline(self, capture: Capture, result: ClassificationResult) -> None:
+    def _enqueue_offline(
+        self, capture: Capture, result: ClassificationResult, trace: list[TierAttempt]
+    ) -> None:
         self._cache.enqueue(
             QueuedSighting(
                 id=capture.event_id,
@@ -309,6 +314,7 @@ class Pipeline:
                 scientific_name=result.scientific_name,
                 confidence=result.confidence,
                 tier_used=result.tier_used,
+                tier_trace=_trace_json(trace),
             )
         )
 
@@ -323,7 +329,15 @@ class Pipeline:
         # "auto". __init__ has already refused anything else.
         return [self._tier1, self._tier2, self._tier3]
 
-    async def _classify(self, image_path: Path) -> ClassificationResult | None:
+    def _not_run(self, classifiers: list[ClassifierBase]) -> list[TierAttempt]:
+        return [
+            TierAttempt(clf.tier_name, "not_run", None, self._cfg.threshold_for(clf.tier_name))
+            for clf in classifiers
+        ]
+
+    async def _classify(
+        self, image_path: Path
+    ) -> tuple[ClassificationResult | None, list[TierAttempt]]:
         """Walk the tier chain, falling through on failure *or* low confidence.
 
         A tier that answers below **its own** threshold doesn't win outright —
@@ -332,20 +346,33 @@ class Pipeline:
 
         Thresholds are per tier (see ``DEFAULT_TIER_THRESHOLDS``) because a raw
         confidence means different things coming from different tiers.
+
+        Also returns the trace: one ``TierAttempt`` per tier in the chain, in
+        chain order. The tiers after the one that answered are ``not_run``.
         """
         best: ClassificationResult | None = None
         best_ratio = 0.0
+        chain = self._classifiers_for_preference()
+        trace: list[TierAttempt] = []
 
-        for clf in self._classifiers_for_preference():
+        for i, clf in enumerate(chain):
+            threshold = self._cfg.threshold_for(clf.tier_name)
             result = await clf.classify(image_path)
 
             if result is None:
                 logger.warning("Tier '%s' failed — trying next", clf.tier_name)
+                trace.append(TierAttempt(clf.tier_name, "failed", None, threshold))
                 continue
 
-            threshold = self._cfg.threshold_for(clf.tier_name)
             if result.confidence >= threshold:
-                return result
+                trace.append(
+                    TierAttempt(clf.tier_name, "accepted", result.confidence, threshold)
+                )
+                return result, trace + self._not_run(chain[i + 1:])
+
+            trace.append(
+                TierAttempt(clf.tier_name, "below_threshold", result.confidence, threshold)
+            )
 
             logger.info(
                 "Tier '%s' confidence %.2f below its threshold %.2f — trying next",
@@ -371,4 +398,9 @@ class Pipeline:
                 100 * best_ratio,
                 best.tier_used,
             )
-        return best
+        return best, trace
+
+
+def _trace_json(trace: list[TierAttempt]) -> list[dict]:
+    """The trace as the plain dicts that the upload and the queue file carry."""
+    return [asdict(attempt) for attempt in trace]
