@@ -86,13 +86,16 @@ def test_bad_days_is_400(client, station):
 
 def test_hours_scoped_to_accessible_devices(client, station, viewer_headers):
     # The seeded viewer cannot see the station's device, so its visits do not count.
+    # The viewer still sees the three species A visits that the base seed puts on
+    # dev1 at "now". Their hour depends on when the suite runs, so check the total,
+    # not fixed hours. The station's three in-window visits would make it six.
     body = client.get(
         "/stats/hours",
         params={"species_id": IDS["spA_id"], "tz": HOUR_STATION_TZ},
         headers=viewer_headers,
     ).json()
-    assert body["counts"][19] == 0
-    assert body["counts"][8] == 0
+    assert body["total"] == 3
+    assert sum(body["counts"]) == 3
 
 
 def test_hours_with_no_visits(client, station):
