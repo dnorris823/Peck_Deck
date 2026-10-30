@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.models import Device, DeviceUser, Sighting
@@ -85,3 +85,22 @@ async def create_sighting(
     db.add(sighting)
     await db.flush()
     return sighting
+
+
+async def get_sighting_device(db: AsyncSession, sighting_id: int) -> tuple[int, int] | None:
+    """``(device_id, device owner_id)`` for a sighting, or ``None``.
+
+    Selects two ints rather than the row, so a delete never reads the image.
+    """
+    result = await db.execute(
+        select(Sighting.device_id, Device.owner_id)
+        .join(Device, Sighting.device_id == Device.id)
+        .where(Sighting.id == sighting_id)
+    )
+    row = result.one_or_none()
+    return (row.device_id, row.owner_id) if row else None
+
+
+async def delete_sighting(db: AsyncSession, sighting_id: int) -> None:
+    # The image is the row's `image_data` column, so it goes with the row.
+    await db.execute(delete(Sighting).where(Sighting.id == sighting_id))

@@ -52,11 +52,12 @@ export function parseRecord(raw) {
  *
  * @param {object} handlers
  * @param {(sighting: object) => void} handlers.onSighting  a new visit arrived
+ * @param {(id: number) => void} [handlers.onDeleted]  a sighting was deleted
  * @param {() => void} handlers.onResync   the stream lost track; refetch everything
  * @param {(live: boolean) => void} [handlers.onStatus]  connected / disconnected
  * @param {() => void} [handlers.onAuthError]  the token was rejected
  */
-export function openSightingStream({ onSighting, onResync, onStatus, onAuthError }) {
+export function openSightingStream({ onSighting, onDeleted, onResync, onStatus, onAuthError }) {
   let stopped = false;
   let controller = null;
   let timer = null;
@@ -138,6 +139,13 @@ export function openSightingStream({ onSighting, onResync, onStatus, onAuthError
         onSighting(JSON.parse(data));
       } catch {
         // A payload this build can't read is a resync, not a crash.
+        onResync();
+      }
+    } else if (event === "sighting_deleted") {
+      // The record has no SSE `id:` line, so it never moves the resume point.
+      try {
+        onDeleted?.(JSON.parse(data).id);
+      } catch {
         onResync();
       }
     } else if (event === "resync") {

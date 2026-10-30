@@ -3,7 +3,7 @@
 // (the same shapes the original design fixtures used, so pages barely changed).
 // `loadAll()` fetches everything in parallel; DataContext calls it after login.
 
-import { apiDownload, apiGet, apiSend } from "./api.js";
+import { apiDelete, apiDownload, apiGet, apiSend } from "./api.js";
 
 // ── Fallbacks for presentation-only fields ────────────────────────────────
 // The backend now carries palette/silhouette/note (see seed.py), but a species
@@ -58,6 +58,7 @@ function mapDevice(d) {
     todaySightings: d.today_sightings,
     weekSightings: d.week_sightings,
     allTime: d.all_time_sightings,
+    ownerId: d.owner_id,
   };
 }
 
@@ -169,6 +170,14 @@ export function applySighting(rawSightings, sighting) {
   ].slice(0, SIGHTING_WINDOW);
 }
 
+// Drop a deleted sighting from the raw list. Returns the same array when the id
+// is absent, so the tab that deleted it skips the work when its own stream
+// event arrives.
+export function removeSighting(rawSightings, id) {
+  if (!rawSightings.some((s) => s.id === id)) return rawSightings;
+  return rawSightings.filter((s) => s.id !== id);
+}
+
 export function mapAll(raw) {
   const { species, counts, devices, users, sightings, heatmap, dashboard, me, prefs } = raw;
 
@@ -194,6 +203,10 @@ export function mapAll(raw) {
 
 export async function loadAll() {
   return mapAll(await fetchRaw());
+}
+
+export async function deleteSighting(id) {
+  return apiDelete(`/sightings/${id}`);
 }
 
 // ── Settings mutations ────────────────────────────────────────────────────

@@ -7,8 +7,8 @@ import { useDialog } from "./Modal.jsx";
 import { useData } from "./DataContext.jsx";
 import { apiObjectUrl } from "./api.js";
 import {
-  confidenceLevel, downloadExport, fmtDateLabel, fmtDayHeading, fmtRelative, fmtTime,
-  tierInfo,
+  confidenceLevel, deleteSighting, downloadExport, fmtDateLabel, fmtDayHeading, fmtRelative,
+  fmtTime, tierInfo,
 } from "./data.js";
 
 // Inclusive lower bound (ms since epoch) for a named range, or 0 for "all time".
@@ -96,6 +96,54 @@ function DownloadPhotoButton({ s }) {
   );
 }
 
+// The device owner or an owner-role user may delete. The route enforces the
+// same rule; this only hides a button that would get a 403.
+export function canDeleteSighting(s, me) {
+  return me.role === "owner" || s.device.ownerId === me.id;
+}
+
+// Two clicks, so a stray tap can't remove a capture. Kept plain on purpose: the
+// detail view is due a rebuild, and the route is the part that lasts.
+function DeleteSightingButton({ s, onDeleted }) {
+  const { applyDeleted } = useData();
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  async function run() {
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteSighting(s.id);
+    } catch (e) {
+      setError(e.message || "Delete failed.");
+      setBusy(false);
+      return;
+    }
+    applyDeleted(s.id);
+    onDeleted();
+  }
+
+  if (!confirming) {
+    return (
+      <button type="button" className="btn ghost" onClick={() => setConfirming(true)}>
+        Delete
+      </button>
+    );
+  }
+  return (
+    <>
+      <button type="button" className="btn cardinal" onClick={run} disabled={busy}>
+        {busy ? "Deleting…" : "Delete this sighting"}
+      </button>
+      <button type="button" className="btn ghost" onClick={() => setConfirming(false)} disabled={busy}>
+        Cancel
+      </button>
+      {error && <div className="field-help field-error" role="alert">{error}</div>}
+    </>
+  );
+}
+
 export function SightingDetail({ s, onClose }) {
   const { data } = useData();
   const panelRef = useRef(null);
@@ -150,6 +198,7 @@ export function SightingDetail({ s, onClose }) {
                   <Icon name="extlink" className="" /> Wikipedia
                 </a>
               )}
+              {canDeleteSighting(s, data.ME) && <DeleteSightingButton s={s} onDeleted={onClose} />}
             </div>
           </div>
         </div>
