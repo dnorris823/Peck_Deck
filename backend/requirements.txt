@@ -12,3 +12,6 @@ anthropic>=0.40
 # the ES256 signature PyJWT needs for the VAPID token. Used instead of pywebpush,
 # which is synchronous (requests) and would need a thread per notification.
 cryptography>=42.0
+# IANA zone data for zoneinfo. Slim images and Windows may not ship it, and the
+# local-hour stats reject a zone zoneinfo cannot find.
+tzdata>=2024.1

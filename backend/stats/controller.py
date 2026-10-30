@@ -2,14 +2,31 @@ import json
 
 from litestar import Controller, Request, get
 from litestar.di import NamedDependency
+from litestar.exceptions import HTTPException
+from litestar.params import FromQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import user_guard
 from . import operations
 from .schemas import (
     DashboardResponse,
+    HourStatsResponse,
     SpeciesCountResponse,
 )
+
+
+# A cap well past any real history. Without one, a huge value overflows timedelta.
+MAX_DAYS = 36500
+
+
+def _zone_or_400(tz: str) -> str:
+    try:
+        return operations.parse_zone(tz)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="tz must be an IANA time zone name, such as America/Los_Angeles",
+        )
 
 
 def _species_count_response(row: dict) -> SpeciesCountResponse:
@@ -28,6 +45,8 @@ def _species_count_response(row: dict) -> SpeciesCountResponse:
         family=s.family,
         count=row["count"],
         first_seen=row["first_seen"],
+        last_seen=row["last_seen"],
+        peak_hours=row["peak_hours"],
     )
 
 
@@ -42,10 +61,37 @@ class StatsController(Controller):
 
     @get("/species-counts")
     async def species_counts(
-        self, request: Request, db: NamedDependency[AsyncSession]
+        self,
+        request: Request,
+        db: NamedDependency[AsyncSession],
+        tz: FromQuery[str | None] = None,
     ) -> list[SpeciesCountResponse]:
-        rows = await operations.species_counts(db, request.state.user_id)
+        zone = _zone_or_400(tz) if tz is not None else None
+        rows = await operations.species_counts(db, request.state.user_id, tz=zone)
         return [_species_count_response(r) for r in rows]
+
+    @get("/hours")
+    async def hours(
+        self,
+        request: Request,
+        db: NamedDependency[AsyncSession],
+        species_id: FromQuery[int | None] = None,
+        days: FromQuery[int] = 30,
+        tz: FromQuery[str] = "UTC",
+    ) -> HourStatsResponse:
+        """Visits per local hour in `tz`. `days=0` covers all time."""
+        if not 0 <= days <= MAX_DAYS:
+            raise HTTPException(
+                status_code=400, detail=f"days must be 0 (all time) to {MAX_DAYS}"
+            )
+        data = await operations.hours(
+            db,
+            request.state.user_id,
+            tz=_zone_or_400(tz),
+            days=days or None,
+            species_id=species_id,
+        )
+        return HourStatsResponse(**data)
 
     @get("/heatmap")
     async def heatmap(self, request: Request, db: NamedDependency[AsyncSession]) -> list[list[int]]:

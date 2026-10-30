@@ -1,13 +1,18 @@
 """Aggregate read queries for the web dashboard.
 
-Everything here is scoped to the devices a user can access, and all bucketing
-(heatmap, per-day sparklines) is done in Python rather than with SQL date
-functions so the same code works on PostgreSQL (prod) and SQLite (dev/seed).
-"""
-from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+Everything here is scoped to the devices a user can access. The heatmap and the
+per-day sparklines bucket in Python, in UTC, so the same code works on
+PostgreSQL (prod) and SQLite (dev/seed).
 
-from sqlalchemy import func, select
+The local-hour stats are different. They bucket in the viewer's time zone,
+because a visit at 19:00 in California is hour 19 to the person looking, not
+hour 2. On PostgreSQL the database converts with ``AT TIME ZONE``. SQLite has no
+time zone support, so the unit tests take a Python path with the same output.
+"""
+from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from sqlalchemy import Integer, Time, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.models import Sighting, Species
@@ -18,8 +23,138 @@ def _aware(dt: datetime) -> datetime:
     return dt if dt.tzinfo is not None else dt.replace(tzinfo=timezone.utc)
 
 
-async def species_counts(db: AsyncSession, user_id: int) -> list[dict]:
-    """Per-species sighting totals + first-seen date, most frequent first."""
+def parse_zone(tz: str) -> str:
+    """Return ``tz`` if it is an IANA zone name, else raise ``ValueError``.
+
+    The name goes to Postgres as a bound parameter, so this check gives a clear
+    400 rather than guarding against injection. ZoneInfo also rejects path-like
+    keys.
+    """
+    try:
+        ZoneInfo(tz)
+    except (ZoneInfoNotFoundError, ValueError):
+        raise ValueError(f"unknown time zone {tz!r}") from None
+    return tz
+
+
+# How many days of history feed the species list's ``peak_hours``.
+PEAK_WINDOW_DAYS = 30
+
+
+async def _local_hour_rows(
+    db: AsyncSession,
+    accessible: list[int],
+    tz: str,
+    *,
+    since: datetime | None,
+    species_id: int | None = None,
+) -> list[tuple[int, int, int, time, time]]:
+    """Visits grouped by species and local hour in ``tz``.
+
+    Each row is ``(species_id, hour, count, earliest, latest)``. ``earliest`` and
+    ``latest`` are the local times of day of the first and last visit in that
+    hour. ``since`` of None means all time.
+    """
+    if not accessible:
+        return []
+    filters = [Sighting.device_id.in_(accessible)]
+    if since is not None:
+        filters.append(Sighting.datetime >= since)
+    if species_id is not None:
+        filters.append(Sighting.species_id == species_id)
+
+    if db.bind.dialect.name == "postgresql":
+        local = Sighting.datetime.op("AT TIME ZONE")(tz)
+        hour = cast(func.extract("hour", local), Integer).label("hour")
+        rows = await db.execute(
+            select(
+                Sighting.species_id,
+                hour,
+                func.count(Sighting.id),
+                func.min(cast(local, Time)),
+                func.max(cast(local, Time)),
+            )
+            .where(*filters)
+            .group_by(Sighting.species_id, hour)
+        )
+        return [tuple(r) for r in rows.all()]
+
+    # SQLite has no AT TIME ZONE, so convert in Python. The rows come out the same.
+    zone = ZoneInfo(tz)
+    rows = await db.execute(select(Sighting.species_id, Sighting.datetime).where(*filters))
+    groups: dict[tuple[int, int], list[time]] = {}
+    for sp_id, when in rows.all():
+        local_dt = _aware(when).astimezone(zone)
+        groups.setdefault((sp_id, local_dt.hour), []).append(local_dt.time())
+    return [
+        (sp_id, hour, len(times), min(times), max(times))
+        for (sp_id, hour), times in groups.items()
+    ]
+
+
+def peak_hours(counts: list[int], limit: int = 2) -> list[int]:
+    """The busiest local hours as distinct peaks, busiest first.
+
+    An hour is a peak when it beats the hour before it and the hour after it
+    does not beat it, wrapping at midnight. So a busy 8 and 9 am count as one
+    peak, at 8, and a second peak has to be a separate bump in the day. A day
+    with no bump at all falls back to its first busiest hour.
+    """
+    peaks = [
+        h
+        for h in range(24)
+        if counts[h] > counts[h - 1] and counts[h] >= counts[(h + 1) % 24]
+    ]
+    if not peaks and any(counts):
+        peaks = [counts.index(max(counts))]
+    peaks.sort(key=lambda h: (-counts[h], h))
+    return peaks[:limit]
+
+
+def _hhmm(t: time | None) -> str | None:
+    return t.strftime("%H:%M") if t is not None else None
+
+
+async def hours(
+    db: AsyncSession,
+    user_id: int,
+    *,
+    tz: str,
+    days: int | None,
+    species_id: int | None = None,
+) -> dict:
+    """Visit counts per local hour in ``tz``, for the species dial.
+
+    ``days`` of None means all time. ``species_id`` of None covers every species.
+    """
+    accessible = await _accessible_device_ids(db, user_id)
+    since = datetime.now(timezone.utc) - timedelta(days=days) if days else None
+    rows = await _local_hour_rows(db, accessible, tz, since=since, species_id=species_id)
+
+    counts = [0] * 24
+    earliest: time | None = None
+    latest: time | None = None
+    for _sp, hour, count, first, last in rows:
+        counts[hour] += count
+        earliest = first if earliest is None else min(earliest, first)
+        latest = last if latest is None else max(latest, last)
+    return {
+        "counts": counts,
+        "total": sum(counts),
+        "peak_hours": peak_hours(counts),
+        "earliest": _hhmm(earliest),
+        "latest": _hhmm(latest),
+    }
+
+
+async def species_counts(
+    db: AsyncSession, user_id: int, tz: str | None = None
+) -> list[dict]:
+    """Per-species totals with first and last seen, most frequent first.
+
+    With ``tz``, each row also has ``peak_hours`` in local hours over the last
+    30 days. Without it, ``peak_hours`` is None.
+    """
     accessible = await _accessible_device_ids(db, user_id)
     if not accessible:
         return []
@@ -28,18 +163,34 @@ async def species_counts(db: AsyncSession, user_id: int) -> list[dict]:
             Species,
             func.count(Sighting.id).label("count"),
             func.min(Sighting.datetime).label("first_seen"),
+            func.max(Sighting.datetime).label("last_seen"),
         )
         .join(Sighting, Sighting.species_id == Species.id)
         .where(Sighting.device_id.in_(accessible))
         .group_by(Species.id)
     )
+
+    by_species: dict[int, list[int]] = {}
+    if tz is not None:
+        since = datetime.now(timezone.utc) - timedelta(days=PEAK_WINDOW_DAYS)
+        for sp_id, hour, count, _first, _last in await _local_hour_rows(
+            db, accessible, tz, since=since
+        ):
+            by_species.setdefault(sp_id, [0] * 24)[hour] += count
+
     result = []
-    for species, count, first_seen in rows.all():
+    for species, count, first_seen, last_seen in rows.all():
         result.append(
             {
                 "species": species,
                 "count": count,
                 "first_seen": _aware(first_seen).isoformat() if first_seen else None,
+                "last_seen": _aware(last_seen).isoformat() if last_seen else None,
+                "peak_hours": (
+                    peak_hours(by_species.get(species.id, [0] * 24))
+                    if tz is not None
+                    else None
+                ),
             }
         )
     result.sort(key=lambda r: r["count"], reverse=True)

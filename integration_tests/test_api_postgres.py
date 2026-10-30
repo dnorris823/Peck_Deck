@@ -123,3 +123,53 @@ def test_stats_aggregate_over_postgres(client, owner_headers):
     grid = heat.json()
     assert len(grid) == 7 and all(len(row) == 24 for row in grid)
     assert sum(sum(row) for row in grid) == 6   # all six seeded sightings, last 7d
+
+
+def test_local_hours_bucket_with_at_time_zone(client):
+    # The unit suite runs on SQLite, which has no AT TIME ZONE, so it only covers
+    # the Python path. This is the path production runs.
+    from backend.auth.jwt_utils import create_user_token
+    from backend.database.models import Species
+    from backend.fixtures import HOUR_STATION_TZ, seed_hour_station
+    from sqlalchemy import select
+
+    async def _make():
+        engine = create_async_engine(settings.DATABASE_URL)
+        try:
+            factory = async_sessionmaker(engine, expire_on_commit=False)
+            async with factory() as db:
+                async with db.begin():
+                    ids = (await db.execute(
+                        select(Species.id).order_by(Species.id).limit(2)
+                    )).scalars().all()
+                    station = await seed_hour_station(db, tuple(ids))
+                    return station, ids
+        finally:
+            await engine.dispose()
+
+    station, (sp_a, sp_b) = asyncio.run(_make())
+    headers = {"Authorization": f"Bearer {create_user_token(station['user_id'], 'viewer')}"}
+
+    body = client.get(
+        "/stats/hours", params={"species_id": sp_a, "tz": HOUR_STATION_TZ}, headers=headers
+    ).json()
+    assert body["counts"][19] == 2
+    assert body["counts"][8] == 1
+    assert body["total"] == 3
+    assert body["peak_hours"] == [19, 8]
+    assert body["earliest"] == "08:10"
+    assert body["latest"] == "19:40"
+
+    all_time = client.get(
+        "/stats/hours", params={"species_id": sp_a, "tz": HOUR_STATION_TZ, "days": 0},
+        headers=headers,
+    ).json()
+    assert all_time["total"] == 4
+
+    rows = client.get(
+        "/stats/species-counts", params={"tz": HOUR_STATION_TZ}, headers=headers
+    ).json()
+    by_id = {r["id"]: r for r in rows}
+    assert by_id[sp_a]["peak_hours"] == [19, 8]
+    assert by_id[sp_b]["peak_hours"] == [6]
+    assert by_id[sp_a]["last_seen"] is not None
