@@ -121,6 +121,13 @@ class TFLiteClassifier(ClassifierBase):
             return None
 
         taxon = self._taxa[top]
+        if not taxon.genus:
+            # The model's "Background" class, the only taxonomy row with no genus.
+            # The camera already decided there is a bird, so it is never a species.
+            # None hands the capture to the next tier, or to "Unknown".
+            logger.info("Tier 1 top class is %s (%.2f), not a species", taxon.common_name, confidence)
+            return None
+
         sci = f"{taxon.genus} {taxon.species}".strip() or "Unknown"
         return ClassificationResult(
             common_name=taxon.common_name,

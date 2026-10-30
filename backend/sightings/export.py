@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.models import Device, Sighting, Species
-from .operations import _accessible_device_ids
+from .operations import HAS_IMAGE, SKIP_IMAGE, _accessible_device_ids
 
 # Column order is fixed and part of the contract — a spreadsheet or script
 # consuming this shouldn't break because a field moved.
@@ -53,7 +53,8 @@ async def collect_rows(
         return []
 
     query = (
-        select(Sighting, Species, Device)
+        select(Sighting, Species, Device, HAS_IMAGE)
+        .options(SKIP_IMAGE)
         .join(Species, Species.id == Sighting.species_id)
         .join(Device, Device.id == Sighting.device_id)
         .where(Sighting.device_id.in_(accessible))
@@ -70,9 +71,9 @@ async def collect_rows(
     query = query.order_by(Sighting.datetime.desc()).limit(min(limit, MAX_ROWS))
 
     rows = []
-    for sighting, species, device in (await db.execute(query)).all():
+    for sighting, species, device, has_image in (await db.execute(query)).all():
         scientific = f"{species.genus} {species.species_name}".strip()
-        has_image = sighting.image_data is not None
+        has_image = bool(has_image)
         rows.append(
             {
                 "sighting_id": sighting.id,

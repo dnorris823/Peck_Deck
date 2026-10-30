@@ -111,8 +111,9 @@ hand** — the Pi provisions itself:
 python scripts/provision_device.py
 ```
 
-It signs in as the owner, matches `DEVICE_NAME` against `GET /devices`, registers the
-device if it isn't there, checks the token is accepted with a heartbeat, and writes
+It signs in as the owner, matches `DEVICE_NAME` against `GET /devices`, and reads the
+token from the owner-only `GET /devices/{id}/token`. It registers the device if it
+isn't there, since `POST /devices` returns the token once. Then it checks the token is accepted with a heartbeat, and writes
 `DEVICE_TOKEN` into `raspberry_pi_code/.env` — leaving every other key alone. It is
 idempotent, so it is safe to run against a fresh, reseeded or already-healthy database.
 Credentials come from the environment, never from `argv`. See §9 for the systemd wiring
