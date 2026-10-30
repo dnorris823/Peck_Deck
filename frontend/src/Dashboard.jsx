@@ -7,6 +7,7 @@ import { useData } from "./DataContext.jsx";
 import { ConfidenceChip, SightingTile } from "./Sightings.jsx";
 import { DeviceStatus } from "./Devices.jsx";
 import { countToday, fmtRelative, fmtTime, tierInfo, toLocalGrid } from "./data.js";
+import { accentStyle } from "./accent.js";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -69,14 +70,14 @@ function TopVisitors() {
   return (
     <ol className="rank">
       {top.map((s, i) => (
-        <li key={s.id}>
+        <li key={s.id} style={accentStyle(s)}>
           <div className="rank-line">
             <span className="rank-no tnum">{String(i + 1).padStart(2, "0")}</span>
             <span className="rank-name">{s.common}</span>
             <span className="rank-count tnum">{s.count.toLocaleString()}</span>
           </div>
           <div className="rank-bar">
-            <span style={{ width: `${(s.count / max) * 100}%`, background: s.palette[0] }} />
+            <span style={{ width: `${(s.count / max) * 100}%` }} />
           </div>
         </li>
       ))}
@@ -193,8 +194,8 @@ export function Dashboard({ openSighting, go }) {
         <section className="section">
           <div className="section-head">
             <h2 className="section-title">Recent visits</h2>
-            <button className="btn ghost sm" onClick={() => go("sightings")}>
-              All sightings <Icon name="arrow" className="" />
+            <button className="btn link sm" onClick={() => go("history")}>
+              History <Icon name="arrow" className="" />
             </button>
           </div>
           <div className="gallery gallery-compact">
@@ -222,16 +223,16 @@ export function Dashboard({ openSighting, go }) {
 
       <section className="section">
         <div className="section-head">
-          <h2 className="section-title">Stations</h2>
-          <button className="btn ghost sm" onClick={() => go("devices")}>
+          <h2 className="section-title">Feeders</h2>
+          <button className="btn link sm" onClick={() => go("feeders")}>
             Manage <Icon name="arrow" className="" />
           </button>
         </div>
         {DEVICES.length > 0 ? (
           <div className="card">{DEVICES.map(dv => <StationRow key={dv.id} d={dv} />)}</div>
         ) : (
-          <Empty icon="📡" title="No stations yet" hint="Register a feeder under Stations to start."
-            action={<button className="btn primary sm" onClick={() => go("devices")}>Register a station</button>} />
+          <Empty icon="📡" title="No feeders yet" hint="Register a feeder under Feeders to start."
+            action={<button className="btn primary sm" onClick={() => go("feeders")}>Register a feeder</button>} />
         )}
       </section>
     </>

@@ -1,4 +1,4 @@
-// Devices page — list of stations with full settings
+// Feeders page — every registered feeder, with its settings
 import React, { useRef, useState } from "react";
 import { Icon } from "./Icon.jsx";
 import { useData } from "./DataContext.jsx";
@@ -15,7 +15,7 @@ function RegisterDeviceModal({ onClose, onDone }) {
   const set = k => v => setForm(f => ({ ...f, [k]: v }));
 
   async function submit() {
-    if (!form.name) { setError("A station name is required."); return; }
+    if (!form.name) { setError("A feeder name is required."); return; }
     setBusy(true);
     setError(null);
     try {
@@ -32,12 +32,12 @@ function RegisterDeviceModal({ onClose, onDone }) {
   if (token) {
     return (
       <Modal
-        title="Station registered"
+        title="Feeder registered"
         subtitle="Copy this device token now — it's shown only once and is needed to provision the Pi."
         onClose={onClose}
         footer={<button className="btn primary" onClick={onClose}>Done</button>}
       >
-        <div className="card" style={{ padding: "12px 16px", fontFamily: "var(--mono)", fontSize: 12, wordBreak: "break-all" }}>
+        <div className="card mono" style={{ padding: "12px 16px", fontSize: 12, wordBreak: "break-all" }}>
           {token}
         </div>
         <button className="btn" onClick={() => navigator.clipboard?.writeText(token)}>Copy token</button>
@@ -47,7 +47,7 @@ function RegisterDeviceModal({ onClose, onDone }) {
 
   return (
     <Modal
-      title="Register a station"
+      title="Register a feeder"
       subtitle="Add a new feeder. You'll get a device token to provision the Pi."
       onClose={onClose}
       footer={<>
@@ -157,11 +157,9 @@ function DeviceDetail({ d, onClose }) {
         ref={panelRef} role="dialog" aria-modal="true" aria-label={`${d.name} settings`} tabIndex={-1}>
         <button className="modal-close" onClick={onClose} aria-label="Close dialog"><Icon name="x" className="" /></button>
         <div style={{ padding: "28px 32px" }}>
-          <div className="label" style={{ marginBottom: 8 }}>Station settings</div>
-          <h2 className="display" style={{ fontSize: 38, lineHeight: 1, margin: 0 }}>{d.name}</h2>
-          <div className="display-i" style={{ fontSize: 17, color: "var(--ink-soft)", marginTop: 4 }}>
-            {d.city}, {d.state}
-          </div>
+          <div className="label" style={{ marginBottom: 8 }}>Feeder settings</div>
+          <h2 className="dialog-title">{d.name}</h2>
+          <div className="dialog-sub">{d.city}, {d.state}</div>
 
           <div className="settings-section" style={{ marginTop: 24 }}>
             <div className="label" style={{ marginBottom: 12 }}>Notification recipients</div>
@@ -171,8 +169,8 @@ function DeviceDetail({ d, onClose }) {
                   <div className="user-row" key={u.id}>
                     <div className="av-lg" style={{ background: u.avBg }}>{u.av}</div>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 500 }}>{u.name}</div>
-                      <div style={{ fontSize: 12, color: "var(--ink-soft)" }}>{u.email}</div>
+                      <div style={{ fontSize: 13.5, fontWeight: 700 }}>{u.name}</div>
+                      <div style={{ fontSize: 12.5, color: "var(--mu)" }}>{u.email}</div>
                     </div>
                     <span className={`role-badge role-${u.role}`}>{u.role}</span>
                     <span className="label" style={{ fontSize: 10 }}>
@@ -185,7 +183,7 @@ function DeviceDetail({ d, onClose }) {
               <div className="field-help">No users have notifications enabled. Turn them on per user under Users.</div>
             )}
             <div className="field-help" style={{ marginTop: 8 }}>
-              Recipients follow each user's notification settings. Per-station recipient lists are coming soon.
+              Recipients follow each user's notification settings. Per-feeder recipient lists are coming soon.
             </div>
           </div>
 
@@ -201,7 +199,7 @@ function DeviceDetail({ d, onClose }) {
 export function DevicesPage() {
   const { data, reload } = useData();
   const { DEVICES, SIGHTINGS } = data;
-  // Newest capture with a photo per station; SIGHTINGS is newest-first.
+  // Newest capture with a photo per feeder; SIGHTINGS is newest-first.
   const latestBy = new Map();
   for (const s of SIGHTINGS) {
     if (s.hasImage && !latestBy.has(s.device.id)) latestBy.set(s.device.id, s);
@@ -212,11 +210,11 @@ export function DevicesPage() {
     <>
       <div className="page-header">
         <div>
-          <div className="label">Field stations</div>
-          <h1 className="page-title">Your <em>feeders</em></h1>
+          <div className="label">Your stations</div>
+          <h1 className="page-title">Feeders</h1>
         </div>
         <button className="btn primary" onClick={() => setRegistering(true)}>
-          <Icon name="plus" className="" /> Register station
+          <Icon name="plus" className="" /> Register feeder
         </button>
       </div>
 
@@ -227,10 +225,10 @@ export function DevicesPage() {
       ) : (
         <Empty
           icon="📡"
-          title="No stations registered"
+          title="No feeders registered"
           hint="Register a feeder to get a device token and start receiving sightings."
           action={<button className="btn primary sm" onClick={() => setRegistering(true)}>
-            <Icon name="plus" className="" /> Register station
+            <Icon name="plus" className="" /> Register feeder
           </button>}
         />
       )}

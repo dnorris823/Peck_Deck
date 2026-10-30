@@ -10,6 +10,7 @@ import {
   confidenceLevel, deleteSighting, downloadExport, fmtDateLabel, fmtDayHeading, fmtRelative,
   fmtTime, tierInfo,
 } from "./data.js";
+import { useSpeciesAccent } from "./accent.js";
 
 // Inclusive lower bound (ms since epoch) for a named range, or 0 for "all time".
 export function rangeCutoff(range, now = Date.now()) {
@@ -133,7 +134,7 @@ function DeleteSightingButton({ s, onDeleted }) {
   }
   return (
     <>
-      <button type="button" className="btn cardinal" onClick={run} disabled={busy}>
+      <button type="button" className="btn danger" onClick={run} disabled={busy}>
         {busy ? "Deleting…" : "Delete this sighting"}
       </button>
       <button type="button" className="btn ghost" onClick={() => setConfirming(false)} disabled={busy}>
@@ -148,12 +149,13 @@ export function SightingDetail({ s, onClose }) {
   const { data } = useData();
   const panelRef = useRef(null);
   useDialog(onClose, panelRef);
+  const accent = useSpeciesAccent(s?.species);
   if (!s) return null;
   const tier = tierInfo(s.tier);
   const speciesCount = data.SPECIES_COUNTS.find(x => x.id === s.species.id)?.count || 1;
   return (
     <div className="modal-bg" onClick={onClose}>
-      <div className="modal modal-wide" onClick={e => e.stopPropagation()}
+      <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={accent}
         ref={panelRef} role="dialog" aria-modal="true" aria-label={`${s.species.common} sighting`} tabIndex={-1}>
         <button className="modal-close" onClick={onClose} aria-label="Close dialog"><Icon name="x" className="" /></button>
         <div className="modal-grid">
@@ -180,7 +182,7 @@ export function SightingDetail({ s, onClose }) {
                   <span className="facts-sub"> · {fmtRelative(s.datetime)}</span></dd>
               </div>
               <div>
-                <dt className="label">Station</dt>
+                <dt className="label">Feeder</dt>
                 <dd>{s.device.name}</dd>
               </div>
               <div>
@@ -284,8 +286,8 @@ export function Sightings({ openSighting, initialSpecies = "all" }) {
     <>
       <div className="page-header">
         <div>
-          <div className="label">Field records</div>
-          <h1 className="page-title">All <em>sightings</em></h1>
+          <div className="label">Every visit</div>
+          <h1 className="page-title">History</h1>
         </div>
         <div className="page-meta">
           <span className="page-meta-num tnum">{filtered.length}</span>
@@ -302,9 +304,9 @@ export function Sightings({ openSighting, initialSpecies = "all" }) {
         </div>
 
         {DEVICES.length > 1 && (
-          <select value={device} aria-label="Filter by station" className="toolbar-select"
+          <select value={device} aria-label="Filter by feeder" className="toolbar-select"
             onChange={e => setDevice(e.target.value === "all" ? "all" : Number(e.target.value))}>
-            <option value="all">All stations</option>
+            <option value="all">All feeders</option>
             {DEVICES.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
           </select>
         )}
@@ -334,7 +336,7 @@ export function Sightings({ openSighting, initialSpecies = "all" }) {
         <Empty
           icon="🔍"
           title="No sightings match"
-          hint="Try a wider time range, or clear the station and species filters."
+          hint="Try a wider time range, or clear the feeder and species filters."
           action={<button className="btn sm" onClick={() => { setRange("all"); setDevice("all"); setSpecies("all"); }}>
             Show everything
           </button>}
@@ -342,7 +344,7 @@ export function Sightings({ openSighting, initialSpecies = "all" }) {
       ) : (
         <Empty
           title="No sightings yet"
-          hint="When a station spots a bird, its photo shows up here."
+          hint="When a feeder spots a bird, its photo shows up here."
         />
       )}
     </>

@@ -157,13 +157,13 @@ export function UsersPage() {
             <div className="av-lg" style={{ background: u.avBg }}>{u.av}</div>
             <div>
               <div style={{ fontSize: 14, fontWeight: 500 }}>{u.name}</div>
-              <div style={{ fontSize: 12, color: "var(--ink-soft)", marginTop: 2 }}>
+              <div style={{ fontSize: 12.5, color: "var(--mu)", marginTop: 2 }}>
                 {u.email}
               </div>
             </div>
             <span className={`role-badge role-${u.role}`}>{u.role}</span>
             <span className="label" style={{ fontSize: 10, display: "flex", gap: 10 }}>
-              <span style={{ color: u.notify_email ? "var(--forest)" : "var(--ink-mute)" }}>
+              <span style={{ color: u.notify_email ? "var(--ok)" : "var(--mu)" }}>
                 ✉ {u.notify_email ? "ON" : "OFF"}
               </span>
             </span>
@@ -182,14 +182,6 @@ const SETTINGS_SECTIONS = [
   { id: "account", label: "Account" },
   { id: "notifications", label: "Notifications" },
   { id: "appearance", label: "Appearance" },
-];
-
-// Mirrors ACCENTS in Appearance.jsx.
-const ACCENT_SWATCHES = [
-  ["cardinal", "Cardinal", "#b8412c"],
-  ["forest", "Forest", "#2d4a36"],
-  ["yolk", "Yolk", "#d4a23a"],
-  ["plum", "Plum", "#6b4570"],
 ];
 
 function Toggle({ on, onChange, disabled = false }) {
@@ -215,9 +207,9 @@ function Field({ label, help, children }) {
 function SaveStatus({ status }) {
   if (!status) return null;
   const map = {
-    saving: { text: "Saving…", color: "var(--ink-soft)" },
-    saved: { text: "✓ Saved", color: "var(--forest)" },
-    error: { text: "Couldn't save", color: "var(--cardinal)" },
+    saving: { text: "Saving…", color: "var(--mu)" },
+    saved: { text: "✓ Saved", color: "var(--ok)" },
+    error: { text: "Couldn't save", color: "var(--bad)" },
   };
   const s = map[status.kind] || map.saved;
   return (
@@ -298,7 +290,7 @@ function PushChannelRow() {
         <div className="toggle-row-title">Browser push — this device</div>
         <div className="toggle-row-sub">{note}</div>
         {error && (
-          <div className="field-help" style={{ color: "var(--cardinal)" }}>{error}</div>
+          <div className="field-help field-error">{error}</div>
         )}
       </div>
       <span className="label">VIA VAPID</span>
@@ -428,14 +420,14 @@ export function SettingsPage() {
                   aria-invalid={acctErr.name ? "true" : undefined}
                   onChange={e => setName(e.target.value)}
                   onBlur={() => commitField("name", name, me.name, checkRequired(name, "Name"))} />
-                {acctErr.name && <div className="field-help" style={{ color: "var(--cardinal)" }}>{acctErr.name}</div>}
+                {acctErr.name && <div className="field-help field-error">{acctErr.name}</div>}
               </Field>
               <Field label="Email" help="Used for login and email notifications.">
                 <input type="email" value={email} aria-label="Email"
                   aria-invalid={acctErr.email ? "true" : undefined}
                   onChange={e => setEmail(e.target.value)}
                   onBlur={() => commitField("email", email, me.email, checkEmail(email))} />
-                {acctErr.email && <div className="field-help" style={{ color: "var(--cardinal)" }}>{acctErr.email}</div>}
+                {acctErr.email && <div className="field-help field-error">{acctErr.email}</div>}
               </Field>
               <Field label="Password">
                 <button className="btn" onClick={() => setChangingPassword(true)}>Change password…</button>
@@ -477,7 +469,7 @@ export function SettingsPage() {
                     style={{ width: "100%" }} />
                   <div className="between" style={{ marginTop: 6 }}>
                     <span className="label">10s</span>
-                    <span className="display-i tnum" style={{ fontSize: 22 }}>{quiet}s</span>
+                    <span className="tnum" style={{ fontSize: 20, fontWeight: 800 }}>{quiet}s</span>
                     <span className="label">10m</span>
                   </div>
                 </div>
@@ -494,34 +486,15 @@ export function SettingsPage() {
           {section === "appearance" && (
             <div className="settings-section">
               <h3>Appearance</h3>
-              <p className="lead">Visual preferences for the field journal interface. Saved in this browser.</p>
+              <p className="lead">Saved in this browser. The accent colour follows the bird on screen.</p>
               <Field label="Theme" help="Auto follows your device's light or dark setting.">
                 <div className="segmented" role="group" aria-label="Theme">
-                  {[["auto", "Auto"], ["day", "Day"], ["dusk", "Dusk"]].map(([id, label]) => (
+                  {[["auto", "Auto"], ["day", "Light"], ["dusk", "Dark"]].map(([id, label]) => (
                     <button key={id} className={appearance.theme === id ? "active" : ""}
                       aria-pressed={appearance.theme === id}
                       onClick={() => updateAppearance({ theme: id })}>{label}</button>
                   ))}
                 </div>
-              </Field>
-              <Field label="Accent" help="Highlight color for focus rings and emphasis.">
-                <div className="swatches" role="group" aria-label="Accent">
-                  {ACCENT_SWATCHES.map(([id, label, color]) => (
-                    <button key={id} className={`swatch ${appearance.accent === id ? "active" : ""}`}
-                      aria-pressed={appearance.accent === id} aria-label={label} title={label}
-                      style={{ "--swatch": color }}
-                      onClick={() => updateAppearance({ accent: id })} />
-                  ))}
-                </div>
-              </Field>
-              <Field label="Display font" help="Used for headings and large numerals.">
-                <select value={appearance.displayFont}
-                  onChange={e => updateAppearance({ displayFont: e.target.value })}>
-                  <option value="newsreader">Newsreader</option>
-                  <option value="instrument">Instrument Serif</option>
-                  <option value="playfair">Playfair Display</option>
-                  <option value="eb">EB Garamond</option>
-                </select>
               </Field>
               <Field label="Density">
                 <select value={appearance.density}

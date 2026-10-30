@@ -20,7 +20,7 @@ function routeApiGet(overrides = {}) {
       { id: 1, common_name: "Northern Cardinal", genus: "Cardinalis", species_name: "cardinalis",
         order_name: "Passeriformes", palette: ["#b8412c"], silhouette: "songbird",
         wiki_url: "https://en.wikipedia.org/wiki/Northern_cardinal", note: "Bright red." },
-      // Sparse species (Pi-created): missing palette/silhouette/wiki → defaults.
+      // Sparse species (Pi-created): missing silhouette/wiki → defaults.
       { id: 2, common_name: "Mystery Bird", genus: "Ignotus", species_name: "avis" },
     ],
     "/stats/species-counts": [
@@ -83,7 +83,8 @@ describe("loadAll", () => {
     routeApiGet();
     const data = await loadAll();
     const sparse = data.SPECIES.find((s) => s.id === 2);
-    expect(sparse.palette.length).toBeGreaterThan(0);
+    // An empty palette stays empty, so the accent can fall back to neutral.
+    expect(sparse.palette).toEqual([]);
     expect(sparse.silhouette).toBe("songbird");
     expect(sparse.wiki).toBeNull();
   });

@@ -7,6 +7,7 @@ import { Modal, TextInput, FormNote, useDialog } from "./Modal.jsx";
 import { Empty } from "./Empty.jsx";
 import { SightingImage } from "./SightingImage.jsx";
 import { createSpecies, fmtRelative } from "./data.js";
+import { useSpeciesAccent } from "./accent.js";
 
 function AddSpeciesModal({ onClose, onDone }) {
   const [form, setForm] = useState({ common_name: "", genus: "", species_name: "", order_name: "" });
@@ -37,7 +38,7 @@ function AddSpeciesModal({ onClose, onDone }) {
   return (
     <Modal
       title="Add a species"
-      subtitle="Catalogue a bird by hand. Field-guide art is generated from defaults."
+      subtitle="Catalogue a bird by hand."
       onClose={onClose}
       footer={<>
         <button className="btn" onClick={onClose}>Cancel</button>
@@ -59,7 +60,7 @@ function Specimen({ s, idx, photo, onClick }) {
   return (
     <button type="button" className="specimen" onClick={() => onClick(s)}>
       <div className="specimen-plate">
-        {photo ? <SightingImage sighting={photo} /> : <BirdPlate species={s} showLabel={false} />}
+        {photo ? <SightingImage sighting={photo} /> : <BirdPlate species={s} />}
         <span className="tile-badge tile-badge-l">№ {String(idx + 1).padStart(3, "0")}</span>
       </div>
       <div className="specimen-body">
@@ -83,14 +84,15 @@ function Specimen({ s, idx, photo, onClick }) {
 function SpeciesDetail({ s, photo, lastSeen, onClose, onViewSightings }) {
   const panelRef = useRef(null);
   useDialog(onClose, panelRef);
+  const accent = useSpeciesAccent(s);
   return (
     <div className="modal-bg" onClick={onClose}>
-      <div className="modal modal-wide" onClick={e => e.stopPropagation()}
+      <div className="modal modal-wide" onClick={e => e.stopPropagation()} style={accent}
         ref={panelRef} role="dialog" aria-modal="true" aria-label={`${s.common} details`} tabIndex={-1}>
         <button className="modal-close" onClick={onClose} aria-label="Close dialog"><Icon name="x" className="" /></button>
         <div className="modal-grid">
           <div className={`modal-img ${photo ? "" : "modal-img-plate"}`}>
-            {photo ? <SightingImage sighting={photo} large /> : <BirdPlate species={s} showLabel={false} large />}
+            {photo ? <SightingImage sighting={photo} large /> : <BirdPlate species={s} />}
           </div>
           <div className="modal-side">
             <div className="label">{s.order !== "—" ? s.order : "Species"}</div>
@@ -166,8 +168,8 @@ export function SpeciesPage({ go }) {
     <>
       <div className="page-header">
         <div>
-          <div className="label">Recorded by your stations</div>
-          <h1 className="page-title">Species <em>library</em></h1>
+          <div className="label">Recorded by your feeders</div>
+          <h1 className="page-title">Species</h1>
           <p className="page-lede">Every species your feeders have caught on camera. Open one for field notes.</p>
         </div>
         <div className="page-meta">
@@ -211,7 +213,7 @@ export function SpeciesPage({ go }) {
         <SpeciesDetail s={openSp} photo={photoBy.get(openSp.id)}
           lastSeen={latestBy.get(openSp.id)?.datetime}
           onClose={() => setOpenSp(null)}
-          onViewSightings={() => go("sightings", { species: openSp.id })} />
+          onViewSightings={() => go("history", { species: openSp.id })} />
       )}
       {adding && <AddSpeciesModal onClose={() => setAdding(false)} onDone={reload} />}
     </>

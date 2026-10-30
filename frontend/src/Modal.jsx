@@ -47,12 +47,8 @@ export function Modal({ title, subtitle, onClose, children, footer, maxWidth = 4
           <Icon name="x" className="" />
         </button>
         <div style={{ padding: "28px 32px" }}>
-          {title && <h2 id={titleId} className="display" style={{ fontSize: 30, lineHeight: 1.05, margin: 0 }}>{title}</h2>}
-          {subtitle && (
-            <div className="display-i" style={{ fontSize: 15, color: "var(--ink-soft)", marginTop: 4 }}>
-              {subtitle}
-            </div>
-          )}
+          {title && <h2 id={titleId} className="dialog-title">{title}</h2>}
+          {subtitle && <div className="dialog-sub">{subtitle}</div>}
           <div style={{ marginTop: 20, display: "grid", gap: 14 }}>{children}</div>
           {footer && (
             <div className="row" style={{ marginTop: 24, justifyContent: "flex-end", gap: 8 }}>
@@ -81,10 +77,10 @@ export function TextInput({ label, help, value, onChange, type = "text", placeho
         onBlur={onBlur}
         aria-invalid={error ? "true" : undefined}
         aria-describedby={error ? errId : undefined}
-        style={{ width: "100%", ...(error ? { borderColor: "var(--cardinal)" } : null) }}
+        style={{ width: "100%" }}
       />
       {error
-        ? <div id={errId} className="field-help" style={{ marginTop: 4, color: "var(--cardinal)" }}>{error}</div>
+        ? <div id={errId} className="field-help field-error" style={{ marginTop: 4 }}>{error}</div>
         : help && <div className="field-help" style={{ marginTop: 4 }}>{help}</div>}
     </label>
   );
@@ -104,7 +100,7 @@ export function SelectInput({ label, value, onChange, options }) {
 
 // Inline error/success line for modal forms.
 export function FormNote({ error, note }) {
-  if (error) return <div className="field-help" role="alert" style={{ color: "var(--cardinal)" }}>{error}</div>;
-  if (note) return <div className="field-help" style={{ color: "var(--forest)" }}>{note}</div>;
+  if (error) return <div className="field-help field-error" role="alert">{error}</div>;
+  if (note) return <div className="field-help field-ok">{note}</div>;
   return null;
 }

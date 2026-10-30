@@ -2,18 +2,18 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Peck Deck — Field Station</title>
+<title>Peck Deck</title>
 <!-- viewport-fit=cover so the standalone PWA can paint into the notch area;
      the shell adds safe-area padding to keep controls clear of it. -->
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<meta name="description" content="Watch what visits your bird feeder: live sightings, species identifications, and station health." />
+<meta name="description" content="Watch what visits your bird feeder: live sightings, species identifications, and feeder health." />
 
 <!-- PWA: installable app shell (FLEDGE Phase 7) -->
 <link rel="manifest" href="/manifest.webmanifest" />
 <!-- Two theme colors so the phone's status bar matches the active theme rather
      than always the light one. -->
-<meta name="theme-color" content="#f3ede0" media="(prefers-color-scheme: light)" />
-<meta name="theme-color" content="#151b17" media="(prefers-color-scheme: dark)" />
+<meta name="theme-color" content="#faf9f7" media="(prefers-color-scheme: light)" />
+<meta name="theme-color" content="#0f0e0d" media="(prefers-color-scheme: dark)" />
 <link rel="icon" href="/icons/icon-32.png" sizes="32x32" type="image/png" />
 <link rel="apple-touch-icon" href="/icons/apple-touch-icon-180.png" />
 <!-- iOS ignores the manifest's display mode; these are its equivalents. The
@@ -24,9 +24,10 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default" />
 <meta name="apple-mobile-web-app-title" content="Peck Deck" />
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&family=Instrument+Serif:ital@0;1&family=Playfair+Display:ital,wght@0,400;0,500;1,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- Plus Jakarta Sans is self-hosted (public/fonts), so the installed app has
+     its type with no network. The upright Latin file covers nearly every
+     glyph on screen; preloading it stops a flash of the fallback face. -->
+<link rel="preload" href="/fonts/plus-jakarta-sans-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin />
 </head>
 <body>
 <div id="root"></div>

@@ -4,7 +4,7 @@
  * install the app. These read the real files off disk.
  */
 import { describe, it, expect } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const PUBLIC = join(process.cwd(), "public");
@@ -13,6 +13,7 @@ const manifest = JSON.parse(
 );
 const indexHtml = readFileSync(join(process.cwd(), "index.html"), "utf8");
 const sw = readFileSync(join(PUBLIC, "sw.js"), "utf8");
+const css = readFileSync(join(process.cwd(), "src", "styles.css"), "utf8");
 
 describe("web app manifest", () => {
   it("declares what a browser needs to offer installation", () => {
@@ -40,14 +41,15 @@ describe("web app manifest", () => {
   });
 
   it("uses brand tokens for the install splash", () => {
-    // Must match --paper in styles.css, or the splash flashes a foreign color.
-    expect(manifest.background_color).toBe("#f3ede0");
-    expect(manifest.theme_color).toBe("#f3ede0");
+    // Must match the light --bg in styles.css, or the splash flashes a foreign color.
+    expect(css).toMatch(/--bg: #faf9f7;/);
+    expect(manifest.background_color).toBe("#faf9f7");
+    expect(manifest.theme_color).toBe("#faf9f7");
   });
 
   it("points every shortcut at a screen the app can actually route to", () => {
-    // App.jsx maps ?screen=<id> onto the nav ids.
-    const known = ["dashboard", "sightings", "species", "devices", "users", "settings"];
+    // App.jsx maps ?screen=<id> onto the nav ids in Shell.jsx.
+    const known = ["latest", "species", "history", "feeders", "users", "settings"];
     for (const shortcut of manifest.shortcuts ?? []) {
       const screen = new URL(shortcut.url, "https://example.com").searchParams.get("screen");
       expect(known, `unknown screen in ${shortcut.url}`).toContain(screen);
@@ -102,5 +104,43 @@ describe("service worker", () => {
 
   it("only stores 200s, so a 401 can never outlive the session", () => {
     expect(sw).toMatch(/response\.status === 200/);
+  });
+});
+
+describe("self-hosted font", () => {
+  const FONTS = join(PUBLIC, "fonts");
+  const files = readdirSync(FONTS).filter((f) => f.endsWith(".woff2"));
+  const faceUrls = [...css.matchAll(/url\("(\/fonts\/[^"]+\.woff2)"\)/g)].map((m) => m[1]);
+
+  it("ships the OFL licence beside the font files", () => {
+    // The SIL Open Font License requires the licence to travel with the font.
+    const ofl = readFileSync(join(FONTS, "OFL.txt"), "utf8");
+    expect(ofl).toMatch(/SIL OPEN FONT LICENSE Version 1\.1/);
+    expect(ofl).toMatch(/Plus Jakarta Sans/);
+  });
+
+  it("points every @font-face at a file that exists", () => {
+    expect(faceUrls.length).toBeGreaterThan(0);
+    for (const url of faceUrls) {
+      expect(existsSync(join(PUBLIC, url)), `missing ${url}`).toBe(true);
+    }
+  });
+
+  it("precaches every font file, so the installed app has its type offline", () => {
+    for (const file of files) {
+      expect(sw, `sw.js does not precache ${file}`).toContain(`"/fonts/${file}"`);
+    }
+    expect(new Set(faceUrls)).toEqual(new Set(files.map((f) => `/fonts/${f}`)));
+  });
+
+  it("loads no web font from another origin", () => {
+    expect(indexHtml).not.toMatch(/fonts\.googleapis\.com|fonts\.gstatic\.com/);
+    expect(css).not.toMatch(/@import/);
+  });
+
+  it("preloads a font file that exists", () => {
+    for (const [, href] of indexHtml.matchAll(/rel="preload" href="(\/fonts\/[^"]+)"/g)) {
+      expect(existsSync(join(PUBLIC, href)), `missing ${href}`).toBe(true);
+    }
   });
 });
