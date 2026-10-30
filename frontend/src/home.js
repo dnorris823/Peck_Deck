@@ -90,3 +90,50 @@ export function timelinePos(d) {
   if (hours < DAY_START_HOUR || hours > DAY_END_HOUR) return null;
   return ((hours - DAY_START_HOUR) / (DAY_END_HOUR - DAY_START_HOUR)) * 100;
 }
+
+// Below this many visits today, the strip shows the latest visits from any day.
+export const RECENT_BELOW = 4;
+export const RECENT_COUNT = 8;
+
+/** The local day before `now`, as inclusive bounds for a date-range query. */
+export function yesterdayBounds(now = new Date()) {
+  const today = startOfToday(now);
+  // Built from the date parts, so a day with a clock change still ends at midnight.
+  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate() - 1);
+  return { start, end: new Date(today.getTime() - 1) };
+}
+
+/**
+ * A recent visit's label in the strip. Today's say the time. Older ones say the
+ * day: "Yesterday", "Tue", or "Oct 12" past a week.
+ */
+export function stripLabel(d, now = new Date()) {
+  if (isToday(d, now)) return fmtClock(d);
+  const days = Math.round((startOfToday(now) - startOfToday(d)) / (24 * HOUR));
+  if (days === 1) return "Yesterday";
+  if (days < 7) return d.toLocaleDateString("en-US", { weekday: "short" });
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+const NAMED_IN_LINE = 3;
+
+/**
+ * Yesterday's line from per-species counts, `[{ common, count }]` most frequent
+ * first. Null when yesterday had no visits. Unknown visits count toward the total
+ * but are not a species, so the line never names them.
+ */
+export function yesterdayLine(rows) {
+  const total = rows.reduce((n, r) => n + r.count, 0);
+  if (total === 0) return null;
+  const named = rows
+    .filter(r => !isUnknown(r))
+    .sort((a, b) => b.count - a.count || a.common.localeCompare(b.common));
+  const shown = named.slice(0, NAMED_IN_LINE).map(r => `${r.common} ${r.count}`);
+  const more = named.length - shown.length;
+  let species;
+  if (shown.length === 0) species = "None named.";
+  else if (more > 0) species = `${shown.join(", ")} and ${more} more species.`;
+  else if (shown.length === 1) species = `${shown[0]}.`;
+  else species = `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}.`;
+  return { visits: plural(total, "visit"), species };
+}
