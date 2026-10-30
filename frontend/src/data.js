@@ -107,6 +107,12 @@ export function mapSighting(s, speciesById, devicesById) {
     // What each tier did, in chain order. Null for sightings from before the Pi
     // sent a trace.
     tierTrace: Array.isArray(s.tier_trace) ? s.tier_trace : null,
+    // Set when a person corrected the species. `species` is then their answer,
+    // and `originalSpecies` is what the tier named. Null when nobody has.
+    originalSpecies: s.original_species_id == null
+      ? null : speciesById.get(s.original_species_id) || null,
+    correctedBy: s.corrected_by ?? null,
+    correctedAt: s.corrected_at ? new Date(s.corrected_at) : null,
   };
 }
 
@@ -215,6 +221,13 @@ export function removeSighting(rawSightings, id) {
   return rawSightings.filter((s) => s.id !== id);
 }
 
+// Swap in a sighting's new version, such as a corrected species. Returns the
+// same array when the id is absent.
+export function replaceSighting(rawSightings, sighting) {
+  if (!rawSightings.some((s) => s.id === sighting.id)) return rawSightings;
+  return rawSightings.map((s) => (s.id === sighting.id ? sighting : s));
+}
+
 export function mapAll(raw) {
   const { species, counts, devices, users, sightings, heatmap, dashboard, me, prefs } = raw;
 
@@ -249,7 +262,11 @@ export async function loadAll() {
  * not loaded, the same rule mapAll applies.
  */
 export async function fetchSighting(id, data) {
-  const raw = await apiGet(`/sightings/${id}`);
+  return mapAgainst(await apiGet(`/sightings/${id}`), data);
+}
+
+/** Map one raw sighting against a loaded dataset, or null if it can't join. */
+export function mapAgainst(raw, data) {
   const s = mapSighting(
     raw,
     new Map(data.SPECIES.map(x => [x.id, x])),
@@ -276,8 +293,18 @@ export function fetchSpeciesHours(speciesId) {
   return hourStatsCache.get(speciesId);
 }
 
+// A corrected sighting moves a visit between two species' hours.
+export function forgetSpeciesHours() {
+  hourStatsCache.clear();
+}
+
 export async function deleteSighting(id) {
   return apiDelete(`/sightings/${id}`);
+}
+
+// Set the species a person says this is. Resolves to the raw updated row.
+export async function correctSighting(id, speciesId) {
+  return apiSend(`/sightings/${id}`, "PATCH", { species_id: speciesId });
 }
 
 // ── Settings mutations ────────────────────────────────────────────────────

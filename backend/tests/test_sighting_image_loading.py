@@ -3,7 +3,7 @@
 Both only need to know whether a sighting has an image. Selecting the whole
 ``Sighting`` row reads every JPEG in the page into the API process to answer
 that. These tests watch the SQL each query sends and fail if a SELECT reads
-``image_data`` as a column again.
+``image_data`` or ``thumbnail_data`` as a column again.
 
 The rows go on a fresh device owned by a throwaway user, so the exact counts in
 ``test_sightings.py`` and ``test_export.py`` stay stable whatever the test order.
@@ -27,8 +27,8 @@ from backend.tests.conftest import IDS
 _JPEG = b"\xff\xd8\xff\xe0image-loading-bytes"
 
 # `sightings.image_data IS NOT NULL` is the flag and is allowed. The bare column
-# is the bytes.
-_READS_BYTES = re.compile(r"sightings\.image_data(?! IS NOT NULL)")
+# is the bytes. The thumbnail is bytes too, and no list query needs its flag.
+_READS_BYTES = re.compile(r"sightings\.(?:image_data(?! IS NOT NULL)|thumbnail_data)")
 
 
 async def _make_owner_with_two_sightings() -> dict:

@@ -73,6 +73,23 @@ class SightingDeleted:
     device_id: int
 
 
+@dataclass(frozen=True)
+class SightingUpdated:
+    """One sighting changed by ``PATCH /sightings/{id}``, such as a corrected
+    species.
+
+    Carries the whole row, serialized like ``SightingEvent``, so the client
+    swaps it in place without reading it back.
+    """
+
+    sighting_id: int
+    device_id: int
+    payload: dict[str, Any]
+
+
+HubEvent = SightingEvent | SightingDeleted | SightingUpdated
+
+
 class SightingHub:
     def __init__(self) -> None:
         self._subscribers: set[asyncio.Queue] = set()
@@ -81,7 +98,7 @@ class SightingHub:
     def subscriber_count(self) -> int:
         return len(self._subscribers)
 
-    def publish(self, event: SightingEvent | SightingDeleted) -> None:
+    def publish(self, event: HubEvent) -> None:
         """Hand an event to every open stream. Never blocks, never raises."""
         for queue in list(self._subscribers):
             try:

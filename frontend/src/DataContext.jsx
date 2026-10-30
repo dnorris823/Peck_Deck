@@ -8,7 +8,10 @@
 import React, {
   createContext, useCallback, useContext, useEffect, useRef, useState,
 } from "react";
-import { applySighting, fetchAggregates, fetchRaw, mapAll, removeSighting } from "./data.js";
+import {
+  applySighting, fetchAggregates, fetchRaw, forgetSpeciesHours, mapAll, removeSighting,
+  replaceSighting,
+} from "./data.js";
 import { openSightingStream } from "./events.js";
 
 const Ctx = createContext(null);
@@ -33,6 +36,9 @@ export function DataProvider({ children, onAuthError }) {
   // was the last word until the next reload, but a streamed sighting now
   // re-maps the whole dataset and would otherwise revert them mid-session.
   const overridesRef = useRef({});
+  // Versions of updated sightings already applied, as "id@corrected_at". The
+  // tab that made a change applies it itself, then hears it again on the stream.
+  const appliedRef = useRef(new Set());
 
   const commit = useCallback((raw) => {
     rawRef.current = raw;
@@ -110,10 +116,40 @@ export function DataProvider({ children, onAuthError }) {
     }
   }, [commit]);
 
+  // Swap in an updated sighting, such as a corrected species. Applied whether
+  // or not the row is in the loaded window, because the counts move either way.
+  const applyUpdated = useCallback(async (sighting) => {
+    const raw = rawRef.current;
+    if (!raw) return;
+    const version = `${sighting.id}@${sighting.corrected_at}`;
+    if (appliedRef.current.has(version)) return;
+    appliedRef.current.add(version);
+    forgetSpeciesHours();
+
+    const known = raw.species.some((s) => s.id === sighting.species_id);
+    try {
+      if (known) {
+        commit({ ...raw, sightings: replaceSighting(raw.sightings, sighting) });
+        commit({ ...rawRef.current, ...(await fetchAggregates()) });
+      } else {
+        // mapAll drops a sighting it can't join to a species, which would also
+        // close it in the detail view. So the species list comes first.
+        const patch = await fetchAggregates({ withSpecies: true });
+        const now = rawRef.current;
+        commit({ ...now, ...patch, sightings: replaceSighting(now.sightings, sighting) });
+      }
+    } catch {
+      // The known path already shows the new species. The other has nothing
+      // it can show yet, so it loads everything.
+      if (!known) reload();
+    }
+  }, [commit, reload]);
+
   useEffect(() => {
     const stop = openSightingStream({
       onSighting: applyStreamed,
       onDeleted: applyDeleted,
+      onUpdated: applyUpdated,
       onResync: reload,
       onStatus: setLive,
       onAuthError: () => {
@@ -124,7 +160,7 @@ export function DataProvider({ children, onAuthError }) {
       },
     });
     return stop;
-  }, [applyStreamed, applyDeleted, reload, onAuthError]);
+  }, [applyStreamed, applyDeleted, applyUpdated, reload, onAuthError]);
 
   // Shallow-merge fields into the loaded dataset (e.g. after Settings saves the
   // current user), so dependent UI like the sidebar updates without a refetch.
@@ -134,7 +170,7 @@ export function DataProvider({ children, onAuthError }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ data, loading, error, live, reload, patch, applyDeleted }}>
+    <Ctx.Provider value={{ data, loading, error, live, reload, patch, applyDeleted, applyUpdated }}>
       {children}
     </Ctx.Provider>
   );

@@ -41,12 +41,18 @@ const BASE = {
   counts: [], heatmap: [], dashboard: { today_sightings: 2 }, devices: [],
 };
 
+// The context value, for tests that call applyUpdated the way the detail view does.
+const useDataHandle = { current: null };
+
 function Probe() {
-  const { data, live } = useData();
+  const ctx = useData();
+  useDataHandle.current = ctx;
+  const { data, live } = ctx;
   if (!data) return <div>no-data</div>;
   return (
     <div>
       <div data-testid="ids">{data.SIGHTINGS.map((s) => s.id).join(",")}</div>
+      <div data-testid="species">{data.SIGHTINGS.map((s) => s.species_id).join(",")}</div>
       <div data-testid="today">{data.dashboard.today_sightings}</div>
       <div data-testid="live">{String(live)}</div>
     </div>
@@ -157,6 +163,50 @@ describe("streamed sightings", () => {
 
     expect(screen.getByTestId("ids")).toHaveTextContent("3,2");
     expect(fetchAggregates).not.toHaveBeenCalled();
+  });
+
+  it("swaps in a corrected sighting and refreshes the aggregates once", async () => {
+    fetchAggregates.mockResolvedValue({ dashboard: { today_sightings: 9 } });
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId("species")).toHaveTextContent("1,1"));
+    fetchRaw.mockClear();
+
+    const row = { ...BASE.sightings[0], species_id: 1, corrected_at: "2026-10-30T18:00:00+00:00" };
+    await useDataHandle.current.applyUpdated(row);
+    // The tab that corrected it hears it again on the stream.
+    await handlers.onUpdated(row);
+
+    await waitFor(() => expect(screen.getByTestId("today")).toHaveTextContent("9"));
+    expect(fetchAggregates).toHaveBeenCalledTimes(1);
+    expect(fetchAggregates).toHaveBeenCalledWith();
+    expect(fetchRaw).not.toHaveBeenCalled();
+  });
+
+  it("loads the species first when the correction names a new one", async () => {
+    fetchAggregates.mockResolvedValue({ species: [{ id: 1 }, { id: 5 }] });
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId("species")).toHaveTextContent("1,1"));
+
+    await handlers.onUpdated({
+      ...BASE.sightings[1], species_id: 5, corrected_at: "2026-10-30T18:00:00+00:00",
+    });
+
+    await waitFor(() => expect(screen.getByTestId("species")).toHaveTextContent("1,5"));
+    expect(fetchAggregates).toHaveBeenCalledWith({ withSpecies: true });
+  });
+
+  it("refreshes the counts for a corrected sighting outside the loaded window", async () => {
+    fetchAggregates.mockResolvedValue({ dashboard: { today_sightings: 4 } });
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId("ids")).toHaveTextContent("3,2"));
+
+    await handlers.onUpdated({
+      id: 1, species_id: 1, datetime: "2026-07-01T09:00:00+00:00",
+      corrected_at: "2026-10-30T18:00:00+00:00",
+    });
+
+    await waitFor(() => expect(screen.getByTestId("today")).toHaveTextContent("4"));
+    expect(screen.getByTestId("ids")).toHaveTextContent("3,2");
   });
 
   it("does a full reload on resync", async () => {

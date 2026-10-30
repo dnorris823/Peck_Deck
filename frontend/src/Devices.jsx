@@ -123,7 +123,8 @@ function DeviceListCard({ d, latest, onClick }) {
       <div className="station-shot">
         {latest ? (
           <>
-            <SightingImage sighting={latest} />
+            {/* large: the card is 300 px wide or more, past what a thumbnail covers. */}
+            <SightingImage sighting={latest} large />
             <span className="tile-badge tile-badge-l">Last capture · {fmtRelative(latest.datetime)}</span>
           </>
         ) : (

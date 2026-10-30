@@ -60,9 +60,19 @@ describe("SightingImage", () => {
     await waitFor(() =>
       expect(screen.getByRole("img", { name: "Photo of Blue Jay" })).toBeInTheDocument()
     );
-    expect(apiObjectUrl).toHaveBeenCalledWith("/sightings/42/image");
+    expect(apiObjectUrl).toHaveBeenCalledWith("/sightings/42/image?size=thumb");
     expect(screen.getByRole("img", { name: "Photo of Blue Jay" }))
       .toHaveAttribute("src", "blob:photo");
+  });
+
+  it("fetches the full capture only for a large image", async () => {
+    apiObjectUrl.mockResolvedValue("blob:photo");
+    render(<SightingImage sighting={sighting(true)} large />);
+
+    observers[0].enter();
+
+    await waitFor(() => expect(apiObjectUrl).toHaveBeenCalledWith("/sightings/42/image"));
+    expect(apiObjectUrl).toHaveBeenCalledTimes(1);
   });
 
   it("never observes or fetches for a sighting with no stored image", () => {
@@ -104,6 +114,6 @@ describe("SightingImage", () => {
     render(<SightingImage sighting={sighting(true)} />);
 
     // Degraded, but never blank.
-    await waitFor(() => expect(apiObjectUrl).toHaveBeenCalledWith("/sightings/42/image"));
+    await waitFor(() => expect(apiObjectUrl).toHaveBeenCalledWith("/sightings/42/image?size=thumb"));
   });
 });

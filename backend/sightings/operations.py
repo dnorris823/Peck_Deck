@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
 
@@ -11,6 +11,8 @@ from ..species.operations import get_or_create_species
 # itself, and the bytes stay there. A page of 100 rows would
 # otherwise read about 30 MB of JPEGs to fill a bool. raiseload makes a later
 # touch of `image_data` raise, instead of quietly loading it one row at a time.
+# `thumbnail_data` needs no option here. The model defers it with raiseload for
+# every query.
 HAS_IMAGE = Sighting.image_data.is_not(None).label("has_image")
 SKIP_IMAGE = defer(Sighting.image_data, raiseload=True)
 
@@ -62,6 +64,25 @@ async def get_sighting(db: AsyncSession, sighting_id: int) -> Sighting | None:
     return result.scalar_one_or_none()
 
 
+async def get_image_bytes(db: AsyncSession, sighting_id: int, *, thumb: bool) -> tuple[bytes, bool] | None:
+    """A sighting's image bytes, and whether they are the thumbnail.
+
+    With ``thumb`` it returns the thumbnail, or the full image for a row with no
+    thumbnail. ``None`` means no such sighting, or a sighting with no image.
+    """
+    if thumb:
+        query = select(
+            func.coalesce(Sighting.thumbnail_data, Sighting.image_data),
+            Sighting.thumbnail_data.is_not(None),
+        )
+    else:
+        query = select(Sighting.image_data)
+    row = (await db.execute(query.where(Sighting.id == sighting_id))).one_or_none()
+    if row is None or row[0] is None:
+        return None
+    return row[0], thumb and bool(row[1])
+
+
 async def create_sighting(
     db: AsyncSession,
     *,
@@ -74,6 +95,7 @@ async def create_sighting(
     image_data: bytes | None,
     delayed: bool,
     tier_trace: list[dict] | None = None,
+    thumbnail_data: bytes | None = None,
 ) -> Sighting:
     parts = scientific_name.strip().split()
     genus = parts[0] if parts else common_name
@@ -92,6 +114,7 @@ async def create_sighting(
         device_id=device_id,
         datetime=dt,
         image_data=image_data,
+        thumbnail_data=thumbnail_data,
         classification_tier_used=classification_tier_used,
         confidence_score=confidence_score,
         delayed=delayed,
@@ -114,6 +137,42 @@ async def get_sighting_device(db: AsyncSession, sighting_id: int) -> tuple[int, 
     )
     row = result.one_or_none()
     return (row.device_id, row.owner_id) if row else None
+
+
+async def user_can_access_device(
+    db: AsyncSession, user_id: int, role: str, device_id: int, owner_id: int
+) -> bool:
+    """The device owner, a member of the device, or any owner-role user."""
+    if role == "owner" or owner_id == user_id:
+        return True
+    result = await db.execute(
+        select(DeviceUser.device_id).where(
+            DeviceUser.device_id == device_id, DeviceUser.user_id == user_id
+        )
+    )
+    return result.scalar_one_or_none() is not None
+
+
+async def correct_species(
+    db: AsyncSession, sighting_id: int, *, species_id: int, user_id: int
+) -> tuple[Sighting, bool]:
+    """Set a person's species on a sighting, with its ``has_image`` flag.
+
+    Keeps the Pi's tier, confidence and trace. The first correction moves the
+    Pi's species to ``original_species_id``, and a later one leaves it there,
+    so the tier's answer survives any number of corrections.
+    """
+    result = await db.execute(
+        select(Sighting, HAS_IMAGE).options(SKIP_IMAGE).where(Sighting.id == sighting_id)
+    )
+    sighting, has_image = result.one()
+    if sighting.original_species_id is None:
+        sighting.original_species_id = sighting.species_id
+    sighting.species_id = species_id
+    sighting.corrected_by = user_id
+    sighting.corrected_at = datetime.now(timezone.utc)
+    await db.flush()
+    return sighting, bool(has_image)
 
 
 async def delete_sighting(db: AsyncSession, sighting_id: int) -> None:

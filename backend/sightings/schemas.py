@@ -37,6 +37,18 @@ class SightingResponse:
     has_image: bool
     # In chain order. Null for sightings from before the Pi sent a trace.
     tier_trace: list[TierAttempt] | None
+    # Set once a person corrects the species. `species_id` is then their
+    # answer, and `original_species_id` is the one the tier above named.
+    original_species_id: int | None = None
+    corrected_by: int | None = None
+    corrected_at: str | None = None
+
+
+@dataclass
+class CorrectSpecies:
+    """Body of ``PATCH /sightings/{id}``."""
+
+    species_id: int
 
 
 def sighting_response(s, has_image: bool | None = None) -> SightingResponse:
@@ -66,6 +78,9 @@ def sighting_response(s, has_image: bool | None = None) -> SightingResponse:
         tier_trace=(
             [TierAttempt(**a) for a in s.tier_trace] if s.tier_trace is not None else None
         ),
+        original_species_id=s.original_species_id,
+        corrected_by=s.corrected_by,
+        corrected_at=s.corrected_at.isoformat() if s.corrected_at else None,
     )
 
 
