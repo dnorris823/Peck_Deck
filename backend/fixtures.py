@@ -21,7 +21,9 @@ primary keys the dataset produced. Device auth tokens are stable strings
 (``dev1-token`` …) so tests can authenticate without a round-trip.
 """
 import json
-from datetime import datetime, timedelta, timezone
+import secrets
+from datetime import datetime, time, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -115,3 +117,52 @@ async def seed_reference_data(db: AsyncSession) -> dict:
         "dev1_id": dev1.id, "dev2_id": dev2.id, "dev3_id": dev3.id,
         "spA_id": spA.id, "spB_id": spB.id, "spC_id": spC.id,
     }
+
+
+# The zone the local-hour fixture lives in.
+HOUR_STATION_TZ = "America/Los_Angeles"
+
+
+async def seed_hour_station(db: AsyncSession, species_ids: tuple[int, int]) -> dict:
+    """A throwaway user and device with visits at known local times.
+
+    The visits are at fixed Los Angeles wall-clock times, so the local-hour
+    stats can be asserted exactly. A 19:05 visit in Los Angeles is hour 2 or 3
+    in UTC, which is the bug the local-hour routes exist to avoid. Nobody else
+    can see this device, so the seeded owner's exact counts still hold.
+
+    ``species_ids`` is ``(a, b)``. Species a gets four visits, one of them 60
+    days ago. Species b gets one. The caller owns the transaction.
+    """
+    zone = ZoneInfo(HOUR_STATION_TZ)
+    today = datetime.now(zone).date()
+
+    def local(days_ago: int, hh: int, mm: int) -> datetime:
+        wall = datetime.combine(today - timedelta(days=days_ago), time(hh, mm), tzinfo=zone)
+        # UTC on the way in: SQLite drops the offset and the reader assumes UTC.
+        return wall.astimezone(timezone.utc)
+
+    user = User(
+        name="Hour Station", email=f"hours_{secrets.token_hex(4)}@test.dev",
+        password_hash="x", role="viewer", notify_email=False,
+    )
+    db.add(user)
+    await db.flush()
+    device = Device(name="Hour Device", owner_id=user.id, token=secrets.token_urlsafe(12))
+    db.add(device)
+    await db.flush()
+
+    sp_a, sp_b = species_ids
+    visits = {
+        "a_evening_1": (sp_a, local(2, 19, 5)),
+        "a_evening_2": (sp_a, local(3, 19, 40)),
+        "a_morning": (sp_a, local(4, 8, 10)),
+        "a_old": (sp_a, local(60, 12, 0)),     # outside the 30-day window
+        "b_dawn": (sp_b, local(1, 6, 30)),
+    }
+    for sp_id, when in visits.values():
+        db.add(Sighting(species_id=sp_id, device_id=device.id, datetime=when,
+                        confidence_score=0.9, classification_tier_used="gpu", delayed=False))
+    await db.flush()
+    return {"user_id": user.id, "device_id": device.id,
+            **{name: when for name, (_sp, when) in visits.items()}}

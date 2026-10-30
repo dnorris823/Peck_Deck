@@ -316,6 +316,54 @@
         "title": "DeviceTokenResponse",
         "type": "object"
       },
+      "HourStatsResponse": {
+        "properties": {
+          "counts": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "earliest": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latest": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "peak_hours": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "total": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "counts",
+          "earliest",
+          "latest",
+          "peak_hours",
+          "total"
+        ],
+        "title": "HourStatsResponse",
+        "type": "object"
+      },
       "LoginRequest": {
         "properties": {
           "email": {
@@ -716,6 +764,16 @@
           "id": {
             "type": "integer"
           },
+          "last_seen": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "note": {
             "oneOf": [
               {
@@ -741,6 +799,19 @@
               "type": "string"
             },
             "type": "array"
+          },
+          "peak_hours": {
+            "oneOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "silhouette": {
             "oneOf": [
@@ -772,6 +843,7 @@
           "first_seen",
           "genus",
           "id",
+          "last_seen",
           "note",
           "order_name",
           "palette",
@@ -2850,10 +2922,132 @@
         "summary": "Heatmap"
       }
     },
+    "/stats/hours": {
+      "get": {
+        "deprecated": false,
+        "operationId": "StatsHoursHours",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "species_id",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "days",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "UTC",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HourStatsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "summary": "Hours"
+      }
+    },
     "/stats/species-counts": {
       "get": {
         "deprecated": false,
         "operationId": "StatsSpeciesCountsSpeciesCounts",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -2868,6 +3062,44 @@
             },
             "description": "Request fulfilled, document follows",
             "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
           }
         },
         "summary": "SpeciesCounts"

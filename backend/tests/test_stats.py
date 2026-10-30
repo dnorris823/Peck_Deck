@@ -19,6 +19,8 @@ def test_species_counts_owner_ordering(client, owner_headers):
     assert rows[0]["count"] == 4
     assert rows[1]["count"] == 2
     assert rows[0]["first_seen"] is not None
+    assert rows[0]["last_seen"] is not None
+    assert rows[0]["peak_hours"] is None       # no tz sent
     # Test Wren has no sightings and must not appear
     assert "Test Wren" not in [r["common_name"] for r in rows]
 
