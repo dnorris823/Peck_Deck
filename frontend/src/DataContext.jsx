@@ -8,7 +8,7 @@
 import React, {
   createContext, useCallback, useContext, useEffect, useRef, useState,
 } from "react";
-import { applySighting, fetchAggregates, fetchRaw, mapAll } from "./data.js";
+import { applySighting, fetchAggregates, fetchRaw, mapAll, removeSighting } from "./data.js";
 import { openSightingStream } from "./events.js";
 
 const Ctx = createContext(null);
@@ -92,9 +92,28 @@ export function DataProvider({ children, onAuthError }) {
     }
   }, [commit]);
 
+  // Drop a deleted sighting. The tab that deleted it calls this itself, so it
+  // updates with the stream down. Every other tab gets it from the stream.
+  const applyDeleted = useCallback(async (id) => {
+    const raw = rawRef.current;
+    if (!raw) return;
+
+    const sightings = removeSighting(raw.sightings, id);
+    if (sightings === raw.sightings) return; // not held, or already dropped
+
+    commit({ ...raw, sightings });
+
+    try {
+      commit({ ...rawRef.current, ...(await fetchAggregates()) });
+    } catch {
+      // As for a new sighting: the feed is right, the counts catch up later.
+    }
+  }, [commit]);
+
   useEffect(() => {
     const stop = openSightingStream({
       onSighting: applyStreamed,
+      onDeleted: applyDeleted,
       onResync: reload,
       onStatus: setLive,
       onAuthError: () => {
@@ -105,7 +124,7 @@ export function DataProvider({ children, onAuthError }) {
       },
     });
     return stop;
-  }, [applyStreamed, reload, onAuthError]);
+  }, [applyStreamed, applyDeleted, reload, onAuthError]);
 
   // Shallow-merge fields into the loaded dataset (e.g. after Settings saves the
   // current user), so dependent UI like the sidebar updates without a refetch.
@@ -115,7 +134,7 @@ export function DataProvider({ children, onAuthError }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ data, loading, error, live, reload, patch }}>
+    <Ctx.Provider value={{ data, loading, error, live, reload, patch, applyDeleted }}>
       {children}
     </Ctx.Provider>
   );

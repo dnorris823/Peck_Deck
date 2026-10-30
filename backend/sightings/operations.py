@@ -1,10 +1,18 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
 
 from ..database.models import Device, DeviceUser, Sighting
 from ..species.operations import get_or_create_species
+
+# The list and export queries use both. The database answers "has an image?"
+# itself, and the bytes stay there. A page of 100 rows would
+# otherwise read about 30 MB of JPEGs to fill a bool. raiseload makes a later
+# touch of `image_data` raise, instead of quietly loading it one row at a time.
+HAS_IMAGE = Sighting.image_data.is_not(None).label("has_image")
+SKIP_IMAGE = defer(Sighting.image_data, raiseload=True)
 
 
 async def _accessible_device_ids(db: AsyncSession, user_id: int) -> list[int]:
@@ -26,9 +34,14 @@ async def list_sightings(
     to_date: datetime | None,
     limit: int,
     offset: int,
-) -> list[Sighting]:
+) -> list[tuple[Sighting, bool]]:
+    """Sightings this user may see, each paired with its ``has_image`` flag."""
     accessible = await _accessible_device_ids(db, user_id)
-    query = select(Sighting).where(Sighting.device_id.in_(accessible))
+    query = (
+        select(Sighting, HAS_IMAGE)
+        .options(SKIP_IMAGE)
+        .where(Sighting.device_id.in_(accessible))
+    )
 
     if device_id is not None:
         query = query.where(Sighting.device_id == device_id)
@@ -41,7 +54,7 @@ async def list_sightings(
 
     query = query.order_by(Sighting.datetime.desc()).limit(limit).offset(offset)
     result = await db.execute(query)
-    return list(result.scalars().all())
+    return [(sighting, bool(has_image)) for sighting, has_image in result.all()]
 
 
 async def get_sighting(db: AsyncSession, sighting_id: int) -> Sighting | None:
@@ -87,3 +100,22 @@ async def create_sighting(
     db.add(sighting)
     await db.flush()
     return sighting
+
+
+async def get_sighting_device(db: AsyncSession, sighting_id: int) -> tuple[int, int] | None:
+    """``(device_id, device owner_id)`` for a sighting, or ``None``.
+
+    Selects two ints rather than the row, so a delete never reads the image.
+    """
+    result = await db.execute(
+        select(Sighting.device_id, Device.owner_id)
+        .join(Device, Sighting.device_id == Device.id)
+        .where(Sighting.id == sighting_id)
+    )
+    row = result.one_or_none()
+    return (row.device_id, row.owner_id) if row else None
+
+
+async def delete_sighting(db: AsyncSession, sighting_id: int) -> None:
+    # The image is the row's `image_data` column, so it goes with the row.
+    await db.execute(delete(Sighting).where(Sighting.id == sighting_id))

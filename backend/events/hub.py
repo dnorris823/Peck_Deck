@@ -61,6 +61,18 @@ class SightingEvent:
     payload: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class SightingDeleted:
+    """One sighting removed by ``DELETE /sightings/{id}``.
+
+    Carries no payload. The client only needs the id to drop the row, and
+    ``device_id`` to scope it like any other event.
+    """
+
+    sighting_id: int
+    device_id: int
+
+
 class SightingHub:
     def __init__(self) -> None:
         self._subscribers: set[asyncio.Queue] = set()
@@ -69,7 +81,7 @@ class SightingHub:
     def subscriber_count(self) -> int:
         return len(self._subscribers)
 
-    def publish(self, event: SightingEvent) -> None:
+    def publish(self, event: SightingEvent | SightingDeleted) -> None:
         """Hand an event to every open stream. Never blocks, never raises."""
         for queue in list(self._subscribers):
             try:

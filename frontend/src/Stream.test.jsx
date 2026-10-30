@@ -134,6 +134,31 @@ describe("streamed sightings", () => {
     expect(fetchAggregates).not.toHaveBeenCalled();
   });
 
+  it("drops a deleted sighting and refreshes the aggregates, without a full load", async () => {
+    fetchAggregates.mockResolvedValue({ dashboard: { today_sightings: 1 } });
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId("ids")).toHaveTextContent("3,2"));
+
+    fetchRaw.mockClear();
+    await handlers.onDeleted(3);
+
+    await waitFor(() => expect(screen.getByTestId("ids")).toHaveTextContent(/^2$/));
+    await waitFor(() => expect(screen.getByTestId("today")).toHaveTextContent("1"));
+    expect(fetchRaw).not.toHaveBeenCalled();
+  });
+
+  it("ignores a delete for a sighting it doesn't hold", async () => {
+    // The deleting tab drops the row itself, so its own stream event finds
+    // nothing. That must not cost a second aggregate refetch.
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId("ids")).toHaveTextContent("3,2"));
+
+    await handlers.onDeleted(99);
+
+    expect(screen.getByTestId("ids")).toHaveTextContent("3,2");
+    expect(fetchAggregates).not.toHaveBeenCalled();
+  });
+
   it("does a full reload on resync", async () => {
     renderProvider();
     await waitFor(() => expect(screen.getByTestId("ids")).toHaveTextContent("3,2"));

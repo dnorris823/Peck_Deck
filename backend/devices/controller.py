@@ -22,7 +22,9 @@ from .schemas import (
     AddDeviceUser,
     DeviceHeartbeat,
     DeviceResponse,
+    DeviceTokenResponse,
     RegisterDevice,
+    RegisteredDeviceResponse,
     UpdateDevice,
 )
 
@@ -54,7 +56,6 @@ async def _to_response(db: AsyncSession, device) -> DeviceResponse:
         state=device.state,
         owner_id=device.owner_id,
         feed_type=device.feed_type,
-        token=device.token,
         battery=device.battery,
         signal=device.signal,
         last_seen=device.last_seen.isoformat() if device.last_seen else None,
@@ -84,7 +85,7 @@ class DeviceController(Controller):
     @post("/", guards=[user_guard], status_code=201)
     async def register(
         self, data: RegisterDevice, request: Request, db: NamedDependency[AsyncSession]
-    ) -> DeviceResponse:
+    ) -> RegisteredDeviceResponse:
         device = await create_device(
             db,
             name=data.name,
@@ -93,7 +94,20 @@ class DeviceController(Controller):
             owner_id=request.state.user_id,
             feed_type=data.feed_type,
         )
-        return await _to_response(db, device)
+        response = await _to_response(db, device)
+        return RegisteredDeviceResponse(**vars(response), token=device.token)
+
+    @get("/{device_id:int}/token", guards=[user_guard])
+    async def get_token(
+        self, device_id: FromPath[int], request: Request, db: NamedDependency[AsyncSession]
+    ) -> DeviceTokenResponse:
+        # Owner only. A viewer on the device sees its sightings but must not be
+        # able to act as the feeder. scripts/provision_device.py reads this.
+        device = await get_device(db, device_id)
+        if device is None:
+            raise NotFoundException()
+        _assert_owner(request, device)
+        return DeviceTokenResponse(id=device.id, token=device.token)
 
     @put("/{device_id:int}", guards=[user_guard])
     async def update(

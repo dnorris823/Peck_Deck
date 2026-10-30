@@ -39,14 +39,20 @@ class SightingResponse:
     tier_trace: list[TierAttempt] | None
 
 
-def sighting_response(s) -> SightingResponse:
+def sighting_response(s, has_image: bool | None = None) -> SightingResponse:
     """Serialize a ``Sighting`` row for the wire.
 
     Shared by ``GET /sightings`` and the ``GET /events`` stream on purpose: a
     streamed sighting has to be indistinguishable from a fetched one, because
     the web app maps both through the same function and prepends the streamed
     one straight into the list it got from the fetch.
+
+    A query that deferred ``image_data`` passes ``has_image``, the flag it
+    selected next to the row. Leave it out only when the image is already in
+    memory, such as a sighting that was just created.
     """
+    if has_image is None:
+        has_image = s.image_data is not None
     return SightingResponse(
         id=s.id,
         species_id=s.species_id,
@@ -56,7 +62,7 @@ def sighting_response(s) -> SightingResponse:
         confidence_score=s.confidence_score,
         weather_conditions=s.weather_conditions,
         delayed=s.delayed,
-        has_image=s.image_data is not None,
+        has_image=has_image,
         tier_trace=(
             [TierAttempt(**a) for a in s.tier_trace] if s.tier_trace is not None else None
         ),

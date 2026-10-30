@@ -135,6 +135,21 @@ describe("openSightingStream", () => {
     expect(onResync).toHaveBeenCalledTimes(1);
   });
 
+  it("delivers a deleted sighting's id", async () => {
+    const { res, push } = streamingResponse();
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(res));
+    const onSighting = vi.fn();
+    const onDeleted = vi.fn();
+
+    stop = openSightingStream({ onSighting, onDeleted, onResync: vi.fn() });
+    await flush();
+    push('event: sighting_deleted\r\ndata: {"id":7}\r\n\r\n');
+    await flush();
+
+    expect(onDeleted).toHaveBeenCalledWith(7);
+    expect(onSighting).not.toHaveBeenCalled();
+  });
+
   it("passes a server resync straight through", async () => {
     const { res, push } = streamingResponse();
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(res));
