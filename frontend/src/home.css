@@ -90,6 +90,7 @@
 .home-under { display: grid; gap: 0 28px; margin-top: 18px; }
 .home-status { margin: 0; font-size: 15px; line-height: 1.4; color: var(--mu); }
 .home-status b { color: var(--fg); font-weight: 700; }
+.home-status-warn { color: var(--warn); font-weight: 600; }
 
 .home-sec-head {
   display: flex;

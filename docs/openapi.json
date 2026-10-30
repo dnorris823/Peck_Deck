@@ -287,6 +287,9 @@
           "status": {
             "type": "string"
           },
+          "tier_mix": {
+            "$ref": "#/components/schemas/TierMix"
+          },
           "today_sightings": {
             "type": "integer"
           },
@@ -306,6 +309,7 @@
           "signal",
           "state",
           "status",
+          "tier_mix",
           "today_sightings",
           "week_sightings"
         ],
@@ -590,6 +594,9 @@
           "status": {
             "type": "string"
           },
+          "tier_mix": {
+            "$ref": "#/components/schemas/TierMix"
+          },
           "today_sightings": {
             "type": "integer"
           },
@@ -612,6 +619,7 @@
           "signal",
           "state",
           "status",
+          "tier_mix",
           "today_sightings",
           "token",
           "week_sightings"
@@ -1083,6 +1091,46 @@
           "tier"
         ],
         "title": "TierAttempt",
+        "type": "object"
+      },
+      "TierMix": {
+        "properties": {
+          "cloud": {
+            "type": "integer"
+          },
+          "gpu": {
+            "type": "integer"
+          },
+          "local": {
+            "type": "integer"
+          },
+          "none": {
+            "type": "integer"
+          },
+          "tier2_asked": {
+            "type": "integer"
+          },
+          "tier2_missed": {
+            "type": "integer"
+          },
+          "tier2_warning": {
+            "type": "boolean"
+          },
+          "window_hours": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cloud",
+          "gpu",
+          "local",
+          "none",
+          "tier2_asked",
+          "tier2_missed",
+          "tier2_warning",
+          "window_hours"
+        ],
+        "title": "TierMix",
         "type": "object"
       },
       "TokenResponse": {

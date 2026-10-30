@@ -51,6 +51,18 @@ describe("Home", () => {
       .toHaveTextContent("3 visits today, mostly House Finch.");
   });
 
+  it("says so in one plain sentence when a feeder's Tier 2 stops answering", () => {
+    const { unmount } = renderHome(today);
+    expect(screen.queryByText(/gaming PC/)).toBeNull();
+    unmount();
+    const down = { ...MAPLE, id: 2, name: "Porch", tierMix: { tier2Down: true } };
+    renderHome(today, { devices: [MAPLE, down] });
+    const status = screen.getByText("Quiet for 11 minutes.").parentElement;
+    expect(status).toHaveTextContent(
+      "The gaming PC has stopped naming birds, so names may be rougher until it is back.");
+    expect(status).not.toHaveTextContent(/GPU|Tier|\d+ of/);
+  });
+
   it("opens the hero and earlier visits through openSighting", () => {
     const { openSighting } = renderHome(today);
     fireEvent.click(screen.getByRole("button", { name: "Open the House Finch visit" }));

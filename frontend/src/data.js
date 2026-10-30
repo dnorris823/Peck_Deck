@@ -64,6 +64,19 @@ function mapDevice(d) {
     weekSightings: d.week_sightings,
     allTime: d.all_time_sightings,
     ownerId: d.owner_id,
+    tierMix: d.tier_mix ? mapTierMix(d.tier_mix) : null,
+  };
+}
+
+// Which tier named the feeder's recent captures. `tier2Down` means Tier 2 has
+// stopped answering; the backend decides that from each sighting's trace.
+function mapTierMix(m) {
+  return {
+    hours: m.window_hours,
+    counts: { gpu: m.gpu, local: m.local, cloud: m.cloud, none: m.none },
+    tier2Asked: m.tier2_asked,
+    tier2Missed: m.tier2_missed,
+    tier2Down: m.tier2_warning,
   };
 }
 

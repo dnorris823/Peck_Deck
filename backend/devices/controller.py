@@ -14,6 +14,7 @@ from .operations import (
     get_device,
     get_devices_for_user,
     get_sighting_counts,
+    get_tier_mix,
     remove_device_user,
     update_device,
     update_device_telemetry,
@@ -25,6 +26,7 @@ from .schemas import (
     DeviceTokenResponse,
     RegisterDevice,
     RegisteredDeviceResponse,
+    TierMix,
     UpdateDevice,
 )
 
@@ -63,6 +65,7 @@ async def _to_response(db: AsyncSession, device) -> DeviceResponse:
         today_sightings=counts["today"],
         week_sightings=counts["week"],
         all_time_sightings=counts["all_time"],
+        tier_mix=TierMix(**await get_tier_mix(db, device.id)),
     )
 
 

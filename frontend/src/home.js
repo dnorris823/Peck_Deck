@@ -50,12 +50,20 @@ export function isUnknown(species) {
   return !species || species.common.trim().toLowerCase() === "unknown";
 }
 
+// Home's one sentence for a feeder whose Tier 2 stopped answering. No counts and
+// no tier names: the Feeders page has those.
+export const TIER2_DOWN = "The gaming PC has stopped naming birds, so names may be rougher until it is back.";
+
 /**
- * The status line under the hero, as two parts: the bold quiet span and the
- * day's count. `capped` means every loaded sighting is from today, so the true
- * count may be higher than the list holds.
+ * The status line under the hero: the bold quiet span, the day's count, and a
+ * warning that is null unless `tier2Down`. `capped` means every loaded sighting
+ * is from today, so the true count may be higher than the list holds.
  */
-export function statusLine(latest, today, { now = new Date(), capped = false } = {}) {
+export function statusLine(latest, today, { now = new Date(), capped = false, tier2Down = false } = {}) {
+  return { ...dayLine(latest, today, now, capped), warning: tier2Down ? TIER2_DOWN : null };
+}
+
+function dayLine(latest, today, now, capped) {
   if (today.length === 0) return { quiet: null, count: "No visits yet today." };
 
   const quiet = now - latest.datetime < MINUTE
