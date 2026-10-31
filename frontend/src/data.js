@@ -107,6 +107,9 @@ export function mapSighting(s, speciesById, devicesById) {
     hasVideo: false, // no video pipeline yet — kept for the tile's clip badge
     // True when the Pi's offline queue sent it after the fact.
     delayed: !!s.delayed,
+    // Such as "4 °C, light snow", from Open-Meteo a moment after the upload.
+    // Null until then, and for a device with no city.
+    weather: s.weather_conditions || null,
     // What each tier did, in chain order. Null for sightings from before the Pi
     // sent a trace.
     tierTrace: Array.isArray(s.tier_trace) ? s.tier_trace : null,

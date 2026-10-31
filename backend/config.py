@@ -61,6 +61,11 @@ class Settings:
         os.getenv("NOTIFICATION_MIN_INTERVAL_SECONDS", "60")
     )
 
+    # ── Weather on sightings ──────────────────────────────────────────────────
+    # Looks up the weather at the device's city from Open-Meteo after each
+    # upload. "false" turns it off, such as on a backend with no internet.
+    WEATHER_ENABLED: bool = os.getenv("WEATHER_ENABLED", "true").lower() == "true"
+
     # ── Web push (FLEDGE Phase 7) ─────────────────────────────────────────────
     # VAPID identifies *this server* to the browser's push service (RFC 8292).
     # The private key is base64url-encoded raw 32 bytes (what `web-push

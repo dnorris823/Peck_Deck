@@ -36,8 +36,9 @@ export function DataProvider({ children, onAuthError }) {
   // was the last word until the next reload, but a streamed sighting now
   // re-maps the whole dataset and would otherwise revert them mid-session.
   const overridesRef = useRef({});
-  // Versions of updated sightings already applied, as "id@corrected_at". The
-  // tab that made a change applies it itself, then hears it again on the stream.
+  // Versions of updated sightings already applied, as
+  // "id@corrected_at@weather". The tab that made a change applies it itself,
+  // then hears it again on the stream.
   const appliedRef = useRef(new Set());
 
   const commit = useCallback((raw) => {
@@ -121,9 +122,18 @@ export function DataProvider({ children, onAuthError }) {
   const applyUpdated = useCallback(async (sighting) => {
     const raw = rawRef.current;
     if (!raw) return;
-    const version = `${sighting.id}@${sighting.corrected_at}`;
+    const version = `${sighting.id}@${sighting.corrected_at}@${sighting.weather_conditions}`;
     if (appliedRef.current.has(version)) return;
     appliedRef.current.add(version);
+
+    // No new correction, such as the weather landing after the upload. No
+    // count moves, so there is nothing to refetch.
+    const prior = raw.sightings.find((s) => s.id === sighting.id);
+    if (prior && prior.species_id === sighting.species_id
+      && prior.corrected_at === sighting.corrected_at) {
+      commit({ ...raw, sightings: replaceSighting(raw.sightings, sighting) });
+      return;
+    }
     forgetSpeciesHours();
 
     const known = raw.species.some((s) => s.id === sighting.species_id);

@@ -32,6 +32,7 @@ from .operations import (
 )
 from .schemas import CorrectSpecies, SightingResponse, parse_tier_trace, sighting_response
 from .thumbnails import make_thumbnail
+from .weather import schedule_weather
 
 logger = logging.getLogger("peckdeck.sightings")
 
@@ -157,7 +158,7 @@ class SightingController(Controller):
         data: Annotated[SightingUploadForm, Body(media_type=RequestEncodingType.MULTI_PART)],
         request: Request,
         db: NamedDependency[AsyncSession],
-    ) -> SightingResponse:
+    ) -> Response[SightingResponse]:
         image_bytes = await data.image.read()
         # Off the event loop, since a decode takes tens of milliseconds. It
         # returns None rather than raise, so a bad image never fails the upload.
@@ -188,7 +189,14 @@ class SightingController(Controller):
         # Notifications, species enrichment and the live stream.
         await schedule_aftercare(db, sighting)
 
-        return _to_response(sighting)
+        # The weather lookup goes to Open-Meteo, so it starts after the
+        # response, once the row has committed. A slow or failed lookup then
+        # cannot delay or fail the upload.
+        return Response(
+            content=_to_response(sighting),
+            status_code=201,
+            background=BackgroundTask(schedule_weather, sighting.id),
+        )
 
     @get("/{sighting_id:int}", guards=[user_guard])
     async def get_one(self, sighting_id: FromPath[int], db: NamedDependency[AsyncSession]) -> SightingResponse:

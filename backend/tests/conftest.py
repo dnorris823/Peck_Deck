@@ -23,6 +23,9 @@ os.environ["JWT_SECRET"] = "test-secret-key-at-least-32-bytes-long!"
 # doesn't override keys already in the environment, so "" wins.)
 os.environ["VAPID_PRIVATE_KEY"] = ""
 os.environ["VAPID_PUBLIC_KEY"] = ""
+# No Open-Meteo calls from the suite. The weather tests turn it on themselves,
+# with the network call stubbed.
+os.environ["WEATHER_ENABLED"] = "false"
 
 import asyncio  # noqa: E402
 
@@ -72,3 +75,14 @@ def owner_headers(client):  # depends on client so IDS is populated
 @pytest.fixture(scope="session")
 def viewer_headers(client):
     return _auth(create_user_token(IDS["viewer_id"], "viewer"))
+
+
+@pytest.fixture(autouse=True)
+def _no_open_meteo(monkeypatch):
+    """Fail any Open-Meteo call a test did not stub, rather than make it."""
+    from backend.sightings import weather
+
+    async def _refuse(url, params):
+        raise AssertionError(f"test tried to reach the network: {url}")
+
+    monkeypatch.setattr(weather, "_get_json", _refuse)

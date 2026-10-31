@@ -60,6 +60,8 @@ else:
     # its own throwaway keypair.)
     os.environ["VAPID_PRIVATE_KEY"] = ""
     os.environ["VAPID_PUBLIC_KEY"] = ""
+    # The seeded devices have cities, so uploads would call Open-Meteo.
+    os.environ["WEATHER_ENABLED"] = "false"
 
     import asyncio
 

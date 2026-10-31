@@ -182,6 +182,30 @@ describe("streamed sightings", () => {
     expect(fetchRaw).not.toHaveBeenCalled();
   });
 
+  it("swaps in the weather without refetching the aggregates", async () => {
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId("ids")).toHaveTextContent("3,2"));
+
+    await handlers.onUpdated({ ...BASE.sightings[0], weather_conditions: "4 °C, light snow" });
+
+    await waitFor(() => expect(useDataHandle.current.data.SIGHTINGS[0].weather_conditions)
+      .toBe("4 °C, light snow"));
+    expect(fetchAggregates).not.toHaveBeenCalled();
+  });
+
+  it("applies a correction that arrives after the weather", async () => {
+    fetchAggregates.mockResolvedValue({ dashboard: { today_sightings: 9 } });
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId("ids")).toHaveTextContent("3,2"));
+
+    const weathered = { ...BASE.sightings[0], weather_conditions: "4 °C, light snow" };
+    await handlers.onUpdated(weathered);
+    await handlers.onUpdated({ ...weathered, species_id: 1, corrected_at: "2026-10-30T18:00:00+00:00" });
+
+    await waitFor(() => expect(screen.getByTestId("today")).toHaveTextContent("9"));
+    expect(fetchAggregates).toHaveBeenCalledTimes(1);
+  });
+
   it("loads the species first when the correction names a new one", async () => {
     fetchAggregates.mockResolvedValue({ species: [{ id: 1 }, { id: 5 }] });
     renderProvider();
