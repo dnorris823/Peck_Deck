@@ -1,0 +1,163 @@
+/* === Live: the feeder's camera ===
+   The stage is 16:9 at the page's width. A phone held upright letterboxes it,
+   and the video keeps its own shape inside with object-fit: contain. The
+   overlays reuse the hero's dark glass pill from home.css. */
+
+/* On a wide, short window a full-width 16:9 stage pushes the status strip off
+   the screen. The column narrows until the stage, the dropdown and the strip
+   fit the window's height, but never below 560 px. */
+.live {
+  max-width: max(560px, calc((100dvh - var(--topbar) - 210px) * 16 / 9));
+  margin: 0 auto;
+}
+
+.live-head { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+
+/* ---------- Stage ---------- */
+.live-stage {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--stage);
+  color: #ffffff;
+}
+.live-stage[hidden] { display: none; }
+.live-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: var(--stage); }
+/* Darkens the top corners for the pills, as on the hero. */
+.live-stage::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.4) 0, transparent 26%);
+}
+.live-stage.full { border-radius: 0; }
+.live-stage:fullscreen { border-radius: 0; aspect-ratio: auto; }
+
+/* The species pill takes the hero pill's place, top left. */
+.live-bird { animation: home-in 320ms ease both; }
+
+.live-readout {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 11px;
+  border-radius: var(--r-pill);
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.live-readout-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; background: rgba(255, 255, 255, 0.55); }
+.live-readout.live .live-readout-dot { background: #ff4d4d; box-shadow: 0 0 0 3px rgba(255, 77, 77, 0.28); }
+.live-readout.reconnecting .live-readout-dot,
+.live-readout.connecting .live-readout-dot { background: var(--warn-fill); animation: live-blink 1.2s ease-in-out infinite; }
+
+.live-wait {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 24px;
+  text-align: center;
+}
+.live-wait-text { font-size: 15px; font-weight: 600; opacity: 0.88; }
+.live-wait-hint { max-width: 34ch; font-size: 13px; line-height: 1.4; opacity: 0.75; }
+
+.live-full-btn {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: var(--r-pill);
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #ffffff;
+}
+.live-full-btn svg { width: 16px; height: 16px; }
+.live-full-btn:hover { background: rgba(0, 0, 0, 0.6); }
+.live-full-btn:focus-visible { outline-color: #ffffff; }
+
+/* ---------- Status strip ---------- */
+.live-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+  margin-top: 14px;
+  font-size: 14px;
+  color: var(--mu);
+  font-variant-numeric: tabular-nums;
+}
+.live-strip-item { display: inline-flex; align-items: center; gap: 7px; }
+.live-strip b { color: var(--fg); font-weight: 700; }
+
+/* ---------- Offline panel ---------- */
+.live-offline {
+  padding: 28px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--chip);
+}
+.live-offline-icon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  background: var(--bg);
+  color: var(--mu);
+}
+.live-offline-icon svg { width: 22px; height: 22px; }
+.live-offline-title { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.15; }
+.live-offline-seen { margin: 4px 0 0; font-size: 14px; color: var(--mu); }
+.live-offline-list {
+  margin: 16px 0 18px;
+  padding-left: 18px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+.live-offline-list code {
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: var(--bg);
+  font-size: 12.5px;
+  overflow-wrap: anywhere;
+}
+
+@keyframes live-blink { 50% { opacity: 0.35; } }
+
+/* ---------- Phone: the stage goes edge to edge, as the hero does ---------- */
+@media (max-width: 720px) {
+  .live { max-width: none; }
+  .live-stage { margin: 0 -16px; border-radius: 0; }
+  .live > .live-stage:first-child { margin-top: -20px; }
+  .live-readout { top: 12px; right: 12px; }
+  .live .home-pill { top: 12px; left: 12px; max-width: calc(100% - 150px); }
+  .live-strip { font-size: 13.5px; gap: 6px 14px; }
+  .live-offline { padding: 22px 20px; }
+  .live-offline-title { font-size: 21px; }
+  .live-select { flex: 1 1 auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .live-readout-dot { animation: none !important; }
+}

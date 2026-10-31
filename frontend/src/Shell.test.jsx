@@ -1,4 +1,4 @@
-// The "Latest bird" navigation: four tabs, More for the rest, and the screen
+// The "Latest bird" navigation: five tabs, More for the rest, and the screen
 // ids an installed app may still deep-link with.
 import { describe, it, expect, vi, afterEach } from "vitest";
 import React from "react";
@@ -20,17 +20,17 @@ import { TABS, TabBar, TopBar, MoreMenu, LIVE_GRACE_MS } from "./Shell.jsx";
 import { initialRoute } from "./App.jsx";
 
 describe("navigation", () => {
-  it("has the four tabs in design order", () => {
-    expect(TABS.map(t => t.label)).toEqual(["Latest", "Species", "History", "Feeders"]);
+  it("has the five tabs in design order", () => {
+    expect(TABS.map(t => t.label)).toEqual(["Latest", "Live", "Species", "History", "Feeders"]);
   });
 
-  it("puts the four tabs and More in the phone tab bar", () => {
+  it("puts the five tabs and More in the phone tab bar", () => {
     const setRoute = vi.fn();
     const onMore = vi.fn();
     render(<TabBar route="species" setRoute={setRoute} moreOpen={false} onMore={onMore} />);
     const bar = screen.getByRole("navigation");
     const labels = within(bar).getAllByRole("button").map(b => b.textContent);
-    expect(labels).toEqual(["Latest", "Species", "History", "Feeders", "More"]);
+    expect(labels).toEqual(["Latest", "Live", "Species", "History", "Feeders", "More"]);
     expect(within(bar).getByRole("button", { name: "Species" })).toHaveAttribute("aria-current", "page");
 
     fireEvent.click(within(bar).getByRole("button", { name: "History" }));
@@ -39,11 +39,11 @@ describe("navigation", () => {
     expect(onMore).toHaveBeenCalled();
   });
 
-  it("puts the four tabs in the desktop top bar", () => {
+  it("puts the five tabs in the desktop top bar", () => {
     render(<TopBar route="latest" setRoute={() => {}} moreOpen={false} onMore={() => {}} />);
     const tabs = screen.getByRole("navigation", { name: "Primary" });
     expect(within(tabs).getAllByRole("button").map(b => b.textContent))
-      .toEqual(["Latest", "Species", "History", "Feeders"]);
+      .toEqual(["Latest", "Live", "Species", "History", "Feeders"]);
     expect(screen.getByRole("button", { name: "Refresh data" })).toBeInTheDocument();
   });
 
@@ -76,7 +76,7 @@ describe("live status", () => {
   it("shows nothing while the stream is connected", () => {
     render(topBar());
     expect(screen.getByRole("status")).toBeEmptyDOMElement();
-    expect(screen.queryByText("Live")).not.toBeInTheDocument();
+    expect(within(screen.getByRole("status")).queryByText("Live")).not.toBeInTheDocument();
   });
 
   it("shows the disconnected state once the stream has been down past the grace period", () => {
