@@ -7,7 +7,9 @@ Work through these in order — later sections depend on earlier ones.
 
 ## 1. Environment file
 
-1. Copy `.env.example` to `.env` in this directory.
+1. Copy `raspberry_pi_code/.env.example` to `raspberry_pi_code/.env`. The Pi reads that
+   file and no other. A `.env` at the repo root is ignored, and the service logs a
+   warning at start if `raspberry_pi_code/.env` is missing.
 2. Fill in `BACKEND_URL` with the gaming PC's local IP and port (e.g., `http://192.168.1.100:8000`).
 3. Leave `DEVICE_TOKEN` alone — `scripts/provision_device.py` writes it, and rewrites it
    whenever it goes stale. See §6.
@@ -147,7 +149,8 @@ Tier 1 local classification and offline queuing work without it.
 
 - Tier 2 is the main classifier. It runs on the gaming PC from `inference_server/`.
   `CONTRIBUTING.md` has the commands and the cu128 PyTorch note for the RTX 5080.
-- Set `INFERENCE_SERVER_URL` in `.env` to the gaming PC's LAN address, port 8001.
+- Set `INFERENCE_SERVER_URL` in `raspberry_pi_code/.env` to the gaming PC's LAN address,
+  port 8001.
 
 ### Tier order
 

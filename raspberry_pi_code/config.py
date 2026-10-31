@@ -5,7 +5,13 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
+# The Pi's settings live in raspberry_pi_code/.env and nowhere else. A bare
+# load_dotenv() searches upward and stops at the first .env it finds, so the
+# token-only file that provisioning writes here used to hide a root .env and
+# drop every other setting back to its default. See the issue "Provisioning
+# hides the Pi's root .env".
+ENV_PATH = Path(__file__).with_name(".env")
+load_dotenv(ENV_PATH)
 
 _ROOT = Path(__file__).parents[1]
 

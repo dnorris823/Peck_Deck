@@ -88,10 +88,8 @@ The last command must list the camera.
 
 ## 4. Write the Pi's `.env`
 
-The file is `raspberry_pi_code/.env`. Do not create a `.env` at the repo root.
-The provisioning script writes `raspberry_pi_code/.env`, and once that file
-exists, the Pi ignores the root one
-([Provisioning hides the Pi's root .env](https://github.com/dnorris823/Peck_Deck/issues/155)).
+The file is `raspberry_pi_code/.env`. The Pi service and the provisioning
+script both read that path and no other, so a `.env` at the repo root is ignored.
 
 ```bash
 cp raspberry_pi_code/.env.example raspberry_pi_code/.env

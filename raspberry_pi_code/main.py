@@ -16,7 +16,7 @@ from collections.abc import Callable
 from .api_client import BackendClient, UploadOutcome
 from .camera.base import CameraBase
 from .camera.pi_camera import PiCamera
-from .config import Config
+from .config import ENV_PATH, Config
 from .live import RTSP_PUBLISH_URL
 from .live.address import LiveUrl
 from .live.demand import LiveDemandServer
@@ -127,6 +127,13 @@ async def _run() -> None:
     logger = logging.getLogger(__name__)
 
     config = Config()
+    if not ENV_PATH.exists():
+        # Every setting is on its default, so BACKEND_URL points at an address
+        # that is probably not the gaming PC and every upload will queue.
+        logger.warning(
+            "No %s. Running on defaults. A .env anywhere else is ignored, "
+            "so move it here", ENV_PATH,
+        )
 
     # One camera for the whole run. picamera2 allows one owner per camera, and
     # the camera trigger streams from it all the time, so the trigger and the
