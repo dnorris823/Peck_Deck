@@ -26,7 +26,7 @@ from .readiness import check_readiness
 from .sightings.controller import SightingController
 from .species.controller import SpeciesController
 from .stats.controller import StatsController
-from .users.controller import UserController, login
+from .users.controller import UserController, login, logout
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -98,7 +98,8 @@ Two distinct kinds of caller, with separate credentials:
 
 * **Users** (web app) — `POST /login` returns a JWT. Send it as
   `Authorization: Bearer <jwt>`. Roles are `owner` and `viewer`; owner-only
-  routes are marked as such.
+  routes are marked as such. A JWT lasts 30 days by default. `POST /logout`
+  revokes every token the caller holds.
 * **Devices** (Raspberry Pi feeders) — authenticate with their long-lived
   device token, also sent as `Authorization: Bearer <token>`. A device token is
   **not** accepted on user routes and vice versa.
@@ -169,6 +170,7 @@ app = Litestar(
         health,
         ready,
         login,
+        logout,
         classify,
         UserController,
         DeviceController,

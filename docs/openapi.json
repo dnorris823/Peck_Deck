@@ -1344,7 +1344,7 @@
     }
   },
   "info": {
-    "description": "REST API for the Peck Deck smart bird feeder.\n\nTwo distinct kinds of caller, with separate credentials:\n\n* **Users** (web app) \u2014 `POST /login` returns a JWT. Send it as\n  `Authorization: Bearer <jwt>`. Roles are `owner` and `viewer`; owner-only\n  routes are marked as such.\n* **Devices** (Raspberry Pi feeders) \u2014 authenticate with their long-lived\n  device token, also sent as `Authorization: Bearer <token>`. A device token is\n  **not** accepted on user routes and vice versa.\n\nSighting images are stored in PostgreSQL as `bytea` and served from\n`GET /sightings/{id}/image`, which requires a user JWT.\n\n`GET /health` is liveness (never touches the database); `GET /ready` is\nreadiness (checks the database and migration state, 503 when not ready).",
+    "description": "REST API for the Peck Deck smart bird feeder.\n\nTwo distinct kinds of caller, with separate credentials:\n\n* **Users** (web app) \u2014 `POST /login` returns a JWT. Send it as\n  `Authorization: Bearer <jwt>`. Roles are `owner` and `viewer`; owner-only\n  routes are marked as such. A JWT lasts 30 days by default. `POST /logout`\n  revokes every token the caller holds.\n* **Devices** (Raspberry Pi feeders) \u2014 authenticate with their long-lived\n  device token, also sent as `Authorization: Bearer <token>`. A device token is\n  **not** accepted on user routes and vice versa.\n\nSighting images are stored in PostgreSQL as `bytea` and served from\n`GET /sightings/{id}/image`, which requires a user JWT.\n\n`GET /health` is liveness (never touches the database); `GET /ready` is\nreadiness (checks the database and migration state, 503 when not ready).",
     "title": "Peck Deck API",
     "version": "1.0.0"
   },
@@ -2310,6 +2310,19 @@
           }
         },
         "summary": "Login"
+      }
+    },
+    "/logout": {
+      "post": {
+        "deprecated": false,
+        "operationId": "LogoutLogout",
+        "responses": {
+          "204": {
+            "description": "Request fulfilled, nothing follows",
+            "headers": {}
+          }
+        },
+        "summary": "Logout"
       }
     },
     "/push/config": {

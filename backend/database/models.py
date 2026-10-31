@@ -28,6 +28,11 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
     notify_email: Mapped[bool] = mapped_column(Boolean, default=True)
     role: Mapped[str] = mapped_column(String, default="viewer")  # owner|viewer
+    # Every user JWT carries the version it was issued at. Bumping this revokes
+    # every token the user holds, so a 30-day token can still be cut off.
+    token_version: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
 
     owned_devices: Mapped[list["Device"]] = relationship(
         "Device", foreign_keys="Device.owner_id", back_populates="owner"

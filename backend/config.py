@@ -20,7 +20,10 @@ class Settings:
     # ── Auth ──────────────────────────────────────────────────────────────────
     JWT_SECRET: str = os.getenv("JWT_SECRET", "change_this_in_production")
     JWT_ALGORITHM: str = "HS256"
-    JWT_EXPIRE_HOURS: int = int(os.getenv("JWT_EXPIRE_HOURS", "24"))
+    # 30 days. The installed app opens from a push notification with no chance
+    # to sign in first, so a 24-hour token sent most taps to the login screen.
+    # Revocation goes through User.token_version, not expiry (auth/guards.py).
+    JWT_EXPIRE_HOURS: int = int(os.getenv("JWT_EXPIRE_HOURS", "720"))
 
     # ── CORS ──────────────────────────────────────────────────────────────────
     # Comma-separated origins allowed to call the API from a browser. Defaults
