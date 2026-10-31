@@ -12,7 +12,7 @@ time zone support, so the unit tests take a Python path with the same output.
 from datetime import datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import Integer, Time, cast, func, select
+from sqlalchemy import Integer, Time, cast, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.models import Sighting, Species
@@ -302,3 +302,34 @@ async def dashboard(db: AsyncSession, user_id: int) -> dict:
         "spark_species": spark_species,
         "spark_confidence": spark_confidence,
     }
+
+
+async def storage(db: AsyncSession) -> dict:
+    """Bytes on disk for the whole database, and for the sighting images in it.
+
+    Both cover every device, not only the caller's, because the disk is shared.
+    ``image_bytes`` counts full images and their thumbnails. PostgreSQL reports
+    the database with ``pg_database_size``. SQLite has no such function, so the
+    unit tests read the page count instead.
+    """
+    if db.bind.dialect.name == "postgresql":
+        database_bytes = (
+            await db.execute(select(func.pg_database_size(func.current_database())))
+        ).scalar_one()
+        size = func.octet_length
+    else:
+        database_bytes = (
+            await db.execute(
+                text("SELECT page_count * page_size FROM pragma_page_count(), pragma_page_size()")
+            )
+        ).scalar_one()
+        size = func.length
+    image_bytes = (
+        await db.execute(
+            select(
+                func.coalesce(func.sum(size(Sighting.image_data)), 0)
+                + func.coalesce(func.sum(size(Sighting.thumbnail_data)), 0)
+            )
+        )
+    ).scalar_one()
+    return {"database_bytes": int(database_bytes), "image_bytes": int(image_bytes)}

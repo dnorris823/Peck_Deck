@@ -333,6 +333,24 @@ export async function savePreferences(patch) {
   return apiSend("/users/me/preferences", "PUT", patch);
 }
 
+// ── Storage ───────────────────────────────────────────────────────────────
+// Database size, image size, and the retention rule's age in days (0 is off).
+export async function fetchStorage() {
+  return apiGet("/stats/storage");
+}
+
+// A byte count as a short size in base 1024, such as "512 B" or "3.4 MB".
+export function formatBytes(n) {
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = n;
+  let i = 0;
+  while (value >= 1024 && i < units.length - 1) {
+    value /= 1024;
+    i += 1;
+  }
+  return i === 0 ? `${value} B` : `${value.toFixed(1)} ${units[i]}`;
+}
+
 // ── CRUD mutations (Users / Devices / Species) ────────────────────────────
 // Register a new user (public endpoint — needs name+email+password, optional role).
 export async function createUser(body) {

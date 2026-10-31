@@ -47,3 +47,14 @@ class DashboardResponse:
     spark_sightings: list[int]
     spark_species: list[int]
     spark_confidence: list[float]
+
+
+@dataclass
+class StorageResponse:
+    # The whole database on disk, from pg_database_size().
+    database_bytes: int
+    # Full sighting images plus their thumbnails, summed over every row.
+    image_bytes: int
+    # Age in days past which "Unknown" sightings are deleted. 0 means the
+    # retention rule is off. Set by RETENTION_UNKNOWN_DAYS.
+    retention_unknown_days: int

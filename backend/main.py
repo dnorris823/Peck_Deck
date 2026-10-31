@@ -22,6 +22,7 @@ from .live.controller import LiveController, LiveHlsController
 from .errors import http_exception_handler, unhandled_exception_handler
 from .notifications.controller import PushController
 from .observability import RequestContextMiddleware, configure_logging
+from . import retention
 from .readiness import check_readiness
 from .sightings.controller import SightingController
 from .species.controller import SpeciesController
@@ -158,9 +159,11 @@ async def on_startup(app: Litestar) -> None:
     # would never actually reach the database. Migrations run before the app
     # starts (see backend/entrypoint.sh and scripts/migrate.sh).
     init_db(settings.DATABASE_URL)
+    retention.start(settings.RETENTION_UNKNOWN_DAYS)
 
 
 async def on_shutdown(app: Litestar) -> None:
+    await retention.stop()
     await dispose_db()
 
 
