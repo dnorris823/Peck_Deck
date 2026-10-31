@@ -156,7 +156,7 @@ def test_role_comes_from_the_database_not_the_claim(client):
         headers=forged,
         json={"name": "x", "email": f"x_{secrets.token_hex(4)}@test.dev", "password": "x"},
     )
-    assert res.status_code == 401
+    assert res.status_code == 403
 
 
 def test_login_throttle_still_applies(client):

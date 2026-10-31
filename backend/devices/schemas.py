@@ -11,6 +11,9 @@ class RegisterDevice:
 
 @dataclass
 class UpdateDevice:
+    """Fields to change. A missing field stays. An empty city, state or feed
+    type clears it."""
+
     name: str | None = None
     city: str | None = None
     state: str | None = None
@@ -28,7 +31,29 @@ class DeviceHeartbeat:
 
 @dataclass
 class AddDeviceUser:
-    user_id: int
+    """The user to add, by id or by email. Send exactly one.
+
+    Email is for a feeder owner with the viewer role, who cannot list users.
+    """
+
+    user_id: int | None = None
+    email: str | None = None
+
+
+@dataclass
+class DeviceMember:
+    id: int
+    name: str
+    email: str
+    notify_email: bool
+
+
+@dataclass
+class DeviceAccessResponse:
+    """Who sees the feeder and gets its alerts: the owner and the members."""
+
+    owner: DeviceMember
+    members: list[DeviceMember]
 
 
 @dataclass

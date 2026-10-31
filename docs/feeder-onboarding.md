@@ -123,8 +123,8 @@ if you are on your own device. Go to **Feeders → Register feeder**.
 - **Name:** the Pi's hostname, exactly. Provisioning finds the feeder by this
   name.
 - **City and State:** where the feeder is. The backend looks up the weather for
-  each sighting from these. The app cannot change them after you register
-  ([Feeder settings can't share a feeder or change its location](https://github.com/dnorris823/Peck_Deck/issues/156)).
+  each sighting from these. To change them later, open the feeder under
+  **Feeders** and edit **Details**.
 
 Ignore the token the dialog shows. Provisioning fetches it.
 
@@ -170,15 +170,11 @@ token rotation.
 ## 7. Add yourself to the feeder
 
 Owners see only the feeders they own or belong to, so the new feeder is not in
-your app yet. The app has no button for this, so use the API page on the gaming
-PC:
+your app yet. The user at that house shares it with you:
 
-1. Open `http://localhost:8000/schema/swagger`.
-2. Run `POST /login` with your owner email and password. Copy `access_token`.
-3. Select **Authorize**, paste the token into **UserJWT**, and confirm.
-4. Run `GET /users/me` and note your `id`.
-5. Run `POST /devices/{device_id}/users` with the feeder id from step 6 and the
-   body `{"user_id": <your id>}`. A 204 means it worked.
+1. In the window signed in as that user, go to **Feeders** and open the feeder.
+2. Under **Who sees this feeder**, enter your email in **Share with** and select
+   **Add**.
 
 You now see the feeder. You also get its alerts if your alerts are on.
 

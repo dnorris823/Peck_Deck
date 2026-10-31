@@ -61,7 +61,7 @@ export function Modal({ title, subtitle, onClose, children, footer, maxWidth = 4
   );
 }
 
-export function TextInput({ label, help, value, onChange, type = "text", placeholder, disabled, error, onBlur }) {
+export function TextInput({ label, help, value, onChange, type = "text", placeholder, disabled, error, onBlur, list }) {
   const id = useId();
   const errId = `${id}-err`;
   return (
@@ -75,6 +75,7 @@ export function TextInput({ label, help, value, onChange, type = "text", placeho
         disabled={disabled}
         onChange={e => onChange(e.target.value)}
         onBlur={onBlur}
+        list={list}
         aria-invalid={error ? "true" : undefined}
         aria-describedby={error ? errId : undefined}
         style={{ width: "100%" }}

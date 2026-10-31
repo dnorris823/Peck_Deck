@@ -11,9 +11,9 @@ import { apiDelete, apiDownload, apiGet, apiSend } from "./api.js";
 // accent (accent.js) can tell "no palette" from a real one. BirdPlate has its
 // own fallback colours.
 // Avatar grounds. Fixed colours, each with white initials at 4.5:1 or better.
-const AV_COLORS = ["#a6533d", "#3f6e89", "#56663a", "#86641d", "#6b4570"];
+export const AV_COLORS = ["#a6533d", "#3f6e89", "#56663a", "#86641d", "#6b4570"];
 
-function initials(name) {
+export function initials(name) {
   const parts = (name || "").trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return "?";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
@@ -168,7 +168,11 @@ export async function fetchRaw() {
       apiGet("/species"),
       apiGet(speciesCountsPath()),
       apiGet("/devices"),
-      apiGet("/users"),
+      // Owner only. A viewer gets 403 and an empty list, and never sees Users.
+      apiGet("/users").catch((e) => {
+        if (e.status === 403) return [];
+        throw e;
+      }),
       apiGet("/sightings?limit=100"),
       apiGet("/stats/heatmap"),
       apiGet("/stats/dashboard"),
@@ -355,7 +359,7 @@ export function formatBytes(n) {
 }
 
 // ── CRUD mutations (Users / Devices / Species) ────────────────────────────
-// Register a new user (public endpoint — needs name+email+password, optional role).
+// Invite a user. Owner only. Needs name, email and password, and takes a role.
 export async function createUser(body) {
   return apiSend("/users", "POST", body);
 }
@@ -370,10 +374,44 @@ export async function changePassword(userId, body) {
   return apiSend(`/users/${userId}/password`, "POST", body);
 }
 
+// Owner only, like the two below. Takes effect on the user's next request.
+export async function setUserRole(userId, role) {
+  return apiSend(`/users/${userId}/role`, "PUT", { role });
+}
+
+// Revokes every token the user holds. Their password still works.
+export async function signOutUser(userId) {
+  return apiSend(`/users/${userId}/logout`, "POST", {});
+}
+
+// Refused with 409 for a feeder owner or the last owner.
+export async function deleteUser(userId) {
+  return apiDelete(`/users/${userId}`);
+}
+
 // Register a device — the backend returns the full device INCLUDING its token,
 // which is shown once so the Pi can be provisioned.
 export async function createDevice(body) {
   return apiSend("/devices", "POST", body);
+}
+
+// Change a feeder's name, city, state or feed type. An empty string clears a field.
+export async function updateDevice(deviceId, patch) {
+  return apiSend(`/devices/${deviceId}`, "PUT", patch);
+}
+
+// The feeder's owner and members, as `{ owner, members }`. They get its alerts.
+export async function fetchFeederAccess(deviceId) {
+  return apiGet(`/devices/${deviceId}/users`);
+}
+
+// Add a member by `{ user_id }`, or by `{ email }` for a viewer who owns a feeder.
+export async function addFeederMember(deviceId, who) {
+  return apiSend(`/devices/${deviceId}/users`, "POST", who);
+}
+
+export async function removeFeederMember(deviceId, userId) {
+  return apiDelete(`/devices/${deviceId}/users/${userId}`);
 }
 
 // Add a species to the library.

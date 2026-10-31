@@ -53,13 +53,15 @@ async def update_device(
     feed_type: str | None,
 ) -> Device:
     if name is not None:
-        device.name = name
+        device.name = name.strip()
+    # An empty string clears the field. The weather lookup skips a feeder with
+    # no city, and would geocode "" otherwise.
     if city is not None:
-        device.city = city
+        device.city = city.strip() or None
     if state is not None:
-        device.state = state
+        device.state = state.strip() or None
     if feed_type is not None:
-        device.feed_type = feed_type
+        device.feed_type = feed_type.strip() or None
     await db.flush()
     return device
 
@@ -202,6 +204,16 @@ async def mark_device_seen(db: AsyncSession, device_id: int) -> None:
     if device is not None:
         device.last_seen = datetime.now(timezone.utc)
         await db.flush()
+
+
+async def get_device_members(db: AsyncSession, device_id: int) -> list[User]:
+    result = await db.execute(
+        select(User)
+        .join(DeviceUser, User.id == DeviceUser.user_id)
+        .where(DeviceUser.device_id == device_id)
+        .order_by(User.name)
+    )
+    return list(result.scalars().all())
 
 
 async def add_device_user(db: AsyncSession, device_id: int, user_id: int) -> None:

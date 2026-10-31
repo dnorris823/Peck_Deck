@@ -28,7 +28,8 @@ intended setup here. Peck Deck trusts everyone on the tailnet.
 ### Create their app account
 
 1. Open the web app and go to **More → Users**.
-2. Select **Add user**. Enter their name and email, and set a temporary password.
+2. Select **Invite user**. Enter their name and email, and set a temporary
+   password.
 3. Keep the role as **Viewer**. An owner can add users, reset passwords, and
    manage every feeder. One owner is enough.
 4. Send them the temporary password and the app URL,
@@ -43,21 +44,13 @@ rule.
 If they will run their own feeder, follow `docs/feeder-onboarding.md`. Their
 feeder is theirs from the start.
 
-To let them see one of your feeders, add them as a member of it. The app has no
-button for this yet
-([Feeder settings can't share a feeder or change its location](https://github.com/dnorris823/Peck_Deck/issues/156)),
-so use the API page on the gaming PC:
+To let them see one of your feeders, add them as a member of it:
 
-1. Open `http://localhost:8000/schema/swagger` on the gaming PC.
-2. Run `POST /login` with your owner email and password. Copy `access_token`
-   from the response.
-3. Select **Authorize**, paste the token into **UserJWT**, and confirm.
-4. Run `GET /users/` and note the new user's `id`.
-5. Run `GET /devices/` and note the feeder's `id`.
-6. Run `POST /devices/{device_id}/users` with that feeder `id` and the body
-   `{"user_id": <their id>}`. A 204 means it worked.
+1. Go to **More → Users** and select **Manage** beside them.
+2. Under **Feeders they see**, tick the feeder. The change saves at once.
 
-To undo it, run `DELETE /devices/{device_id}/users/{uid}`.
+Untick it to undo. The feeder's own settings, under **Feeders**, do the same
+from the other side: **Share with** adds a person by email.
 
 ## Part 2: the new user
 
@@ -124,10 +117,23 @@ sighting named "Unknown" is a bird that no classifier could name.
 | The page does not load | Tailscale is off on the phone, or the gaming PC is off. |
 | The page loads, but there are no birds and no feeders | No feeder is shared with you yet. Ask the owner. |
 | A feeder shows offline | That feeder's Pi has no power or no internet, or the gaming PC is off. The Pi keeps its photos and uploads them later. |
-| Signed out with no warning | You signed out on another device, or the owner reset your password. Sign in again. |
+| Signed out with no warning | You signed out on another device, or the owner reset your password or signed you out. Sign in again. |
+
+## Manage a user
+
+Go to **More → Users** and select **Manage** beside them.
+
+| Control | What it does |
+|---|---|
+| Role | Viewer or owner. It applies on their next request. The last owner cannot be demoted. |
+| Reset password | Sets a temporary password to share with them. It also signs them out everywhere. |
+| Sign out everywhere | For a lost phone. Their password still works. |
+| Remove user | Deletes their account, feeder access and preferences. It is refused while they own a feeder, because the feeder's sightings hold the only copy of each image. |
+
+Viewers do not see the Users page.
 
 ## Remove a user
 
 Remove them from the tailnet in the Tailscale admin console. That alone cuts
-their access, because the app is only reachable on the tailnet. Their app
-account and their feeders stay in the database.
+their access, because the app is only reachable on the tailnet. Then remove
+their app account with **Remove user** above.

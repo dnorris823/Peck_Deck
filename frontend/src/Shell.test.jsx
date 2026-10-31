@@ -16,7 +16,7 @@ vi.mock("./DataContext.jsx", () => ({
   }),
 }));
 
-import { TABS, TabBar, TopBar, MoreMenu, LIVE_GRACE_MS } from "./Shell.jsx";
+import { TABS, TabBar, TopBar, MoreMenu, LIVE_GRACE_MS, moreFor, allowedRoute } from "./Shell.jsx";
 import { initialRoute } from "./App.jsx";
 
 describe("navigation", () => {
@@ -135,5 +135,18 @@ describe("initialRoute", () => {
   it("falls back to Latest", () => {
     expect(initialRoute("")).toBe("latest");
     expect(initialRoute("?screen=nope")).toBe("latest");
+  });
+});
+
+describe("owner-only screens", () => {
+  it("leaves Users out of a viewer's More menu", () => {
+    expect(moreFor({ role: "viewer" }).map(n => n.id)).toEqual(["settings"]);
+    expect(moreFor({ role: "owner" }).map(n => n.id)).toEqual(["users", "settings"]);
+  });
+
+  it("sends a viewer who asks for Users to Latest", () => {
+    expect(allowedRoute("users", { role: "viewer" })).toBe("latest");
+    expect(allowedRoute("users", { role: "owner" })).toBe("users");
+    expect(allowedRoute("settings", { role: "viewer" })).toBe("settings");
   });
 });

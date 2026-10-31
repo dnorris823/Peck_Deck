@@ -12,12 +12,23 @@ export const NAV = [
   { id: "species", label: "Species", icon: "book" },
   { id: "history", label: "History", icon: "feather" },
   { id: "feeders", label: "Feeders", icon: "device" },
-  { id: "users", label: "Users", icon: "users", more: true },
+  { id: "users", label: "Users", icon: "users", more: true, owner: true },
   { id: "settings", label: "Settings", icon: "gear", more: true },
 ];
 
 export const TABS = NAV.filter(n => !n.more);
 const MORE = NAV.filter(n => n.more);
+
+// Users is owner only. GET /users refuses a viewer.
+export function moreFor(me) {
+  return MORE.filter(n => !n.owner || me.role === "owner");
+}
+
+/** The route to show: `route`, unless `me` may not open it. */
+export function allowedRoute(route, me) {
+  const n = NAV.find(x => x.id === route);
+  return n?.owner && me.role !== "owner" ? "latest" : route;
+}
 
 // Screen ids before the "Latest bird" redesign. An installed app keeps the
 // manifest shortcuts it was installed with, so the old ids must still land.
@@ -136,7 +147,7 @@ export function MoreMenu({ route, setRoute, onLogout, onClose }) {
             <div className="foot-role">{me.role}</div>
           </div>
         </div>
-        {MORE.map(n => (
+        {moreFor(me).map(n => (
           <button key={n.id} role="menuitem" className={`more-item ${route === n.id ? "active" : ""}`}
             aria-current={route === n.id ? "page" : undefined} onClick={() => setRoute(n.id)}>
             <Icon name={n.icon} />

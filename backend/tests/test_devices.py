@@ -285,3 +285,75 @@ def test_delete_route_rejects_device_token(client):
 def test_delete_route_404s_unknown_device(client, owner_headers):
     res = client.delete("/devices/999999", headers=owner_headers)
     assert res.status_code == 404
+
+
+# --- Sharing a feeder and changing its location, from feeder settings. ---
+
+def test_feeder_access_lists_owner_and_members(client, owner_headers):
+    res = client.get("/devices/%d/users" % IDS["dev1_id"], headers=owner_headers)
+    assert res.status_code == 200
+    body = res.json()
+    assert body["owner"]["id"] == IDS["owner_id"]
+    assert [m["id"] for m in body["members"]] == [IDS["viewer_id"]]
+
+
+def test_member_cannot_read_feeder_access(client, viewer_headers):
+    res = client.get("/devices/%d/users" % IDS["dev1_id"], headers=viewer_headers)
+    assert res.status_code == 403
+
+
+def test_viewer_owner_shares_by_email(client):
+    """A feeder owner with the viewer role cannot list users, so adds by email."""
+    owner_id, owner = _fresh_viewer(client)
+    device = client.post("/devices", json={"name": "Brother's"}, headers=owner).json()
+    friend_id, friend = _fresh_viewer(client)
+    seeded = {"Authorization": f"Bearer {create_user_token(IDS['owner_id'], 'owner')}"}
+    email = client.get(f"/users/{friend_id}", headers=seeded).json()["email"]
+
+    res = client.post("/devices/%d/users" % device["id"], json={"email": email}, headers=owner)
+    assert res.status_code == 204
+    assert [d["id"] for d in client.get("/devices", headers=friend).json()] == [device["id"]]
+
+    access = client.get("/devices/%d/users" % device["id"], headers=owner).json()
+    assert access["owner"]["id"] == owner_id
+    assert [m["id"] for m in access["members"]] == [friend_id]
+
+    res = client.delete("/devices/%d/users/%d" % (device["id"], friend_id), headers=owner)
+    assert res.status_code == 204
+    assert client.get("/devices", headers=friend).json() == []
+
+
+def test_add_member_rejects_unknown_user(client):
+    headers = _fresh_owner(client)
+    device = client.post("/devices", json={"name": "Lonely"}, headers=headers).json()
+    path = "/devices/%d/users" % device["id"]
+    assert client.post(path, json={"email": "nobody@test.dev"}, headers=headers).status_code == 404
+    assert client.post(path, json={"user_id": 999999}, headers=headers).status_code == 404
+    assert client.post(path, json={}, headers=headers).status_code == 400
+
+
+def test_add_member_rejects_the_owner(client):
+    headers = _fresh_owner(client)
+    device = client.post("/devices", json={"name": "Mine"}, headers=headers).json()
+    res = client.post("/devices/%d/users" % device["id"],
+                      json={"user_id": device["owner_id"]}, headers=headers)
+    assert res.status_code == 400
+
+
+def test_update_device_location_and_clear_it(client):
+    headers = _fresh_owner(client)
+    device = client.post("/devices", json={"name": "Move Me"}, headers=headers).json()
+    path = "/devices/%d" % device["id"]
+
+    res = client.put(path, json={"name": " Porch ", "city": "Stowe", "state": "VT",
+                                 "feed_type": "suet"}, headers=headers)
+    assert res.status_code == 200
+    body = res.json()
+    assert (body["name"], body["city"], body["state"], body["feed_type"]) == \
+        ("Porch", "Stowe", "VT", "suet")
+
+    body = client.put(path, json={"city": "", "state": ""}, headers=headers).json()
+    assert body["city"] is None and body["state"] is None
+    assert body["feed_type"] == "suet"
+
+    assert client.put(path, json={"name": "  "}, headers=headers).status_code == 400

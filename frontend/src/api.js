@@ -74,7 +74,11 @@ export async function apiGet(path) {
     clearToken();
     throw new AuthError("Your session has expired. Please sign in again.");
   }
-  if (!res.ok) throw new Error(`Request to ${path} failed (${res.status}).`);
+  if (!res.ok) {
+    const err = new Error(`Request to ${path} failed (${res.status}).`);
+    err.status = res.status;
+    throw err;
+  }
   return res.json();
 }
 
@@ -137,7 +141,14 @@ export async function apiDelete(path, { keepalive = false } = {}) {
     throw new AuthError("Your session has expired. Please sign in again.");
   }
   if (!res.ok) {
-    const err = new Error(`Request to ${path} failed (${res.status}).`);
+    // The 409 for a user who owns a feeder names the feeders in `detail`.
+    let detail = null;
+    try {
+      detail = (await res.json())?.detail;
+    } catch {
+      /* no JSON body */
+    }
+    const err = new Error(detail || `Request to ${path} failed (${res.status}).`);
     err.status = res.status;
     throw err;
   }
