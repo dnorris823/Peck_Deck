@@ -157,3 +157,131 @@ def test_device_token_route_rejects_device_token(client):
 def test_device_token_route_404s_unknown_device(client, owner_headers):
     res = client.get("/devices/999999/token", headers=owner_headers)
     assert res.status_code == 404
+
+
+# --- The owner can rotate a device token or remove a device. ---
+
+def _fresh_viewer(client):
+    """A throwaway viewer, so membership tests leave the seeded viewer alone."""
+    import secrets
+    seeded_owner = {"Authorization": f"Bearer {create_user_token(IDS['owner_id'], 'owner')}"}
+    res = client.post("/users", headers=seeded_owner, json={
+        "name": "Dev Test Viewer", "email": f"devview_{secrets.token_hex(4)}@test.dev",
+        "password": "pw", "role": "viewer",
+    })
+    uid = res.json()["id"]
+    return uid, {"Authorization": f"Bearer {create_user_token(uid, 'viewer')}"}
+
+
+def _upload(client, token, monkeypatch):
+    import backend.sightings.aftercare as aftercare
+
+    async def _noop(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(aftercare.notification_service, "dispatch", _noop)
+    monkeypatch.setattr(aftercare, "enrich_species", _noop)
+    return client.post(
+        "/sightings",
+        headers={"Authorization": f"Bearer {token}"},
+        data={
+            "timestamp": "2026-10-31T10:30:00",
+            "common_name": "Rotate Sparrow",
+            "scientific_name": "Passer rotatus",
+            "confidence_score": "0.9",
+            "classification_tier_used": "gpu",
+        },
+        files={"image": ("bird.jpg", b"\xff\xd8\xff\xe0rotate", "image/jpeg")},
+    )
+
+
+def test_rotating_the_token_refuses_the_old_one(client, monkeypatch):
+    headers = _fresh_owner(client)
+    device = client.post("/devices", json={"name": "Rotate Me"}, headers=headers).json()
+    old = device["token"]
+
+    res = client.post("/devices/%d/token" % device["id"], headers=headers)
+    assert res.status_code == 200
+    new = res.json()["token"]
+    assert res.json()["id"] == device["id"]
+    assert new and new != old
+
+    assert _upload(client, old, monkeypatch).status_code == 401
+    assert _upload(client, new, monkeypatch).status_code == 201
+
+    # The read route the provisioning script uses returns the new token.
+    read = client.get("/devices/%d/token" % device["id"], headers=headers)
+    assert read.json()["token"] == new
+
+
+def test_viewer_cannot_rotate_device_token(client, viewer_headers):
+    res = client.post("/devices/%d/token" % IDS["dev1_id"], headers=viewer_headers)
+    assert res.status_code == 403
+    # Dev One still answers to its seeded token.
+    beat = client.post("/devices/me/heartbeat", json={},
+                       headers={"Authorization": "Bearer dev1-token"})
+    assert beat.status_code == 200
+
+
+def test_rotate_route_rejects_device_token(client):
+    res = client.post("/devices/%d/token" % IDS["dev1_id"],
+                      headers={"Authorization": "Bearer dev1-token"})
+    assert res.status_code == 401
+
+
+def test_rotate_route_404s_unknown_device(client, owner_headers):
+    res = client.post("/devices/999999/token", headers=owner_headers)
+    assert res.status_code == 404
+
+
+def test_owner_deletes_a_device_without_sightings(client):
+    headers = _fresh_owner(client)
+    device = client.post("/devices", json={"name": "Delete Me"}, headers=headers).json()
+    viewer_id, viewer = _fresh_viewer(client)
+    client.post("/devices/%d/users" % device["id"], json={"user_id": viewer_id}, headers=headers)
+    assert [d["id"] for d in client.get("/devices", headers=viewer).json()] == [device["id"]]
+
+    res = client.delete("/devices/%d" % device["id"], headers=headers)
+    assert res.status_code == 204
+
+    # Gone for the owner and the viewer, and its token no longer authenticates.
+    assert all(d["id"] != device["id"] for d in client.get("/devices", headers=headers).json())
+    assert client.get("/devices", headers=viewer).json() == []
+    assert client.get("/devices/%d/token" % device["id"], headers=headers).status_code == 404
+    beat = client.post("/devices/me/heartbeat", json={},
+                       headers={"Authorization": f"Bearer {device['token']}"})
+    assert beat.status_code == 401
+
+
+def test_delete_is_refused_while_sightings_exist(client, monkeypatch):
+    headers = _fresh_owner(client)
+    device = client.post("/devices", json={"name": "Has Birds"}, headers=headers).json()
+    assert _upload(client, device["token"], monkeypatch).status_code == 201
+
+    res = client.delete("/devices/%d" % device["id"], headers=headers)
+    assert res.status_code == 409
+    assert "1 sightings" in res.json()["detail"]
+
+    # Nothing was removed: the device, its sighting and its token all remain.
+    listed = next(d for d in client.get("/devices", headers=headers).json()
+                  if d["id"] == device["id"])
+    assert listed["all_time_sightings"] == 1
+    beat = client.post("/devices/me/heartbeat", json={},
+                       headers={"Authorization": f"Bearer {device['token']}"})
+    assert beat.status_code == 200
+
+
+def test_viewer_cannot_delete_device(client, viewer_headers):
+    res = client.delete("/devices/%d" % IDS["dev1_id"], headers=viewer_headers)
+    assert res.status_code == 403
+
+
+def test_delete_route_rejects_device_token(client):
+    res = client.delete("/devices/%d" % IDS["dev1_id"],
+                        headers={"Authorization": "Bearer dev1-token"})
+    assert res.status_code == 401
+
+
+def test_delete_route_404s_unknown_device(client, owner_headers):
+    res = client.delete("/devices/999999", headers=owner_headers)
+    assert res.status_code == 404

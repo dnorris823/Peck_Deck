@@ -1,7 +1,7 @@
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.models import Device, DeviceUser, Sighting, User
@@ -62,6 +62,33 @@ async def update_device(
         device.feed_type = feed_type
     await db.flush()
     return device
+
+
+async def rotate_device_token(db: AsyncSession, device: Device) -> Device:
+    """Replace the token. device_guard matches it exactly, so the old one stops working."""
+    device.token = secrets.token_urlsafe(32)
+    await db.flush()
+    return device
+
+
+async def delete_device(db: AsyncSession, device_id: int) -> int:
+    """Delete the device and its viewer links, unless it has sightings.
+
+    Returns the device's sighting count. Nothing is deleted unless it is 0.
+    The row lock makes a sighting insert wait on the delete, so the count
+    cannot go stale between the check and the delete. SQLite ignores it.
+    """
+    await db.execute(select(Device.id).where(Device.id == device_id).with_for_update())
+    count = (
+        await db.execute(
+            select(func.count()).select_from(Sighting).where(Sighting.device_id == device_id)
+        )
+    ).scalar_one()
+    if count:
+        return count
+    await db.execute(delete(DeviceUser).where(DeviceUser.device_id == device_id))
+    await db.execute(delete(Device).where(Device.id == device_id))
+    return 0
 
 
 async def get_sighting_counts(db: AsyncSession, device_id: int) -> dict[str, int]:

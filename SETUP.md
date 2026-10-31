@@ -119,12 +119,23 @@ idempotent, so it is safe to run against a fresh, reseeded or already-healthy da
 Credentials come from the environment, never from `argv`. See §9 for the systemd wiring
 that runs it on every start, and where the credentials live.
 
-Why not by hand: `device_guard` is a plain equality match on the token with no expiry
-or rotation, so a stale token is indistinguishable from a wrong one — 401 forever, with
+Why not by hand: `device_guard` is a plain equality match on the token with no expiry,
+so a stale token is indistinguishable from a wrong one — 401 forever, with
 the offline queue filling silently behind it. Tokens go stale because `backend/seed.py`
 mints a fresh one on every seed, so wiping the database volume orphans whatever the Pi
 holds. Re-provisioning has to be cheap, and hand-transcribing a 43-character urlsafe
 blob over SSH is not.
+
+**Rotating a leaked token.** The owner calls `POST /devices/{id}/token`. It replaces
+the token and returns the new one once. The old token gets 401 at once, so the Pi
+queues its sightings offline. Restart the service on the Pi
+(`sudo systemctl restart peck-deck`). The pre-step reads the new token from
+`GET /devices/{id}/token`, and the queue drains.
+
+**Removing a device.** The owner calls `DELETE /devices/{id}`. It returns 409 while the
+device has sightings, because each sighting holds the only copy of its image. Delete
+the sightings first. The delete also removes the device's viewer links, and its token
+stops working.
 
 A missing token is a hard blocker for posting sightings and for Tier 2 / Tier 3.
 Tier 1 local classification and offline queuing work without it.

@@ -173,3 +173,51 @@ def test_local_hours_bucket_with_at_time_zone(client):
     assert by_id[sp_a]["peak_hours"] == [19, 8]
     assert by_id[sp_b]["peak_hours"] == [6]
     assert by_id[sp_a]["last_seen"] is not None
+
+
+def test_device_rotate_and_delete_on_postgres(client, owner_headers, monkeypatch):
+    """The delete takes a row lock and meets the sightings foreign key here, not on SQLite."""
+    from backend.auth.jwt_utils import create_user_token
+
+    async def _noop(*_a, **_k):
+        return None
+
+    monkeypatch.setattr(sighting_aftercare.notification_service, "dispatch", _noop)
+    monkeypatch.setattr(sighting_aftercare, "enrich_species", _noop)
+
+    user = client.post("/users", headers=owner_headers, json={
+        "name": "PG Device Owner", "email": f"pgdev_{secrets.token_hex(4)}@test.dev",
+        "password": "pw", "role": "owner",
+    }).json()
+    headers = {"Authorization": f"Bearer {create_user_token(user['id'], 'owner')}"}
+    device = client.post("/devices", json={"name": "PG Rotate"}, headers=headers).json()
+
+    rotated = client.post(f"/devices/{device['id']}/token", headers=headers)
+    assert rotated.status_code == 200, rotated.text
+    token = rotated.json()["token"]
+
+    def upload(with_token):
+        return client.post(
+            "/sightings",
+            headers={"Authorization": f"Bearer {with_token}"},
+            data={
+                "timestamp": "2026-10-31T10:30:00+00:00",
+                "common_name": "Test Cardinal",
+                "scientific_name": "Cardinalis testus",
+                "confidence_score": "0.83",
+                "classification_tier_used": "gpu",
+            },
+            files={"image": ("bird.jpg", _JPEG, "image/jpeg")},
+        )
+
+    assert upload(device["token"]).status_code == 401
+    sighting = upload(token)
+    assert sighting.status_code == 201, sighting.text
+
+    refused = client.delete(f"/devices/{device['id']}", headers=headers)
+    assert refused.status_code == 409, refused.text
+
+    assert client.delete(f"/sightings/{sighting.json()['id']}", headers=headers).status_code == 204
+    gone = client.delete(f"/devices/{device['id']}", headers=headers)
+    assert gone.status_code == 204, gone.text
+    assert upload(token).status_code == 401
