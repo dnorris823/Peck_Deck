@@ -18,6 +18,7 @@ from .config import settings
 from .database.connection import dispose_db, init_db, provide_db
 from .devices.controller import DeviceController
 from .events.controller import EventController
+from .live.controller import LiveController
 from .errors import http_exception_handler, unhandled_exception_handler
 from .notifications.controller import PushController
 from .observability import RequestContextMiddleware, configure_logging
@@ -171,6 +172,7 @@ app = Litestar(
         classify,
         UserController,
         DeviceController,
+        LiveController,
         SpeciesController,
         SightingController,
         StatsController,
@@ -190,6 +192,8 @@ app = Litestar(
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type"],
+        # The WHEP offer returns its session URL in Location.
+        expose_headers=["Location"],
     ),
     # Cap request bodies so an oversized upload can't exhaust memory — sighting
     # images are buffered and stored as bytea.

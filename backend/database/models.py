@@ -111,6 +111,9 @@ class Device(Base):
     last_seen: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # Where the Pi's MediaMTX answers WHEP offers, from the latest heartbeat.
+    # Null when the last heartbeat sent none. Never sent to the browser.
+    live_url: Mapped[str | None] = mapped_column(String, nullable=True)
 
     owner: Mapped["User"] = relationship(
         "User", foreign_keys=[owner_id], back_populates="owned_devices"

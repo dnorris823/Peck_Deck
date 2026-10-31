@@ -70,6 +70,13 @@ class Settings:
     # How long a push service should hold an undelivered message, in seconds.
     PUSH_TTL_SECONDS: int = int(os.getenv("PUSH_TTL_SECONDS", "86400"))
 
+    # ── Live video (WHEP relay) ───────────────────────────────────────────────
+    # The read user in the Pi's MediaMTX config. The backend sends these as
+    # Basic auth when it relays a browser's offer. The browser never sees them.
+    # Empty means MediaMTX takes unauthenticated reads. See docs/live-video.md.
+    LIVE_READ_USER: str = os.getenv("LIVE_READ_USER", "")
+    LIVE_READ_PASSWORD: str = os.getenv("LIVE_READ_PASSWORD", "")
+
     # ── Cloud classification (Tier 3 — Claude API, M6) ────────────────────────
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
     ANTHROPIC_MODEL: str = os.getenv("ANTHROPIC_MODEL", "claude-opus-4-8")

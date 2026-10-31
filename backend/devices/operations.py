@@ -152,11 +152,14 @@ async def update_device_telemetry(
     *,
     battery: float | None,
     signal: str | None,
+    live_url: str | None,
 ) -> Device:
     if battery is not None:
         device.battery = battery
     if signal is not None:
         device.signal = signal
+    # Unlike battery and signal, a missing live_url means "not streaming now".
+    device.live_url = live_url
     device.last_seen = datetime.now(timezone.utc)
     await db.flush()
     return device
