@@ -41,7 +41,7 @@ class Refused(Exception):
         self.status = status
 
 
-def _auth_headers() -> dict[str, str]:
+def auth_headers() -> dict[str, str]:
     """Basic auth for the MediaMTX read user, or nothing if none is set."""
     if not settings.LIVE_READ_USER:
         return {}
@@ -66,7 +66,7 @@ async def post_offer(live_url: str, offer: bytes) -> tuple[bytes, str]:
             async with http.post(
                 live_url,
                 data=offer,
-                headers={"Content-Type": "application/sdp", **_auth_headers()},
+                headers={"Content-Type": "application/sdp", **auth_headers()},
                 # A redirect could point the backend at a host the address
                 # check never saw.
                 allow_redirects=False,
@@ -91,7 +91,7 @@ async def delete_session(live_url: str, session: str) -> None:
         async with aiohttp.ClientSession() as http:
             async with http.delete(
                 session_url(live_url, session),
-                headers=_auth_headers(),
+                headers=auth_headers(),
                 allow_redirects=False,
                 timeout=aiohttp.ClientTimeout(total=HANGUP_TIMEOUT_SECONDS),
             ) as resp:

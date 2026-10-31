@@ -1,4 +1,4 @@
-"""The live video address on heartbeats, and the WHEP signaling relay.
+"""The live video address on heartbeats, the WHEP signaling relay, and HLS.
 
 The relay tests run against a fake MediaMTX on 127.0.0.1. Loopback is not a
 private address the heartbeat accepts, so those tests add it to the allowed
@@ -17,13 +17,16 @@ import pytest
 
 from backend.config import settings
 from backend.devices.controller import live_available
-from backend.live import address, whep
+from backend.live import address, controller, hls, whep
 from backend.live.address import check_live_url
 from backend.tests.conftest import IDS
 from backend.tests.test_devices import _fresh_owner
 
 OFFER = b"v=0\r\no=- 1 1 IN IP4 0.0.0.0\r\ns=offer\r\n"
 ANSWER = b"v=0\r\no=- 2 2 IN IP4 0.0.0.0\r\ns=answer\r\n"
+PLAYLIST = b'#EXTM3U\n#EXT-X-VERSION:9\n#EXT-X-PART:DURATION=0.2,URI="abc_part7.mp4"\n'
+# Bigger than one relay chunk, so the body arrives in pieces.
+SEGMENT = bytes(range(256)) * 1024
 BASIC = "Basic " + base64.b64encode(b"viewer:s3cret").decode()
 
 
@@ -114,13 +117,18 @@ def test_heartbeat_refuses_public_or_malformed_live_url(client, url):
 # --- A fake MediaMTX ---
 
 class FakeMediaMTX:
-    """Answers WHEP like MediaMTX: 201, an SDP answer, and a session Location."""
+    """Answers WHEP and HLS like MediaMTX.
+
+    WHEP gets 201, an SDP answer, and a session Location. HLS serves one
+    playlist and one segment.
+    """
 
     def __init__(self):
         self.requests: list[dict] = []
         self.sessions: set[str] = set()
         self.delay = 0.0
         self.offer_status = 201
+        self.hls_status = 200
         fake = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -159,6 +167,27 @@ class FakeMediaMTX:
                     "Location": f"/feeder/whep/{session}",
                 })
 
+            def do_GET(self):
+                self._record()
+                time.sleep(fake.delay)
+                if fake.hls_status != 200:
+                    return self._reply(fake.hls_status)
+                path, _, query = self.path.partition("?")
+                # MediaMTX's cookie check on the first playlist request.
+                if path == "/feeder/index.m3u8" and "cookieCheck=1" not in query:
+                    return self._reply(302, b"", {
+                        "Location": "/feeder/index.m3u8?cookieCheck=1",
+                        "Set-Cookie": "cookieCheck=1; HttpOnly; Secure",
+                    })
+                if path == "/feeder/away.m3u8":
+                    return self._reply(302, b"", {"Location": "http://8.8.8.8/feeder/index.m3u8"})
+                if path == "/feeder/index.m3u8":
+                    return self._reply(200, PLAYLIST,
+                                       {"Content-Type": "application/vnd.apple.mpegurl"})
+                if path == "/feeder/abc_seg3.mp4":
+                    return self._reply(200, SEGMENT, {"Content-Type": "video/mp4"})
+                self._reply(404)
+
             def do_DELETE(self):
                 self._record()
                 session = self.path.rsplit("/", 1)[-1]
@@ -184,8 +213,17 @@ def mediamtx(monkeypatch):
     monkeypatch.setattr(settings, "LIVE_READ_USER", "viewer")
     monkeypatch.setattr(settings, "LIVE_READ_PASSWORD", "s3cret")
     fake = FakeMediaMTX()
+    # One fake answers both. HLS takes the live_url host and this port.
+    monkeypatch.setattr(settings, "LIVE_HLS_PORT", fake.server.server_port)
     yield fake
     fake.close()
+
+
+@pytest.fixture(autouse=True)
+def _fresh_access_cache():
+    controller.clear_access_cache()
+    yield
+    controller.clear_access_cache()
 
 
 @pytest.fixture
@@ -319,3 +357,129 @@ def test_no_trickle_ice(client, streaming):
                        headers={**streaming.user_headers,
                                 "Content-Type": "application/trickle-ice-sdpfrag"})
     assert res.status_code == 405
+
+
+# --- GET /devices/{id}/live/hls/{name} ---
+
+def _hls(client, device_id, name, headers, query=""):
+    return client.get(f"/devices/{device_id}/live/hls/{name}{query}", headers=headers)
+
+
+def test_hls_relays_a_playlist_with_its_query_string(client, streaming):
+    res = _hls(client, streaming.id, "index.m3u8", streaming.user_headers,
+               "?cookieCheck=1&_HLS_msn=12&_HLS_part=3")
+    assert res.status_code == 200
+    assert res.content == PLAYLIST
+    assert res.headers["content-type"].startswith("application/vnd.apple.mpegurl")
+    assert res.headers["cache-control"] == "no-store"
+
+    (sent,) = streaming.fake.requests
+    assert sent["method"] == "GET"
+    assert sent["path"] == "/feeder/index.m3u8?cookieCheck=1&_HLS_msn=12&_HLS_part=3"
+    assert sent["auth"] == BASIC
+
+
+def test_hls_passes_the_cookie_check_redirect_without_the_cookie(client, streaming):
+    res = client.get(f"/devices/{streaming.id}/live/hls/index.m3u8",
+                     headers=streaming.user_headers, follow_redirects=False)
+    assert res.status_code == 302
+    # Relative, so the browser comes back through the relay.
+    assert res.headers["location"] == "index.m3u8?cookieCheck=1"
+    assert "set-cookie" not in res.headers
+
+
+def test_hls_refuses_a_redirect_off_the_stream(client, streaming):
+    res = client.get(f"/devices/{streaming.id}/live/hls/away.m3u8",
+                     headers=streaming.user_headers, follow_redirects=False)
+    assert res.status_code == 502
+
+
+@pytest.mark.parametrize("location,expected", [
+    ("/feeder/index.m3u8?cookieCheck=1", "index.m3u8?cookieCheck=1"),
+    ("/feeder/video1_stream.m3u8", "video1_stream.m3u8"),
+    ("http://192.168.4.104:8888/feeder/index.m3u8", None),
+    ("//8.8.8.8/feeder/index.m3u8", None),
+    ("/other/index.m3u8", None),
+    ("/feeder/../whep", None),
+    ("", None),
+])
+def test_relative_location(location, expected):
+    assert hls.relative_location(location) == expected
+
+
+def test_hls_relays_a_segment_with_its_bytes_and_type(client, streaming):
+    res = _hls(client, streaming.id, "abc_seg3.mp4", streaming.user_headers)
+    assert res.status_code == 200
+    assert res.content == SEGMENT
+    assert res.headers["content-type"] == "video/mp4"
+    assert "cache-control" not in res.headers
+    assert streaming.fake.requests[0]["path"] == "/feeder/abc_seg3.mp4"
+
+
+def test_hls_from_a_user_without_access_is_404(client, streaming, viewer_headers):
+    assert _hls(client, streaming.id, "index.m3u8", viewer_headers).status_code == 404
+    assert streaming.fake.requests == []
+
+
+def test_hls_needs_a_user_jwt(client, streaming):
+    assert _hls(client, streaming.id, "index.m3u8", {}).status_code == 401
+    assert _hls(client, streaming.id, "index.m3u8", streaming.device_headers).status_code == 401
+    assert streaming.fake.requests == []
+
+
+def test_hls_without_live_url_is_503(client, owner_headers):
+    res = _hls(client, IDS["dev1_id"], "index.m3u8", owner_headers)
+    assert res.status_code == 503
+    assert res.json()["detail"] == "feeder not streaming"
+
+
+def test_hls_when_mediamtx_is_down_or_has_no_stream_is_503(client, streaming):
+    streaming.fake.hls_status = 404
+    assert _hls(client, streaming.id, "index.m3u8", streaming.user_headers).status_code == 503
+    streaming.fake.close()
+    assert _hls(client, streaming.id, "index.m3u8", streaming.user_headers).status_code == 503
+
+
+def test_hls_refused_upstream_is_502(client, streaming):
+    streaming.fake.hls_status = 401
+    assert _hls(client, streaming.id, "index.m3u8", streaming.user_headers).status_code == 502
+
+
+# httpx removes literal dot segments before sending, so the HTTP cases use the
+# encoded forms. The pattern itself is checked with the literal ones below.
+@pytest.mark.parametrize("name", [
+    "..%2Fwhep",
+    "%2E%2E/index.m3u8",
+    "%2E%2E%2Fwhep",
+    "sub/index.m3u8",
+    "index.m3u8.html",
+    "index",
+    "http://8.8.8.8/index.m3u8",
+    "//8.8.8.8/index.m3u8",
+])
+def test_hls_refuses_paths_mediamtx_does_not_serve(client, streaming, name):
+    res = _hls(client, streaming.id, name, streaming.user_headers)
+    assert res.status_code == 404
+    assert streaming.fake.requests == []
+
+
+@pytest.mark.parametrize("name", ["../whep", "..", "a/../index.m3u8", "/index.m3u8",
+                                  "..m3u8", "index.m3u8?x", ""])
+def test_hls_file_pattern_refuses_dot_segments(name):
+    assert not hls.HLS_FILE.match(name)
+
+
+def test_hls_url_keeps_the_host_and_swaps_the_port(monkeypatch):
+    monkeypatch.setattr(settings, "LIVE_HLS_PORT", 8888)
+    assert hls.hls_url("http://192.168.4.104:8889/feeder/whep", "index.m3u8", "_HLS_msn=4") ==         "http://192.168.4.104:8888/feeder/index.m3u8?_HLS_msn=4"
+
+
+def test_hls_caches_access_per_user_and_device(client, streaming):
+    assert _hls(client, streaming.id, "abc_seg3.mp4", streaming.user_headers).status_code == 200
+    # The Pi stops streaming. A cached viewer keeps going to MediaMTX for up
+    # to 30 seconds, and MediaMTX answers for itself.
+    client.post("/devices/me/heartbeat", json={"signal": "good"},
+                headers=streaming.device_headers)
+    assert _hls(client, streaming.id, "abc_seg3.mp4", streaming.user_headers).status_code == 200
+    controller.clear_access_cache()
+    assert _hls(client, streaming.id, "index.m3u8", streaming.user_headers).status_code == 503

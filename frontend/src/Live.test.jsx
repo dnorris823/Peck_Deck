@@ -70,6 +70,14 @@ describe("LivePage", () => {
     expect(screen.getByText("30 fps")).toBeInTheDocument();
   });
 
+  it("says when the video is relayed over HLS", () => {
+    render(<LivePage go={() => {}} />);
+    act(() => player.calls[0].onStatus({
+      phase: "live", fps: 30, delayMs: 2100, unreachable: false, path: "hls",
+    }));
+    expect(screen.getByText("Live · relayed · 30 fps · 2100 ms")).toBeInTheDocument();
+  });
+
   it("shows the offline panel and never starts a feeder that cannot stream", () => {
     localStorage.setItem(FEEDER_KEY, "2");
     render(<LivePage go={() => {}} />);

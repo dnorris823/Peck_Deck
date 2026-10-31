@@ -1,4 +1,5 @@
-// Live — the feeder's camera over WebRTC, with the latest bird in the corner.
+// Live — the feeder's camera over WebRTC, or HLS through the backend when this
+// browser cannot reach the Pi, with the latest bird in the corner.
 // The player itself is live.js. This screen picks the feeder, shows the state,
 // and falls back to an offline panel when the feeder cannot stream.
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -93,6 +94,8 @@ function useFullscreen(wrapRef, videoRef) {
 function Readout({ status }) {
   const parts = [PHASE[status.phase] || "Connecting"];
   if (status.phase === "live") {
+    // HLS comes through the backend rather than straight from the Pi.
+    if (status.path === "hls") parts.push("relayed");
     if (status.fps != null) parts.push(`${status.fps} fps`);
     if (status.delayMs != null) parts.push(`${status.delayMs} ms`);
   }
@@ -162,13 +165,13 @@ export function LivePage({ go }) {
 
   const wrapRef = useRef(null);
   const videoRef = useRef(null);
-  const [status, setStatus] = useState({ phase: "connecting", fps: null, delayMs: null, unreachable: false });
+  const [status, setStatus] = useState({ phase: "connecting", fps: null, delayMs: null, unreachable: false, path: "webrtc" });
   const [full, toggleFull] = useFullscreen(wrapRef, videoRef);
   const arrival = useArrival(SIGHTINGS, deviceId);
 
   useEffect(() => {
     if (deviceId == null || !available) return undefined;
-    setStatus({ phase: "connecting", fps: null, delayMs: null, unreachable: false });
+    setStatus({ phase: "connecting", fps: null, delayMs: null, unreachable: false, path: "webrtc" });
     return openLiveStream({ deviceId, video: videoRef.current, onStatus: setStatus });
   }, [deviceId, available]);
 
