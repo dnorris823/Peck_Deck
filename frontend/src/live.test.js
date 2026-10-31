@@ -60,16 +60,20 @@ function setVisibility(state) {
   document.dispatchEvent(new Event("visibilitychange"));
 }
 
-// Let pending promises and the microtasks they queue run.
+// Let pending promises and the microtasks they queue run. A real setImmediate
+// runs only after the microtask queue drains, however many hops it takes.
+// Counting ticks broke on Node 20, where Response.text() needs more of them
+// than on Node 24.
 async function settle() {
-  for (let i = 0; i < 10; i++) await Promise.resolve();
+  await new Promise(resolve => setImmediate(resolve));
 }
 
 let fetchMock;
 let stop;
 
 beforeEach(() => {
-  vi.useFakeTimers();
+  // setImmediate stays real so settle() can use it.
+  vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] });
   gatherCompletes = true;
   peers = [];
   vi.stubGlobal("RTCPeerConnection", FakePeer);
