@@ -1,9 +1,40 @@
-// live.js against a fake RTCPeerConnection and a fake fetch: the offer, the
-// answer, DELETE on hide, and the retry after a failure.
+// live.js against a fake RTCPeerConnection, a fake hls.js and a fake fetch: the
+// offer, the answer, DELETE on hide, the retry after a failure, and the switch
+// to HLS when ICE never connects.
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import {
-  ICE_GATHER_MS, MAX_RETRY_MS, UNREACHABLE_AFTER, openLiveStream, readStats, retryDelay,
+  HLS_KEY_PREFIX, ICE_CONNECT_MS, ICE_GATHER_MS, MAX_RETRY_MS, UNREACHABLE_AFTER,
+  openLiveStream, readStats, retryDelay,
 } from "./live.js";
+
+const { hlsPlayers, FakeHls } = vi.hoisted(() => {
+  const hlsPlayers = [];
+  class FakeHls {
+    static supported = true;
+    static isSupported() { return FakeHls.supported; }
+    static Events = { FRAG_BUFFERED: "hlsFragBuffered", ERROR: "hlsError", MANIFEST_PARSED: "hlsManifestParsed" };
+    constructor(config) {
+      this.config = config;
+      this.handlers = {};
+      this.destroyed = false;
+      this.latency = 2.1;
+      hlsPlayers.push(this);
+    }
+    on(event, fn) { (this.handlers[event] ||= []).push(fn); }
+    fire(event, data = {}) { (this.handlers[event] || []).forEach(fn => fn(event, data)); }
+    loadSource(url) { this.src = url; }
+    attachMedia(video) { this.media = video; }
+    destroy() { this.destroyed = true; }
+    // The Authorization header xhrSetup puts on a request.
+    authHeader() {
+      const headers = {};
+      this.config.xhrSetup({ setRequestHeader: (k, v) => { headers[k] = v; } }, this.src);
+      return headers.Authorization;
+    }
+  }
+  return { hlsPlayers, FakeHls };
+});
+vi.mock("hls.js/light", () => ({ default: FakeHls }));
 
 const OFFER = "v=0\r\no=offer";
 const ANSWER = "v=0\r\no=answer";
@@ -66,6 +97,8 @@ function setVisibility(state) {
 // than on Node 24.
 async function settle() {
   await new Promise(resolve => setImmediate(resolve));
+  await vi.dynamicImportSettled();
+  await new Promise(resolve => setImmediate(resolve));
 }
 
 let fetchMock;
@@ -76,6 +109,10 @@ beforeEach(() => {
   vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval", "Date"] });
   gatherCompletes = true;
   peers = [];
+  hlsPlayers.length = 0;
+  FakeHls.supported = true;
+  sessionStorage.clear();
+  window.history.replaceState(null, "", "/");
   vi.stubGlobal("RTCPeerConnection", FakePeer);
   fetchMock = vi.fn(async () => answerResponse());
   vi.stubGlobal("fetch", fetchMock);
@@ -92,7 +129,13 @@ afterEach(() => {
 
 function open() {
   const statuses = [];
-  const video = { srcObject: null };
+  let frames = 0;
+  const video = {
+    srcObject: null,
+    play: vi.fn(async () => {}),
+    getVideoPlaybackQuality: () => ({ totalVideoFrames: frames }),
+    addFrames(n) { frames += n; },
+  };
   stop = openLiveStream({ deviceId: 7, video, onStatus: s => statuses.push(s) });
   return { statuses, video, last: () => statuses[statuses.length - 1] };
 }
@@ -262,5 +305,137 @@ describe("readStats", () => {
 
   it("returns nulls before any video arrives", () => {
     expect(readStats(new Map())).toEqual({ fps: null, delayMs: null, sample: null });
+  });
+});
+
+describe("HLS fallback", () => {
+  // WebRTC signals, and then ICE never connects: the Pixel case.
+  async function fallBack() {
+    await settle();
+    expect(peers).toHaveLength(1);
+    await vi.advanceTimersByTimeAsync(ICE_CONNECT_MS);
+    await settle();
+    expect(hlsPlayers).toHaveLength(1);
+    return hlsPlayers[0];
+  }
+
+  it("switches to HLS when ICE has not connected within 5 seconds", async () => {
+    const { video, last } = open();
+    await settle();
+    await vi.advanceTimersByTimeAsync(ICE_CONNECT_MS - 1);
+    expect(hlsPlayers).toHaveLength(0);
+
+    const player = await fallBack();
+    expect(peers[0].closed).toBe(true);
+    expect(calls("DELETE")[0][0]).toBe("/api/devices/7/live/whep/abc");
+    expect(player.src).toBe("/api/devices/7/live/hls/index.m3u8");
+    expect(player.media).toBe(video);
+    expect(player.config.lowLatencyMode).toBe(true);
+    expect(player.authHeader()).toBe("Bearer jwt");
+    expect(last()).toMatchObject({ phase: "connecting", path: "hls" });
+
+    player.fire(FakeHls.Events.MANIFEST_PARSED);
+    expect(video.play).toHaveBeenCalled();
+    player.fire(FakeHls.Events.FRAG_BUFFERED);
+    expect(last()).toMatchObject({ phase: "live", path: "hls" });
+
+    // Delay from hls.js latency, frame rate from the frames shown.
+    await vi.advanceTimersByTimeAsync(1000);
+    video.addFrames(30);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(last()).toMatchObject({ fps: 30, delayMs: 2100 });
+    // No more offers once on HLS.
+    expect(calls("POST")).toHaveLength(1);
+  });
+
+  it("switches to HLS when ICE fails before it ever connects", async () => {
+    const { last } = open();
+    await settle();
+    peers[0].ice("failed");
+    await settle();
+    expect(hlsPlayers).toHaveLength(1);
+    expect(last().path).toBe("hls");
+  });
+
+  it("stays on WebRTC when ICE connects in time", async () => {
+    const { last } = open();
+    await settle();
+    peers[0].ice("connected");
+    await vi.advanceTimersByTimeAsync(ICE_CONNECT_MS * 2);
+    await settle();
+    expect(hlsPlayers).toHaveLength(0);
+    expect(last()).toMatchObject({ phase: "live", path: "webrtc" });
+  });
+
+  it("goes straight to HLS with ?live=hls", async () => {
+    window.history.replaceState(null, "", "/?live=hls");
+    const { last } = open();
+    expect(last().path).toBe("hls");
+    await settle();
+    expect(peers).toHaveLength(0);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(hlsPlayers).toHaveLength(1);
+  });
+
+  it("remembers the fallback per device for the browser session", async () => {
+    open();
+    await fallBack();
+    expect(sessionStorage.getItem(`${HLS_KEY_PREFIX}7`)).toBe("1");
+    stop();
+
+    open();
+    await settle();
+    expect(peers).toHaveLength(1); // only the first open tried WebRTC
+    expect(hlsPlayers).toHaveLength(2);
+
+    // Another feeder still tries WebRTC first.
+    stop();
+    stop = openLiveStream({ deviceId: 8, video: { srcObject: null }, onStatus: () => {} });
+    await settle();
+    expect(peers).toHaveLength(2);
+  });
+
+  it("destroys the player on stop, and on hide until shown again", async () => {
+    sessionStorage.setItem(`${HLS_KEY_PREFIX}7`, "1");
+    const { last } = open();
+    await settle();
+    const first = hlsPlayers[0];
+
+    setVisibility("hidden");
+    expect(first.destroyed).toBe(true);
+    expect(last().phase).toBe("paused");
+
+    setVisibility("visible");
+    await settle();
+    expect(hlsPlayers).toHaveLength(2);
+
+    stop();
+    expect(hlsPlayers[1].destroyed).toBe(true);
+  });
+
+  it("reports a 503 as offline and a 404 as no access", async () => {
+    sessionStorage.setItem(`${HLS_KEY_PREFIX}7`, "1");
+    const { last } = open();
+    await settle();
+    hlsPlayers[0].fire(FakeHls.Events.ERROR, { fatal: true, response: { code: 503 } });
+    expect(last().phase).toBe("offline");
+    expect(hlsPlayers[0].destroyed).toBe(true);
+
+    await vi.advanceTimersByTimeAsync(MAX_RETRY_MS);
+    await settle();
+    expect(hlsPlayers).toHaveLength(2);
+    hlsPlayers[1].fire(FakeHls.Events.ERROR, { fatal: false, response: { code: 404 } });
+    expect(last().phase).toBe("offline");
+    hlsPlayers[1].fire(FakeHls.Events.ERROR, { fatal: true, response: { code: 404 } });
+    expect(last().phase).toBe("error");
+  });
+
+  it("says so when the browser cannot play HLS", async () => {
+    FakeHls.supported = false;
+    window.history.replaceState(null, "", "/?live=hls");
+    const { last } = open();
+    await settle();
+    expect(hlsPlayers).toHaveLength(0);
+    expect(last().phase).toBe("error");
   });
 });

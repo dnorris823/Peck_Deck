@@ -18,7 +18,7 @@ from .config import settings
 from .database.connection import dispose_db, init_db, provide_db
 from .devices.controller import DeviceController
 from .events.controller import EventController
-from .live.controller import LiveController
+from .live.controller import LiveController, LiveHlsController
 from .errors import http_exception_handler, unhandled_exception_handler
 from .notifications.controller import PushController
 from .observability import RequestContextMiddleware, configure_logging
@@ -173,6 +173,7 @@ app = Litestar(
         UserController,
         DeviceController,
         LiveController,
+        LiveHlsController,
         SpeciesController,
         SightingController,
         StatsController,

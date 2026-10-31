@@ -362,6 +362,9 @@ The web app shows the feeder live over WebRTC. MediaMTX on the Pi does the
 WebRTC work. The backend relays the browser's offer to it, as described in
 `docs/live-video.md`. The video goes from the Pi to the browser directly.
 
+A browser that cannot reach the Pi plays low-latency HLS from MediaMTX instead,
+relayed through the backend. Only the gaming PC connects to the HLS port.
+
 ```
 viewer arrives ─▶ MediaMTX runs `python -m raspberry_pi_code.live_demand`
 live_demand ─▶ connects to LIVE_DEMAND_SOCKET ─▶ the Pi service starts the encoder
@@ -392,8 +395,11 @@ sudo tar -xzf mediamtx_${V}_linux_arm64.tar.gz -C /opt/mediamtx
 
 The config is `raspberry_pi_code/live/mediamtx.yml`. It holds no secrets.
 
-- Only RTSP and WebRTC are on. RTMP, HLS, SRT, MoQ, the API, metrics, pprof and
-  playback are off.
+- Only RTSP, WebRTC and HLS are on. RTMP, SRT, MoQ, the API, metrics, pprof
+  and playback are off.
+- HLS is the low-latency variant on `:8888`, with 1 s segments and 200 ms parts.
+  An HLS reader starts the encoder through `runOnDemand`, as a WebRTC reader
+  does. The muxer closes 10 s after the last request.
 - RTSP listens on `127.0.0.1:8554`, TCP only, for the Pi service.
 - Anyone on localhost may publish to `feeder`. Nobody else may publish.
 - Reading `feeder` needs the read user. The env file supplies its name and
@@ -432,11 +438,17 @@ Then install the unit from §9 and start it.
 | Port | Who connects | Why |
 |---|---|---|
 | 8889/tcp | The gaming PC | WHEP signalling. The backend relays offers here. |
+| 8888/tcp | The gaming PC | HLS. The backend relays it to browsers that cannot reach the Pi. |
 | 8189/udp | Every browser that watches | WebRTC media, once ICE completes. |
 | 8554/tcp | Nobody off the Pi | RTSP publish. It listens on 127.0.0.1 only. |
 
-Raspberry Pi OS has no firewall by default. If you add one, open the first two
-on the LAN and on the Tailscale interface.
+Raspberry Pi OS has no firewall by default. If you add one, open 8889 and 8189
+on the LAN and on the Tailscale interface, and open 8888 to the gaming PC only.
+With ufw, and the PC at 192.168.4.55:
+
+```bash
+sudo ufw allow from 192.168.4.55 to any port 8888 proto tcp
+```
 
 ### Settings
 
@@ -460,6 +472,9 @@ systemctl is-active mediamtx
 # No credentials: 401.
 curl -s -o /dev/null -w '%{http_code}\n' -X POST -H 'Content-Type: application/sdp' \
   --data 'v=0' http://<pi>:8889/feeder/whep
+# HLS. The first answer is MediaMTX's cookie check, a 302.
+curl -s -o /dev/null -w '%{http_code}\n' -u '<read user>:<password>' \
+  http://<pi>:8888/feeder/index.m3u8
 ```
 
 Then open the live view in the app. The service log shows `Live encoder

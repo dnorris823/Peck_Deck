@@ -76,6 +76,9 @@ class Settings:
     # Empty means MediaMTX takes unauthenticated reads. See docs/live-video.md.
     LIVE_READ_USER: str = os.getenv("LIVE_READ_USER", "")
     LIVE_READ_PASSWORD: str = os.getenv("LIVE_READ_PASSWORD", "")
+    # MediaMTX's HLS port on the Pi. The relay takes the host from the stored
+    # live_url and swaps in this port.
+    LIVE_HLS_PORT: int = int(os.getenv("LIVE_HLS_PORT", "8888"))
 
     # ── Cloud classification (Tier 3 — Claude API, M6) ────────────────────────
     ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")

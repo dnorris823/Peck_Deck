@@ -2,8 +2,9 @@
 # SETUP.md, "Live video". Tested on MediaMTX v1.21.3.
 #
 # The Pi service publishes H.264 over RTSP on localhost, and MediaMTX serves it
-# to the backend's WHEP relay over WebRTC. No secrets live here. The unit's env
-# file supplies the read credentials and the Pi's address:
+# to the backend's WHEP relay over WebRTC, and to its HLS relay for browsers that
+# cannot reach the Pi. No secrets live here. The unit's env file supplies the
+# read credentials and the Pi's address:
 #
 #   MTX_AUTHINTERNALUSERS_1_USER   the backend's LIVE_READ_USER
 #   MTX_AUTHINTERNALUSERS_1_PASS   the backend's LIVE_READ_PASSWORD
@@ -34,13 +35,12 @@ authInternalUsers:
       - action: read
         path: feeder
 
-# Only RTSP, for the local publisher, and WebRTC, for the backend.
+# Only RTSP, for the local publisher, and WebRTC and HLS, for the backend.
 api: false
 metrics: false
 pprof: false
 playback: false
 rtmp: false
-hls: false
 srt: false
 moq: false
 
@@ -61,6 +61,25 @@ webrtcLocalUDPAddress: :8189
 webrtcLocalTCPAddress: ""
 webrtcIPsFromInterfaces: true
 webrtcAdditionalHosts: []
+
+# The backend relays HLS from here, for a browser that cannot reach the Pi for
+# WebRTC media. Only the backend connects, over the LAN. Low-latency HLS cuts
+# 200 ms parts, so a viewer runs 1 to 3 seconds behind instead of under one.
+hls: true
+hlsAddress: :8888
+hlsEncryption: false
+hlsAllowOrigins: []
+hlsVariant: lowLatency
+# Off: the muxer starts with the first HLS reader, and that reader starts the
+# encoder through runOnDemand, as a WebRTC reader does.
+hlsAlwaysRemux: false
+# The muxer counts as a reader until it closes. The default 60 s would keep the
+# encoder running for a minute after the last viewer left.
+hlsMuxerCloseAfter: 10s
+# A segment ends at the first keyframe past this. The encoder sends one every
+# second, and 1s here gave 2 s segments, because a keyframe lands just short.
+hlsSegmentDuration: 900ms
+hlsPartDuration: 200ms
 
 paths:
   feeder:
