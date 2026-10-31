@@ -63,3 +63,39 @@ def test_exported_schema_is_current():
 
     regenerated = json.loads(EXPORTED.read_text(encoding="utf-8"))
     assert regenerated["info"]["title"] == "Peck Deck API"
+
+
+def _guarded_handlers():
+    from litestar.routes import HTTPRoute
+
+    from backend.auth.guards import device_guard, owner_guard, user_guard
+    from backend.main import app
+
+    for route in app.routes:
+        if not isinstance(route, HTTPRoute):
+            continue
+        for handler in route.route_handlers:
+            guards = handler.resolve_guards()
+            if user_guard in guards or owner_guard in guards:
+                yield route.path, handler, "UserJWT"
+            elif device_guard in guards:
+                yield route.path, handler, "DeviceToken"
+
+
+def test_every_guarded_route_declares_its_auth_scheme():
+    """Swagger UI's Authorize button sends a token only to routes that declare a
+    scheme. Without one, a route that needs a JWT gets no header and answers 401."""
+    handlers = list(_guarded_handlers())
+    assert handlers
+
+    for path, handler, scheme in handlers:
+        declared = [name for req in handler.resolve_security() for name in req]
+        assert declared == [scheme], f"{path} {sorted(handler.http_methods)} declares {declared}"
+
+
+def test_schema_marks_user_routes_with_the_jwt_scheme(client):
+    paths = client.get("/schema/openapi.json").json()["paths"]
+
+    assert paths["/users"]["get"]["security"] == [{"UserJWT": []}]
+    assert paths["/sightings"]["post"]["security"] == [{"DeviceToken": []}]
+    assert "security" not in paths["/login"]["post"]

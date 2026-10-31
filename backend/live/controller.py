@@ -30,7 +30,7 @@ from litestar.openapi.spec import (
 from litestar.params import FromPath
 from litestar.response import Stream
 
-from ..auth.guards import user_guard
+from ..auth.guards import USER_JWT, user_guard
 from ..database.connection import get_session_factory
 from ..devices.controller import live_available
 from ..devices.operations import get_device
@@ -76,6 +76,7 @@ class LiveController(Controller):
     @post(
         "/",
         guards=[user_guard],
+        security=USER_JWT,
         status_code=201,
         media_type="application/sdp",
         operation_class=_SdpOfferOperation,
@@ -124,7 +125,7 @@ class LiveController(Controller):
             headers={"Location": f"/devices/{device_id}/live/whep/{session}"},
         )
 
-    @delete("/{session:str}", guards=[user_guard], status_code=204)
+    @delete("/{session:str}", guards=[user_guard], security=USER_JWT, status_code=204)
     async def hang_up(
         self, device_id: FromPath[int], session: FromPath[str], request: Request
     ) -> None:
@@ -203,7 +204,7 @@ class LiveHlsController(Controller):
     path = "/devices/{device_id:int}/live/hls"
     tags = ["devices"]
 
-    @get("/{name:path}", guards=[user_guard], operation_class=_HlsFileOperation)
+    @get("/{name:path}", guards=[user_guard], security=USER_JWT, operation_class=_HlsFileOperation)
     async def hls_file(
         self, device_id: FromPath[int], name: FromPath[str], request: Request
     ) -> Stream | Response[bytes]:

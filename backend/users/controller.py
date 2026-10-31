@@ -4,7 +4,7 @@ from litestar.exceptions import HTTPException, NotFoundException
 from litestar.params import FromPath
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth.guards import owner_guard, user_guard
+from ..auth.guards import USER_JWT, owner_guard, user_guard
 from ..auth.jwt_utils import create_user_token, verify_password
 from ..auth.rate_limit import login_rate_limiter
 from .operations import (
@@ -91,7 +91,7 @@ async def login(
     )
 
 
-@post("/logout", guards=[user_guard], status_code=204)
+@post("/logout", guards=[user_guard], security=USER_JWT, status_code=204)
 async def logout(request: Request, db: NamedDependency[AsyncSession]) -> None:
     """Sign out. Revokes every token the caller holds, on every device.
 
@@ -107,11 +107,11 @@ async def logout(request: Request, db: NamedDependency[AsyncSession]) -> None:
 class UserController(Controller):
     path = "/users"
 
-    @get("/", guards=[user_guard])
+    @get("/", guards=[user_guard], security=USER_JWT)
     async def list_all(self, db: NamedDependency[AsyncSession]) -> list[UserResponse]:
         return [_to_response(u) for u in await list_users(db)]
 
-    @post("/", status_code=201, guards=[owner_guard])
+    @post("/", status_code=201, guards=[owner_guard], security=USER_JWT)
     async def register(self, data: RegisterUser, db: NamedDependency[AsyncSession]) -> UserResponse:
         """Invite a new user. **Owner only.**
 
@@ -138,21 +138,21 @@ class UserController(Controller):
         )
         return _to_response(user)
 
-    @get("/me", guards=[user_guard])
+    @get("/me", guards=[user_guard], security=USER_JWT)
     async def me(self, request: Request, db: NamedDependency[AsyncSession]) -> UserResponse:
         user = await get_user_by_id(db, request.state.user_id)
         if user is None:
             raise NotFoundException()
         return _to_response(user)
 
-    @get("/me/preferences", guards=[user_guard])
+    @get("/me/preferences", guards=[user_guard], security=USER_JWT)
     async def get_preferences(
         self, request: Request, db: NamedDependency[AsyncSession]
     ) -> PreferencesResponse:
         prefs = await get_or_create_preferences(db, request.state.user_id)
         return _prefs_response(prefs)
 
-    @put("/me/preferences", guards=[user_guard])
+    @put("/me/preferences", guards=[user_guard], security=USER_JWT)
     async def put_preferences(
         self, data: UpdatePreferences, request: Request, db: NamedDependency[AsyncSession]
     ) -> PreferencesResponse:
@@ -171,7 +171,7 @@ class UserController(Controller):
         )
         return _prefs_response(prefs)
 
-    @get("/{user_id:int}", guards=[user_guard])
+    @get("/{user_id:int}", guards=[user_guard], security=USER_JWT)
     async def get_user(self, user_id: FromPath[int], request: Request, db: NamedDependency[AsyncSession]) -> UserResponse:
         if request.state.user_id != user_id and request.state.role != "owner":
             raise HTTPException(status_code=403, detail="Forbidden")
@@ -180,7 +180,7 @@ class UserController(Controller):
             raise NotFoundException()
         return _to_response(user)
 
-    @put("/{user_id:int}", guards=[user_guard])
+    @put("/{user_id:int}", guards=[user_guard], security=USER_JWT)
     async def update(
         self, user_id: FromPath[int], data: UpdateUser, request: Request, db: NamedDependency[AsyncSession]
     ) -> UserResponse:
@@ -203,7 +203,7 @@ class UserController(Controller):
         )
         return _to_response(user)
 
-    @post("/{user_id:int}/password", guards=[user_guard], status_code=204)
+    @post("/{user_id:int}/password", guards=[user_guard], security=USER_JWT, status_code=204)
     async def change_password(
         self, user_id: FromPath[int], data: UpdatePassword, request: Request, db: NamedDependency[AsyncSession]
     ) -> None:
@@ -229,7 +229,7 @@ class UserController(Controller):
         if not is_self:
             await revoke_tokens(db, user)
 
-    @delete("/{user_id:int}", guards=[user_guard], status_code=204)
+    @delete("/{user_id:int}", guards=[user_guard], security=USER_JWT, status_code=204)
     async def remove(self, user_id: FromPath[int], request: Request, db: NamedDependency[AsyncSession]) -> None:
         if request.state.user_id != user_id and request.state.role != "owner":
             raise HTTPException(status_code=403, detail="Forbidden")

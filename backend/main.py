@@ -12,7 +12,7 @@ from litestar.enums import RequestEncodingType
 from litestar.exceptions import HTTPException
 from litestar.params import Body
 
-from .auth.guards import device_guard
+from .auth.guards import DEVICE_TOKEN, device_guard
 from .classification.claude import get_classifier
 from .config import settings
 from .database.connection import dispose_db, init_db, provide_db
@@ -63,7 +63,7 @@ class ClassifyForm:
     image: UploadFile
 
 
-@post("/classify", guards=[device_guard], status_code=200)
+@post("/classify", guards=[device_guard], security=DEVICE_TOKEN, status_code=200)
 async def classify(
     data: Annotated[ClassifyForm, Body(media_type=RequestEncodingType.MULTI_PART)],
 ) -> dict:

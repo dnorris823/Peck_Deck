@@ -8,6 +8,13 @@ from ..database.models import Device, User
 from .jwt_utils import decode_user_token
 
 
+# OpenAPI security requirements, named after the schemes in backend/main.py.
+# Put one beside every guard. Swagger UI's Authorize button sends a token only
+# to routes that declare a scheme, so a guarded route without one gets 401 there.
+USER_JWT = [{"UserJWT": []}]
+DEVICE_TOKEN = [{"DeviceToken": []}]
+
+
 def _bearer_token(connection: ASGIConnection) -> str:
     header = connection.headers.get("Authorization", "")
     if not header.startswith("Bearer "):

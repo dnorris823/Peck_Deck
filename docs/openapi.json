@@ -1435,6 +1435,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
         "summary": "Classify"
       }
     },
@@ -1458,6 +1463,11 @@
             "headers": {}
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "ListDevices"
       },
       "post": {
@@ -1524,6 +1534,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Register"
       }
     },
@@ -1592,6 +1607,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
         "summary": "HeartbeatSelf"
       }
     },
@@ -1654,6 +1674,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Remove"
       },
       "put": {
@@ -1731,6 +1756,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Update"
       }
     },
@@ -1810,6 +1840,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
         "summary": "Heartbeat"
       }
     },
@@ -1905,6 +1940,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "HlsFile",
         "tags": [
           "devices"
@@ -1994,6 +2034,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Offer",
         "tags": [
           "devices"
@@ -2068,6 +2113,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "HangUp",
         "tags": [
           "devices"
@@ -2140,6 +2190,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "GetToken"
       },
       "post": {
@@ -2207,6 +2262,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "RotateToken"
       }
     },
@@ -2279,6 +2339,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "AddUser"
       }
     },
@@ -2350,6 +2415,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "RemoveUser"
       }
     },
@@ -2368,6 +2438,11 @@
             "headers": {}
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Stream"
       }
     },
@@ -2469,6 +2544,11 @@
             "headers": {}
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Logout"
       }
     },
@@ -2489,6 +2569,11 @@
             "headers": {}
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Config",
         "tags": [
           "notifications"
@@ -2556,6 +2641,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Unsubscribe",
         "tags": [
           "notifications"
@@ -2580,6 +2670,11 @@
             "headers": {}
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "ListMine",
         "tags": [
           "notifications"
@@ -2649,6 +2744,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Subscribe",
         "tags": [
           "notifications"
@@ -2831,6 +2931,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "ListSightings"
       },
       "post": {
@@ -2897,6 +3002,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "DeviceToken": []
+          }
+        ],
         "summary": "Create"
       }
     },
@@ -3039,6 +3149,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Export"
       }
     },
@@ -3108,6 +3223,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "DeleteOne"
       },
       "get": {
@@ -3175,6 +3295,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "GetOne"
       },
       "patch": {
@@ -3252,6 +3377,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Correct"
       }
     },
@@ -3337,6 +3467,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "GetImage"
       }
     },
@@ -3360,6 +3495,11 @@
             "headers": {}
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "ListAll"
       },
       "post": {
@@ -3426,6 +3566,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Create"
       }
     },
@@ -3495,6 +3640,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "GetOne"
       }
     },
@@ -3515,6 +3665,11 @@
             "headers": {}
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Dashboard"
       }
     },
@@ -3541,6 +3696,11 @@
             "headers": {}
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Heatmap"
       }
     },
@@ -3643,6 +3803,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Hours"
       }
     },
@@ -3760,6 +3925,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "SpeciesCounts"
       }
     },
@@ -3780,6 +3950,11 @@
             "headers": {}
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Storage"
       }
     },
@@ -3803,6 +3978,11 @@
             "headers": {}
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "ListAll"
       },
       "post": {
@@ -3869,6 +4049,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Register"
       }
     },
@@ -3889,6 +4074,11 @@
             "headers": {}
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Me"
       }
     },
@@ -3909,6 +4099,11 @@
             "headers": {}
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "GetPreferences"
       },
       "put": {
@@ -3975,6 +4170,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "PutPreferences"
       }
     },
@@ -4037,6 +4237,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Remove"
       },
       "get": {
@@ -4104,6 +4309,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "GetUser"
       },
       "put": {
@@ -4181,6 +4391,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "Update"
       }
     },
@@ -4253,6 +4468,11 @@
             "description": "Bad request syntax or unsupported method"
           }
         },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
         "summary": "ChangePassword"
       }
     }

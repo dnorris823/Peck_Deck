@@ -14,7 +14,7 @@ from litestar.params import Body, FromPath, FromQuery
 from litestar.response import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth.guards import device_guard, user_guard
+from ..auth.guards import DEVICE_TOKEN, USER_JWT, device_guard, user_guard
 from ..devices.operations import mark_device_seen
 from ..events.hub import SightingDeleted, SightingUpdated, sighting_hub
 from ..species.operations import get_species
@@ -70,7 +70,7 @@ class SightingUploadForm:
 class SightingController(Controller):
     path = "/sightings"
 
-    @get("/", guards=[user_guard])
+    @get("/", guards=[user_guard], security=USER_JWT)
     async def list_sightings(
         self,
         request: Request,
@@ -102,7 +102,7 @@ class SightingController(Controller):
         )
         return [_to_response(s, has_image=has_image) for s, has_image in rows]
 
-    @get("/export", guards=[user_guard])
+    @get("/export", guards=[user_guard], security=USER_JWT)
     async def export(
         self,
         request: Request,
@@ -152,7 +152,7 @@ class SightingController(Controller):
             )
         return Response(content=rows, media_type="application/json", headers=headers)
 
-    @post("/", guards=[device_guard], status_code=201)
+    @post("/", guards=[device_guard], security=DEVICE_TOKEN, status_code=201)
     async def create(
         self,
         data: Annotated[SightingUploadForm, Body(media_type=RequestEncodingType.MULTI_PART)],
@@ -198,14 +198,14 @@ class SightingController(Controller):
             background=BackgroundTask(schedule_weather, sighting.id),
         )
 
-    @get("/{sighting_id:int}", guards=[user_guard])
+    @get("/{sighting_id:int}", guards=[user_guard], security=USER_JWT)
     async def get_one(self, sighting_id: FromPath[int], db: NamedDependency[AsyncSession]) -> SightingResponse:
         sighting = await get_sighting(db, sighting_id)
         if sighting is None:
             raise NotFoundException()
         return _to_response(sighting)
 
-    @get("/{sighting_id:int}/image", guards=[user_guard])
+    @get("/{sighting_id:int}/image", guards=[user_guard], security=USER_JWT)
     async def get_image(
         self,
         sighting_id: FromPath[int],
@@ -233,7 +233,7 @@ class SightingController(Controller):
             },
         )
 
-    @patch("/{sighting_id:int}", guards=[user_guard])
+    @patch("/{sighting_id:int}", guards=[user_guard], security=USER_JWT)
     async def correct(
         self,
         sighting_id: FromPath[int],
@@ -278,7 +278,7 @@ class SightingController(Controller):
             ),
         )
 
-    @delete("/{sighting_id:int}", guards=[user_guard], status_code=204)
+    @delete("/{sighting_id:int}", guards=[user_guard], security=USER_JWT, status_code=204)
     async def delete_one(
         self, sighting_id: FromPath[int], request: Request, db: NamedDependency[AsyncSession]
     ) -> Response[None]:
