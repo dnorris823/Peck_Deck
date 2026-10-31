@@ -1,6 +1,5 @@
-// Users page + Settings page
+// Settings page. The Users page is in Users.jsx.
 import React, { useEffect, useState } from "react";
-import { Icon } from "./Icon.jsx";
 import { useData } from "./DataContext.jsx";
 import { useAppearance } from "./Appearance.jsx";
 import { PALETTES, themeTokens } from "./themes.js";
@@ -10,175 +9,12 @@ import {
   pushSupported,
 } from "./push.js";
 import {
-  saveMe, savePreferences, createUser, updateUser, changePassword,
+  saveMe, savePreferences, changePassword,
   fetchStorage, formatBytes,
 } from "./data.js";
 import {
-  checkRequired, checkEmail, checkPassword, collect, hasErrors,
+  checkRequired, checkEmail, checkPassword,
 } from "./validate.js";
-
-// Admin-creates-with-temp-password: there's no SendGrid email-invite flow yet,
-// so the owner sets a temporary password and shares it out of band.
-function InviteUserModal({ onClose, onDone }) {
-  const [form, setForm] = useState({ name: "", email: "", password: "", role: "viewer" });
-  const [error, setError] = useState(null);
-  const [fieldErr, setFieldErr] = useState({});
-  const [busy, setBusy] = useState(false);
-  const set = k => v => setForm(f => ({ ...f, [k]: v }));
-
-  function validate() {
-    return collect({
-      name: checkRequired(form.name, "Name"),
-      email: checkEmail(form.email),
-      password: checkPassword(form.password, { label: "Temporary password" }),
-    });
-  }
-
-  async function submit() {
-    const errs = validate();
-    setFieldErr(errs);
-    if (hasErrors(errs)) { setError(null); return; }
-    setBusy(true);
-    setError(null);
-    try {
-      await createUser({
-        name: form.name.trim(), email: form.email.trim(), password: form.password,
-        role: form.role,
-      });
-      await onDone();
-      onClose();
-    } catch (e) {
-      setError(e.status === 409 ? "That email is already registered." : e.message);
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Modal
-      title="Invite a user"
-      subtitle="Set a temporary password and share it with them — they can change it in Settings."
-      onClose={onClose}
-      footer={<>
-        <button className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn primary" onClick={submit} disabled={busy}>{busy ? "Adding…" : "Add user"}</button>
-      </>}
-    >
-      <TextInput label="Name" value={form.name} onChange={set("name")} error={fieldErr.name} />
-      <TextInput label="Email" type="email" value={form.email} onChange={set("email")} error={fieldErr.email} />
-      <TextInput label="Temporary password" type="password" value={form.password} onChange={set("password")}
-        help="At least 8 characters." error={fieldErr.password} />
-      <SelectInput label="Role" value={form.role} onChange={set("role")}
-        options={[["viewer", "Viewer"], ["owner", "Owner"]]} />
-      <FormNote error={error} />
-    </Modal>
-  );
-}
-
-// Edit is limited to the fields UpdateUser accepts (name/notify/email).
-// Role changes need a dedicated route and stay read-only here.
-function EditUserModal({ user, onClose, onDone }) {
-  const [form, setForm] = useState({
-    name: user.name, email: user.email,
-    notify_email: user.notify_email,
-  });
-  const [error, setError] = useState(null);
-  const [fieldErr, setFieldErr] = useState({});
-  const [busy, setBusy] = useState(false);
-  const set = k => v => setForm(f => ({ ...f, [k]: v }));
-
-  async function submit() {
-    const errs = collect({
-      name: checkRequired(form.name, "Name"),
-      email: checkEmail(form.email),
-    });
-    setFieldErr(errs);
-    if (hasErrors(errs)) { setError(null); return; }
-    setBusy(true);
-    setError(null);
-    try {
-      await updateUser(user.id, {
-        name: form.name.trim(), email: form.email.trim(),
-        notify_email: form.notify_email,
-      });
-      await onDone();
-      onClose();
-    } catch (e) {
-      setError(e.status === 409 ? "That email is already registered." : e.message);
-      setBusy(false);
-    }
-  }
-
-  return (
-    <Modal
-      title={`Edit ${user.name}`}
-      onClose={onClose}
-      footer={<>
-        <button className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn primary" onClick={submit} disabled={busy}>{busy ? "Saving…" : "Save"}</button>
-      </>}
-    >
-      <TextInput label="Name" value={form.name} onChange={set("name")} error={fieldErr.name} />
-      <TextInput label="Email" type="email" value={form.email} onChange={set("email")} error={fieldErr.email} />
-      <SelectInput label="Role" value={user.role} onChange={() => {}}
-        options={[["viewer", "Viewer"], ["owner", "Owner"]]} />
-      <div className="field-help" style={{ marginTop: -6 }}>Role changes aren't supported here yet.</div>
-      <label className="row" style={{ gap: 8, alignItems: "center" }}>
-        <input type="checkbox" checked={form.notify_email} onChange={e => set("notify_email")(e.target.checked)} />
-        <span>Email notifications</span>
-      </label>
-      <FormNote error={error} />
-    </Modal>
-  );
-}
-
-export function UsersPage() {
-  const { data, reload } = useData();
-  const USERS = data.USERS;
-  const [inviting, setInviting] = useState(false);
-  const [editing, setEditing] = useState(null);
-
-  return (
-    <>
-      <div className="page-header">
-        <div>
-          <div className="label">People who watch your feeders</div>
-          <h1 className="page-title">Users &amp; <em>roles</em></h1>
-        </div>
-        <button className="btn primary" onClick={() => setInviting(true)}>
-          <Icon name="plus" className="" /> Invite user
-        </button>
-      </div>
-
-      <div className="card">
-        <div className="card-head">
-          <div className="card-title">Members</div>
-          <span className="label">{USERS.length} people</span>
-        </div>
-        {USERS.map(u => (
-          <div className="user-row" key={u.id}>
-            <div className="av-lg" style={{ background: u.avBg }}>{u.av}</div>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 500 }}>{u.name}</div>
-              <div style={{ fontSize: 12.5, color: "var(--mu)", marginTop: 2 }}>
-                {u.email}
-              </div>
-            </div>
-            <span className={`role-badge role-${u.role}`}>{u.role}</span>
-            <span className="label" style={{ fontSize: 10, display: "flex", gap: 10 }}>
-              <span style={{ color: u.notify_email ? "var(--ok)" : "var(--mu)" }}>
-                ✉ {u.notify_email ? "ON" : "OFF"}
-              </span>
-            </span>
-            <button className="btn ghost sm" onClick={() => setEditing(u)}>Edit</button>
-          </div>
-        ))}
-      </div>
-
-      {inviting && <InviteUserModal onClose={() => setInviting(false)} onDone={reload} />}
-      {editing && <EditUserModal user={editing} onClose={() => setEditing(null)} onDone={reload} />}
-    </>
-  );
-}
 
 const SETTINGS_SECTIONS = [
   { id: "account", label: "Account" },

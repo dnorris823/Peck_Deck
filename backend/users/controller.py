@@ -14,9 +14,12 @@ from .operations import (
     get_or_create_preferences,
     get_user_by_email,
     get_user_by_id,
+    is_last_owner,
     list_users,
+    owned_device_names,
     revoke_tokens,
     set_password,
+    set_role,
     update_preferences,
     update_user,
 )
@@ -27,6 +30,7 @@ from .schemas import (
     TokenResponse,
     UpdatePassword,
     UpdatePreferences,
+    UpdateRole,
     UpdateUser,
     UserResponse,
 )
@@ -107,8 +111,9 @@ async def logout(request: Request, db: NamedDependency[AsyncSession]) -> None:
 class UserController(Controller):
     path = "/users"
 
-    @get("/", guards=[user_guard], security=USER_JWT)
+    @get("/", guards=[owner_guard], security=USER_JWT)
     async def list_all(self, db: NamedDependency[AsyncSession]) -> list[UserResponse]:
+        """Every user and their email. **Owner only.** A viewer reads `/users/me`."""
         return [_to_response(u) for u in await list_users(db)]
 
     @post("/", status_code=201, guards=[owner_guard], security=USER_JWT)
@@ -229,11 +234,57 @@ class UserController(Controller):
         if not is_self:
             await revoke_tokens(db, user)
 
+    @put("/{user_id:int}/role", guards=[owner_guard], security=USER_JWT)
+    async def change_role(
+        self, user_id: FromPath[int], data: UpdateRole, db: NamedDependency[AsyncSession]
+    ) -> UserResponse:
+        """Make a user an owner or a viewer. **Owner only.**
+
+        It applies on the user's next request, because `user_guard` reads the
+        role from the database. Refuses to demote the last owner.
+        """
+        if data.role not in _ALLOWED_ROLES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"role must be one of {sorted(_ALLOWED_ROLES)}",
+            )
+        user = await get_user_by_id(db, user_id)
+        if user is None:
+            raise NotFoundException()
+        if data.role != "owner" and await is_last_owner(db, user):
+            raise HTTPException(status_code=409, detail="The last owner cannot be demoted.")
+        return _to_response(await set_role(db, user, data.role))
+
+    @post("/{user_id:int}/logout", guards=[owner_guard], security=USER_JWT, status_code=204)
+    async def logout_user(self, user_id: FromPath[int], db: NamedDependency[AsyncSession]) -> None:
+        """Sign a user out on every device. **Owner only.** For a lost phone.
+
+        Unlike a password reset, the user's password still works.
+        """
+        user = await get_user_by_id(db, user_id)
+        if user is None:
+            raise NotFoundException()
+        await revoke_tokens(db, user)
+
     @delete("/{user_id:int}", guards=[user_guard], security=USER_JWT, status_code=204)
     async def remove(self, user_id: FromPath[int], request: Request, db: NamedDependency[AsyncSession]) -> None:
+        """Delete a user, their feeder memberships and their preferences.
+
+        Refused with 409 while the user owns a feeder, since the feeder's
+        sightings hold the only copy of each image. Refused for the last owner.
+        """
         if request.state.user_id != user_id and request.state.role != "owner":
             raise HTTPException(status_code=403, detail="Forbidden")
         user = await get_user_by_id(db, user_id)
         if user is None:
             raise NotFoundException()
+        feeders = await owned_device_names(db, user_id)
+        if feeders:
+            raise HTTPException(
+                status_code=409,
+                detail=f"{user.name} owns {', '.join(feeders)}. "
+                "A user who owns a feeder cannot be removed.",
+            )
+        if await is_last_owner(db, user):
+            raise HTTPException(status_code=409, detail="The last owner cannot be removed.")
         await delete_user(db, user)

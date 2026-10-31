@@ -1,5 +1,5 @@
 from litestar.connection import ASGIConnection
-from litestar.exceptions import NotAuthorizedException
+from litestar.exceptions import NotAuthorizedException, PermissionDeniedException
 from litestar.handlers import BaseRouteHandler
 from sqlalchemy import select
 
@@ -53,9 +53,15 @@ async def user_guard(connection: ASGIConnection, _: BaseRouteHandler) -> None:
 
 
 async def owner_guard(connection: ASGIConnection, handler: BaseRouteHandler) -> None:
+    """Accept a user JWT whose user has the owner role.
+
+    A viewer gets 403, not 401. The web app treats 401 as an expired session
+    and signs the user out, so a viewer who hit an owner route would lose their
+    session for it.
+    """
     await user_guard(connection, handler)
     if connection.state.role != "owner":
-        raise NotAuthorizedException("Owner role required")
+        raise PermissionDeniedException("Owner role required")
 
 
 async def device_guard(connection: ASGIConnection, _: BaseRouteHandler) -> None:

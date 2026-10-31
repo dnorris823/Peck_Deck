@@ -1,13 +1,14 @@
 // App — auth gate, data provider, top-level routing
 import React, { useState, useCallback, useEffect, useRef } from "react";
-import { TopBar, TabBar, MoreMenu, NAV, LEGACY_ROUTES } from "./Shell.jsx";
+import { TopBar, TabBar, MoreMenu, NAV, LEGACY_ROUTES, allowedRoute } from "./Shell.jsx";
 import { Dashboard } from "./Dashboard.jsx";
 import { Sightings } from "./Sightings.jsx";
 import { SightingDetail } from "./SightingDetail.jsx";
 import { SpeciesPage } from "./Species.jsx";
 import { DevicesPage } from "./Devices.jsx";
 import { LivePage } from "./Live.jsx";
-import { UsersPage, SettingsPage } from "./UsersSettings.jsx";
+import { UsersPage } from "./Users.jsx";
+import { SettingsPage } from "./UsersSettings.jsx";
 import { Login } from "./Login.jsx";
 import { DataProvider, useData } from "./DataContext.jsx";
 import { AppearanceProvider } from "./Appearance.jsx";
@@ -148,7 +149,7 @@ function AppRoot() {
 function AppShell({ onLogout }) {
   const { data, loading, error, reload } = useData();
   const online = useOnline();
-  const [route, setRoute] = useState(initialRoute);
+  const [asked, setRoute] = useState(initialRoute);
   const { openId, show: openSighting, close: closeSighting } = useOpenSighting();
   const [sighting, onCorrected] = useSightingById(openId, data, closeSighting);
   const [moreOpen, setMoreOpen] = useState(false);
@@ -174,6 +175,9 @@ function AppShell({ onLogout }) {
   // The app-wide accent is the latest visitor's. A screen that shows another
   // bird sets its own accent on that part of the page.
   const accent = useSpeciesAccent(data?.SIGHTINGS[0]?.species);
+
+  // A viewer on ?screen=users, or an owner who just demoted themselves.
+  const route = data ? allowedRoute(asked, data.ME) : asked;
 
   if (loading && !data) {
     return <div className="boot"><div className="boot-mark">Loading Peck Deck…</div></div>;

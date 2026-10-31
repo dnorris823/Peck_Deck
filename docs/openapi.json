@@ -3,13 +3,28 @@
     "schemas": {
       "AddDeviceUser": {
         "properties": {
+          "email": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "user_id": {
-            "type": "integer"
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
-        "required": [
-          "user_id"
-        ],
+        "required": [],
         "title": "AddDeviceUser",
         "type": "object"
       },
@@ -183,6 +198,25 @@
         "title": "DashboardResponse",
         "type": "object"
       },
+      "DeviceAccessResponse": {
+        "properties": {
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/DeviceMember"
+            },
+            "type": "array"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/DeviceMember"
+          }
+        },
+        "required": [
+          "members",
+          "owner"
+        ],
+        "title": "DeviceAccessResponse",
+        "type": "object"
+      },
       "DeviceHeartbeat": {
         "properties": {
           "battery": {
@@ -218,6 +252,30 @@
         },
         "required": [],
         "title": "DeviceHeartbeat",
+        "type": "object"
+      },
+      "DeviceMember": {
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "notify_email": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "email",
+          "id",
+          "name",
+          "notify_email"
+        ],
+        "title": "DeviceMember",
         "type": "object"
       },
       "DeviceResponse": {
@@ -1283,6 +1341,18 @@
         "title": "UpdatePreferences",
         "type": "object"
       },
+      "UpdateRole": {
+        "properties": {
+          "role": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "role"
+        ],
+        "title": "UpdateRole",
+        "type": "object"
+      },
       "UpdateUser": {
         "properties": {
           "email": {
@@ -2271,6 +2341,78 @@
       }
     },
     "/devices/{device_id}/users": {
+      "get": {
+        "deprecated": false,
+        "operationId": "DevicesDeviceIdUsersListAccess",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeviceAccessResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
+        "summary": "ListAccess"
+      },
       "post": {
         "deprecated": false,
         "operationId": "DevicesDeviceIdUsersAddUser",
@@ -4399,6 +4541,73 @@
         "summary": "Update"
       }
     },
+    "/users/{user_id}/logout": {
+      "post": {
+        "deprecated": false,
+        "operationId": "UsersUserIdLogoutLogoutUser",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Request fulfilled, nothing follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
+        "summary": "LogoutUser"
+      }
+    },
     "/users/{user_id}/password": {
       "post": {
         "deprecated": false,
@@ -4474,6 +4683,90 @@
           }
         ],
         "summary": "ChangePassword"
+      }
+    },
+    "/users/{user_id}/role": {
+      "put": {
+        "deprecated": false,
+        "operationId": "UsersUserIdRoleChangeRole",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateRole"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
+        "summary": "ChangeRole"
       }
     }
   },

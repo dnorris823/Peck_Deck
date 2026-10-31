@@ -5,7 +5,10 @@ import { useData } from "./DataContext.jsx";
 import { Modal, TextInput, FormNote, useDialog } from "./Modal.jsx";
 import { Empty } from "./Empty.jsx";
 import { SightingImage } from "./SightingImage.jsx";
-import { createDevice, fmtRelative, tierInfo } from "./data.js";
+import {
+  AV_COLORS, createDevice, fmtRelative, initials, tierInfo, updateDevice,
+} from "./data.js";
+import { canManageFeeder, useFeederAccess } from "./feederAccess.js";
 
 function RegisterDeviceModal({ onClose, onDone }) {
   const [form, setForm] = useState({ name: "", city: "", state: "", feed_type: "" });
@@ -117,6 +120,14 @@ function TierMix({ mix }) {
   );
 }
 
+// mapDevice shows an empty city or feed type as "—". The form wants "".
+const blank = v => (v === "—" ? "" : v);
+
+function locationText(d) {
+  return [d.city !== "—" && [d.city, d.state].filter(Boolean).join(", "), d.feed !== "—" && d.feed]
+    .filter(Boolean).join(" · ") || "No location set";
+}
+
 function DeviceListCard({ d, latest, onClick }) {
   return (
     <button type="button" className="station-card" onClick={() => onClick(d)}>
@@ -135,10 +146,7 @@ function DeviceListCard({ d, latest, onClick }) {
         <div className="between">
           <div>
             <div className="device-name">{d.name}</div>
-            <div className="device-loc">
-              {[d.city !== "—" && [d.city, d.state].filter(Boolean).join(", "), d.feed !== "—" && d.feed]
-                .filter(Boolean).join(" · ") || "No location set"}
-            </div>
+            <div className="device-loc">{locationText(d)}</div>
           </div>
           <div className="station-card-status">
             <DeviceStatus d={d} />
@@ -166,16 +174,149 @@ function DeviceListCard({ d, latest, onClick }) {
   );
 }
 
+// Name, location and feed type. The weather lookup geocodes the city and state.
+function FeederDetailsForm({ d, onSaved }) {
+  const [form, setForm] = useState({
+    name: d.name, city: blank(d.city), state: d.state, feed_type: blank(d.feed),
+  });
+  const [error, setError] = useState(null);
+  const [note, setNote] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const set = k => v => { setForm(f => ({ ...f, [k]: v })); setNote(null); };
+
+  async function save() {
+    if (!form.name.trim()) { setError("A feeder name is required."); return; }
+    setBusy(true);
+    setError(null);
+    try {
+      await updateDevice(d.id, {
+        name: form.name.trim(), city: form.city.trim(), state: form.state.trim(),
+        feed_type: form.feed_type.trim(),
+      });
+      await onSaved();
+      setNote("Saved.");
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="settings-section" style={{ marginTop: 24, display: "grid", gap: 14 }}>
+      <div className="label">Details</div>
+      <TextInput label="Name" value={form.name} onChange={set("name")} />
+      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12 }}>
+        <TextInput label="City" value={form.city} onChange={set("city")} />
+        <TextInput label="State" value={form.state} onChange={set("state")} />
+      </div>
+      <TextInput label="Bait / feed type" value={form.feed_type} onChange={set("feed_type")}
+        help="Each sighting's weather comes from the city and state." />
+      <FormNote error={error} note={note} />
+      <div className="row" style={{ justifyContent: "flex-end" }}>
+        <button className="btn" onClick={save} disabled={busy}>{busy ? "Saving…" : "Save details"}</button>
+      </div>
+    </div>
+  );
+}
+
+function RecipientRow({ u, badge, users, action }) {
+  const known = users.find(x => x.id === u.id);
+  return (
+    <div className="user-row">
+      <div className="av-lg" style={{ background: known?.avBg || AV_COLORS[u.id % AV_COLORS.length] }}>
+        {known?.av || initials(u.name)}
+      </div>
+      <div>
+        <div style={{ fontSize: 13.5, fontWeight: 700 }}>{u.name}</div>
+        <div style={{ fontSize: 12.5, color: "var(--mu)" }}>{u.email}</div>
+      </div>
+      <span className={`role-badge role-${badge === "owner" ? "owner" : "viewer"}`}>{badge}</span>
+      <span className="label" style={{ fontSize: 10 }}>✉ {u.notify_email ? "ON" : "OFF"}</span>
+      {action || <span />}
+    </div>
+  );
+}
+
+// The owner and the members see the feeder and get its alerts. They are the
+// people backend/notifications/service.py sends to. Members are added by
+// email, because a viewer who owns a feeder cannot list users.
+function FeederRecipients({ d, me, users, onLostAccess }) {
+  const { access, loaded, error, share, unshare } = useFeederAccess([d.id]);
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState(null);
+  const a = access.get(d.id);
+
+  async function add() {
+    if (!email.trim()) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      await share(d.id, { email: email.trim() });
+      setEmail("");
+    } catch (e) {
+      setActionError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(u) {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await unshare(d.id, u.id);
+      if (u.id === me.id) await onLostAccess();
+    } catch (e) {
+      setActionError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const listed = a ? new Set([a.owner.id, ...a.members.map(m => m.id)]) : new Set();
+  const suggestions = users.filter(u => !listed.has(u.id));
+
+  return (
+    <div className="settings-section" style={{ marginTop: 24 }}>
+      <div className="label" style={{ marginBottom: 12 }}>Who sees this feeder</div>
+      {error && <div className="field-help field-error">Couldn't load members: {error}</div>}
+      {!error && !loaded && <div className="field-help">Loading…</div>}
+      {a && (
+        <div className="card">
+          <RecipientRow u={a.owner} badge="owner" users={users} />
+          {a.members.map(u => (
+            <RecipientRow key={u.id} u={u} badge="member" users={users}
+              action={<button className="btn ghost sm" disabled={busy} onClick={() => remove(u)}
+                aria-label={`Remove ${u.name}`}>Remove</button>} />
+          ))}
+        </div>
+      )}
+      <div className="field-help" style={{ marginTop: 8 }}>
+        These people see its sightings and get its alerts. Each person turns email
+        and push on or off in their own Settings.
+      </div>
+      <div className="row" style={{ marginTop: 12, gap: 8, alignItems: "flex-end" }}>
+        <div style={{ flex: 1 }}>
+          <TextInput label="Share with" type="email" placeholder="Their account email"
+            value={email} onChange={setEmail} list={`share-${d.id}`} />
+          <datalist id={`share-${d.id}`}>
+            {suggestions.map(u => <option key={u.id} value={u.email}>{u.name}</option>)}
+          </datalist>
+        </div>
+        <button className="btn" onClick={add} disabled={busy || !email.trim()}>Add</button>
+      </div>
+      <FormNote error={actionError} />
+    </div>
+  );
+}
+
 function DeviceDetail({ d, onClose }) {
-  const { data } = useData();
-  const USERS = data.USERS;
+  const { data, reload } = useData();
   const panelRef = useRef(null);
   useDialog(onClose, panelRef);
-
-  // Recipients are configured per-user (notify_email in Users), so we
-  // show the owners/viewers who currently receive alerts — read-only until the
-  // per-device recipient endpoint lands (there's no GET for it yet).
-  const recipients = USERS.filter(u => u.notify_email);
+  const manage = canManageFeeder(d, data.ME);
 
   return (
     <div className="modal-bg" onClick={onClose}>
@@ -185,33 +326,18 @@ function DeviceDetail({ d, onClose }) {
         <div style={{ padding: "28px 32px" }}>
           <div className="label" style={{ marginBottom: 8 }}>Feeder settings</div>
           <h2 className="dialog-title">{d.name}</h2>
-          <div className="dialog-sub">{d.city}, {d.state}</div>
+          <div className="dialog-sub">{locationText(d)}</div>
 
-          <div className="settings-section" style={{ marginTop: 24 }}>
-            <div className="label" style={{ marginBottom: 12 }}>Notification recipients</div>
-            {recipients.length > 0 ? (
-              <div className="card">
-                {recipients.map(u => (
-                  <div className="user-row" key={u.id}>
-                    <div className="av-lg" style={{ background: u.avBg }}>{u.av}</div>
-                    <div>
-                      <div style={{ fontSize: 13.5, fontWeight: 700 }}>{u.name}</div>
-                      <div style={{ fontSize: 12.5, color: "var(--mu)" }}>{u.email}</div>
-                    </div>
-                    <span className={`role-badge role-${u.role}`}>{u.role}</span>
-                    <span className="label" style={{ fontSize: 10 }}>
-                      {u.notify_email && "✉"}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="field-help">No users have notifications enabled. Turn them on per user under Users.</div>
-            )}
-            <div className="field-help" style={{ marginTop: 8 }}>
-              Recipients follow each user's notification settings. Per-feeder recipient lists are coming soon.
+          {manage ? (
+            <>
+              <FeederDetailsForm d={d} onSaved={reload} />
+              <FeederRecipients d={d} me={data.ME} users={data.USERS} onLostAccess={reload} />
+            </>
+          ) : (
+            <div className="field-help" style={{ marginTop: 24 }}>
+              This feeder is shared with you. Only its owner can change its details or who sees it.
             </div>
-          </div>
+          )}
 
           <div className="row" style={{ marginTop: 28, justifyContent: "flex-end" }}>
             <button className="btn primary" onClick={onClose}>Done</button>
@@ -230,7 +356,10 @@ export function DevicesPage() {
   for (const s of SIGHTINGS) {
     if (s.hasImage && !latestBy.has(s.device.id)) latestBy.set(s.device.id, s);
   }
-  const [open, setOpen] = useState(null);
+  // An id, not the feeder, so a save or a reload shows the new values. A
+  // feeder that drops out of the list closes the dialog.
+  const [openId, setOpenId] = useState(null);
+  const open = DEVICES.find(d => d.id === openId);
   const [registering, setRegistering] = useState(false);
   return (
     <>
@@ -246,7 +375,7 @@ export function DevicesPage() {
 
       {DEVICES.length > 0 ? (
         <div className="station-grid">
-          {DEVICES.map(d => <DeviceListCard key={d.id} d={d} latest={latestBy.get(d.id)} onClick={setOpen} />)}
+          {DEVICES.map(d => <DeviceListCard key={d.id} d={d} latest={latestBy.get(d.id)} onClick={d => setOpenId(d.id)} />)}
         </div>
       ) : (
         <Empty
@@ -259,7 +388,7 @@ export function DevicesPage() {
         />
       )}
 
-      {open && <DeviceDetail d={open} onClose={() => setOpen(null)} />}
+      {open && <DeviceDetail d={open} onClose={() => setOpenId(null)} />}
       {registering && <RegisterDeviceModal onClose={() => setRegistering(false)} onDone={reload} />}
     </>
   );

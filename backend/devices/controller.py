@@ -8,12 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import DEVICE_TOKEN, USER_JWT, device_guard, user_guard
 from ..live.address import check_live_url
-from ..users.operations import get_or_create_preferences
+from ..users.operations import get_user_by_email, get_user_by_id
 from .operations import (
     add_device_user,
     create_device,
     delete_device,
     get_device,
+    get_device_members,
     get_devices_for_user,
     get_sighting_counts,
     get_tier_mix,
@@ -24,7 +25,9 @@ from .operations import (
 )
 from .schemas import (
     AddDeviceUser,
+    DeviceAccessResponse,
     DeviceHeartbeat,
+    DeviceMember,
     DeviceResponse,
     DeviceTokenResponse,
     RegisterDevice,
@@ -85,6 +88,12 @@ async def _record_heartbeat(db: AsyncSession, device, data: DeviceHeartbeat):
             raise HTTPException(status_code=400, detail=problem)
     return await update_device_telemetry(
         db, device, battery=data.battery, signal=data.signal, live_url=data.live_url
+    )
+
+
+def _member(user) -> DeviceMember:
+    return DeviceMember(
+        id=user.id, name=user.name, email=user.email, notify_email=user.notify_email
     )
 
 
@@ -170,6 +179,8 @@ class DeviceController(Controller):
         if device is None:
             raise NotFoundException()
         _assert_owner(request, device)
+        if data.name is not None and not data.name.strip():
+            raise HTTPException(status_code=400, detail="A feeder needs a name.")
         device = await update_device(
             db,
             device,
@@ -204,6 +215,19 @@ class DeviceController(Controller):
         device = await _record_heartbeat(db, device, data)
         return await _to_response(db, device)
 
+    @get("/{device_id:int}/users", guards=[user_guard], security=USER_JWT)
+    async def list_access(
+        self, device_id: FromPath[int], request: Request, db: NamedDependency[AsyncSession]
+    ) -> DeviceAccessResponse:
+        """The feeder's owner and members. These are its alert recipients."""
+        device = await get_device(db, device_id)
+        if device is None:
+            raise NotFoundException()
+        _assert_owner(request, device)
+        owner = await get_user_by_id(db, device.owner_id)
+        members = await get_device_members(db, device_id)
+        return DeviceAccessResponse(owner=_member(owner), members=[_member(u) for u in members])
+
     @post("/{device_id:int}/users", guards=[user_guard], security=USER_JWT, status_code=204)
     async def add_user(
         self, device_id: FromPath[int], data: AddDeviceUser, request: Request, db: NamedDependency[AsyncSession]
@@ -212,7 +236,18 @@ class DeviceController(Controller):
         if device is None:
             raise NotFoundException()
         _assert_owner(request, device)
-        await add_device_user(db, device_id, data.user_id)
+        if (data.user_id is None) == (data.email is None):
+            raise HTTPException(status_code=400, detail="Send one of user_id or email.")
+        if data.user_id is not None:
+            user = await get_user_by_id(db, data.user_id)
+        else:
+            user = await get_user_by_email(db, data.email.strip())
+        if user is None:
+            detail = "No user has that email." if data.email is not None else "No such user."
+            raise HTTPException(status_code=404, detail=detail)
+        if user.id == device.owner_id:
+            raise HTTPException(status_code=400, detail=f"{user.name} owns this feeder.")
+        await add_device_user(db, device_id, user.id)
 
     @delete("/{device_id:int}/users/{uid:int}", guards=[user_guard], security=USER_JWT, status_code=204)
     async def remove_user(

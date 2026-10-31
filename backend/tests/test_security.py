@@ -43,7 +43,8 @@ def test_registration_requires_owner_not_just_any_user(client, viewer_headers):
         json={"name": "By Viewer", "email": "byviewer@test.dev", "password": "pw"},
     )
 
-    assert res.status_code == 401
+    # 403, not 401. The web app signs a user out on 401.
+    assert res.status_code == 403
 
 
 def test_owner_can_still_invite(client, owner_headers):

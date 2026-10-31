@@ -225,3 +225,26 @@ describe("local-time helpers", () => {
     expect(fmtDayHeading(new Date(2026, 9, 26, 12), now)).toMatch(/Oct 26/);
   });
 });
+
+describe("loadAll for a viewer", () => {
+  // GET /users is owner only. A viewer's load must not fail on it.
+  function refuseUsers(status) {
+    routeApiGet();
+    const routed = apiGet.getMockImplementation();
+    apiGet.mockImplementation((path) => (path === "/users"
+      ? Promise.reject(Object.assign(new Error(`failed (${status})`), { status }))
+      : routed(path)));
+  }
+
+  it("loads with no users when GET /users answers 403", async () => {
+    refuseUsers(403);
+    const data = await loadAll();
+    expect(data.USERS).toEqual([]);
+    expect(data.ME.id).toBe(100);
+  });
+
+  it("still fails on any other GET /users error", async () => {
+    refuseUsers(500);
+    await expect(loadAll()).rejects.toThrow("failed (500)");
+  });
+});

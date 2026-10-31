@@ -106,7 +106,9 @@ Measure one tier with `scripts/validate_tiers.py` and the whole chain with
 ## Security
 
 - `POST /users` is owner only. It was once unauthenticated with a client-settable
-  `role`, so anyone could mint an owner account.
+  `role`, so anyone could mint an owner account. `GET /users` is owner only too.
+- `owner_guard` refuses a viewer with 403, not 401. The web app signs the user
+  out on any 401.
 - `POST /login` throttles per account and per client IP. Five failures in five
   minutes returns 429 with `Retry-After`.
 - Unknown email and wrong password return the same response, so accounts cannot be

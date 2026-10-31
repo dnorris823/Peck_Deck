@@ -1,8 +1,15 @@
-from sqlalchemy import select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.jwt_utils import hash_password, verify_password
-from ..database.models import User, UserPreferences
+from ..database.models import (
+    Device,
+    DeviceUser,
+    PushSubscription,
+    Sighting,
+    User,
+    UserPreferences,
+)
 
 
 async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
@@ -71,7 +78,46 @@ async def revoke_tokens(db: AsyncSession, user: User) -> User:
     return user
 
 
+async def set_role(db: AsyncSession, user: User, role: str) -> User:
+    user.role = role
+    await db.flush()
+    return user
+
+
+async def is_last_owner(db: AsyncSession, user: User) -> bool:
+    """Whether the user is the only owner left.
+
+    The row lock makes a second demotion or delete wait for this transaction,
+    so two owners cannot each remove the other. SQLite ignores it.
+    """
+    if user.role != "owner":
+        return False
+    owners = (
+        await db.execute(select(User.id).where(User.role == "owner").with_for_update())
+    ).scalars().all()
+    return list(owners) == [user.id]
+
+
+async def owned_device_names(db: AsyncSession, user_id: int) -> list[str]:
+    result = await db.execute(
+        select(Device.name).where(Device.owner_id == user_id).order_by(Device.name)
+    )
+    return list(result.scalars().all())
+
+
 async def delete_user(db: AsyncSession, user: User) -> None:
+    """Delete the user and the rows that only matter to them.
+
+    The caller refuses a user who owns a feeder. The feeder's sightings hold
+    the only copy of each image, so they must not go with the user. A
+    correction the user made keeps its species and loses only its author.
+    """
+    await db.execute(delete(DeviceUser).where(DeviceUser.user_id == user.id))
+    await db.execute(delete(UserPreferences).where(UserPreferences.user_id == user.id))
+    await db.execute(delete(PushSubscription).where(PushSubscription.user_id == user.id))
+    await db.execute(
+        update(Sighting).where(Sighting.corrected_by == user.id).values(corrected_by=None)
+    )
     await db.delete(user)
     await db.flush()
 

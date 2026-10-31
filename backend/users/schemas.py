@@ -17,6 +17,11 @@ class UpdateUser:
 
 
 @dataclass
+class UpdateRole:
+    role: str
+
+
+@dataclass
 class UpdatePassword:
     new_password: str
     # Required when changing your own password; ignored on an owner-initiated
