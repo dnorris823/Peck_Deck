@@ -70,8 +70,9 @@ Run these on the Pi:
 sudo apt update
 sudo apt install -y python3-pip python3-venv python3-picamera2
 
-# Project virtual environment (from project root)
-python3 -m venv .venv
+# Project virtual environment (from project root). --system-site-packages
+# lets the venv import picamera2, which comes from apt.
+python3 -m venv --system-site-packages .venv
 source .venv/bin/activate
 
 # Pi-specific packages
