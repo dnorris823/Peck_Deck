@@ -12,7 +12,7 @@ import { Login } from "./Login.jsx";
 import { DataProvider, useData } from "./DataContext.jsx";
 import { AppearanceProvider } from "./Appearance.jsx";
 import { OfflineBanner, useOnline } from "./Offline.jsx";
-import { getToken, clearToken } from "./api.js";
+import { getToken, logout } from "./api.js";
 import { useSpeciesAccent } from "./accent.js";
 import { fetchSighting, mapAgainst } from "./data.js";
 
@@ -137,8 +137,8 @@ function AppRoot() {
 
   return (
     <DataProvider onAuthError={onAuthError}>
-      <AppShell onLogout={() => {
-        clearToken();
+      <AppShell onLogout={async () => {
+        await logout();
         setAuthed(false);
       }} />
     </DataProvider>

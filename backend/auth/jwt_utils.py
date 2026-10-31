@@ -14,11 +14,13 @@ def verify_password(password: str, hashed: str) -> bool:
     return bcrypt.checkpw(password.encode(), hashed.encode())
 
 
-def create_user_token(user_id: int, role: str) -> str:
+def create_user_token(user_id: int, role: str, version: int = 0) -> str:
+    """Sign a user JWT. `version` is the user's token_version at issue time."""
     now = datetime.now(timezone.utc)
     payload = {
         "sub": str(user_id),
         "role": role,
+        "ver": version,
         "iat": now,
         "exp": now + timedelta(hours=settings.JWT_EXPIRE_HOURS),
     }

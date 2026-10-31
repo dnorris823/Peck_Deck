@@ -41,6 +41,25 @@ export async function login(email, password) {
   return data;
 }
 
+// Sign out. A token lasts 30 days, so the server revokes it rather than the
+// browser just forgetting it. That signs this user out on every device. The
+// local token goes either way, so an unreachable server still signs you out here.
+export async function logout() {
+  const token = getToken();
+  try {
+    if (token) {
+      await fetch("/api/logout", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+    }
+  } catch {
+    /* offline: nothing to revoke against, the local sign-out still happens */
+  } finally {
+    clearToken();
+  }
+}
+
 export async function apiGet(path) {
   const token = getToken();
   let res;

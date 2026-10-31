@@ -119,6 +119,11 @@ Measure one tier with `scripts/validate_tiers.py` and the whole chain with
   `JWT_SECRET`, or on wildcard CORS.
 - Device tokens and user JWTs have separate guards. A device token is not accepted
   on a user route.
+- **A user JWT lasts 30 days, so `user_guard` reads the database.** It rejects a
+  token whose `ver` claim no longer matches `users.token_version`, or whose user
+  is gone, and takes the role from the row. `POST /logout` and an owner password
+  reset bump the version. A guard that only checks the signature would leave a
+  revoked token valid for a month.
 - CI runs `pip-audit` and `npm audit` without failing the build. Read the audit job
   output rather than trusting a green tick.
 

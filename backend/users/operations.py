@@ -64,6 +64,13 @@ async def set_password(db: AsyncSession, user: User, new_password: str) -> User:
     return user
 
 
+async def revoke_tokens(db: AsyncSession, user: User) -> User:
+    """Invalidate every JWT issued to the user. The guard checks the version."""
+    user.token_version = (user.token_version or 0) + 1
+    await db.flush()
+    return user
+
+
 async def delete_user(db: AsyncSession, user: User) -> None:
     await db.delete(user)
     await db.flush()

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   getToken, setToken, clearToken,
-  login, apiGet, apiSend, AuthError,
+  login, logout, apiGet, apiSend, AuthError,
 } from "./api.js";
 
 // Helper: build a fetch Response-like object with the bits api.js reads.
@@ -55,6 +55,31 @@ describe("login", () => {
   it("throws a reachability error when fetch rejects", async () => {
     fetch.mockRejectedValue(new TypeError("network down"));
     await expect(login("dom@peck.deck", "x")).rejects.toThrow(/reach the server/);
+  });
+});
+
+describe("logout", () => {
+  it("revokes the token on the server, then clears it", async () => {
+    setToken("tok-123");
+    fetch.mockResolvedValue(mockResponse({ status: 204 }));
+    await logout();
+    expect(fetch).toHaveBeenCalledWith("/api/logout", {
+      method: "POST",
+      headers: { Authorization: "Bearer tok-123" },
+    });
+    expect(getToken()).toBeNull();
+  });
+
+  it("clears the token even when the server is unreachable", async () => {
+    setToken("tok-123");
+    fetch.mockRejectedValue(new TypeError("network down"));
+    await expect(logout()).resolves.toBeUndefined();
+    expect(getToken()).toBeNull();
+  });
+
+  it("skips the request when there is no token", async () => {
+    await logout();
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
 

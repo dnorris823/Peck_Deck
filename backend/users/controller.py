@@ -15,6 +15,7 @@ from .operations import (
     get_user_by_email,
     get_user_by_id,
     list_users,
+    revoke_tokens,
     set_password,
     update_preferences,
     update_user,
@@ -85,7 +86,22 @@ async def login(
 
     login_rate_limiter.reset(account_key)
     login_rate_limiter.reset(ip_key)
-    return TokenResponse(access_token=create_user_token(user.id, user.role))
+    return TokenResponse(
+        access_token=create_user_token(user.id, user.role, user.token_version)
+    )
+
+
+@post("/logout", guards=[user_guard], status_code=204)
+async def logout(request: Request, db: NamedDependency[AsyncSession]) -> None:
+    """Sign out. Revokes every token the caller holds, on every device.
+
+    A JWT lasts 30 days, so dropping it from the browser is not enough. A copy
+    would stay valid. The cost is that signing out on one device signs out the
+    others too.
+    """
+    user = await get_user_by_id(db, request.state.user_id)
+    if user is not None:
+        await revoke_tokens(db, user)
 
 
 class UserController(Controller):
@@ -208,6 +224,10 @@ class UserController(Controller):
         if not data.new_password:
             raise HTTPException(status_code=400, detail="New password is required")
         await set_password(db, user, data.new_password)
+        # An owner resetting someone else's password is how an owner cuts a
+        # user off without deleting them, so it signs that user out everywhere.
+        if not is_self:
+            await revoke_tokens(db, user)
 
     @delete("/{user_id:int}", guards=[user_guard], status_code=204)
     async def remove(self, user_id: FromPath[int], request: Request, db: NamedDependency[AsyncSession]) -> None:
