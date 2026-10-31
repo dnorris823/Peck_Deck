@@ -25,6 +25,48 @@ bash scripts/backup_smoke_test.sh           # prove a dump actually restores
   photo, and a row count alone would never catch it.
 - `backups/` and `*.dump` are gitignored — they hold real user records and photos.
 
+## Database size and retention
+
+Images have no size limit, so the database and the backup dump grow with every
+capture. Settings > Storage shows two numbers from `GET /stats/storage`:
+
+| Number | Source |
+|---|---|
+| Database | `pg_database_size(current_database())`, the whole database on disk |
+| Images | `sum(octet_length(image_data))` plus the same for `thumbnail_data` |
+
+Both cover every device on the server. The image number is part of the database
+number.
+
+### The retention rule
+
+One optional rule exists: delete "Unknown" sightings older than N days. An
+Unknown sighting is one that no tier could name, so the Pi uploaded it under the
+"Unknown" species with tier `none`. A sighting a person corrected to a real
+species no longer points at "Unknown", so the rule skips it.
+
+| Env var | Default | Effect |
+|---|---|---|
+| `RETENTION_UNKNOWN_DAYS` | `0` | `0` turns the rule off. A positive N deletes Unknown sightings older than N days. A negative value refuses to start. |
+
+- **The rule is off by default.** With `0`, the API starts no task and deletes
+  nothing.
+- When on, the API process runs the rule once at startup and then every 24 hours.
+  The code is in `backend/retention.py`.
+- Each run logs one line with the count, such as
+  `retention: deleted 12 Unknown sightings older than 30 days`.
+- A deleted row takes its image with it, because the image is a column on the
+  row. Nothing restores it except a backup taken before the run.
+- Postgres does not shrink the file at once. Autovacuum reuses the freed space
+  for new rows, so the database number stops growing before it falls.
+
+Set it in the root `.env`, which compose passes to the `api` container, then
+restart the container:
+
+```bash
+RETENTION_UNKNOWN_DAYS=30
+```
+
 ## Database migrations
 
 Schema is versioned with Alembic (`backend/migrations/`). The API container runs
@@ -66,7 +108,7 @@ running app:
 |---|---|
 | `http://localhost:8000/schema` | Interactive docs (Swagger UI / ReDoc) |
 | `http://localhost:8000/schema/openapi.json` | Raw OpenAPI 3.1 document |
-| `docs/openapi.json` | Committed snapshot — 26 paths, 35 operations |
+| `docs/openapi.json` | Committed snapshot — 33 paths, 44 operations |
 
 Both auth schemes are documented in the spec (`UserJWT`, `DeviceToken`), so the
 Pi/frontend contract is self-describing.

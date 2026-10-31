@@ -40,6 +40,11 @@ class Settings:
     # unbounded body from exhausting memory (images are buffered as bytea).
     MAX_UPLOAD_BYTES: int = int(os.getenv("MAX_UPLOAD_BYTES", str(15 * 1024 * 1024)))
 
+    # ── Retention ─────────────────────────────────────────────────────────────
+    # Delete "Unknown" sightings older than this many days, once a day. 0 turns
+    # the rule off, and 0 is the default. See backend/retention.py.
+    RETENTION_UNKNOWN_DAYS: int = int(os.getenv("RETENTION_UNKNOWN_DAYS", "0"))
+
     # ── Environment ───────────────────────────────────────────────────────────
     # "development" | "production". Production refuses to start on insecure
     # defaults (see backend/main.py).

@@ -10,6 +10,7 @@ import {
 } from "./push.js";
 import {
   saveMe, savePreferences, createUser, updateUser, changePassword,
+  fetchStorage, formatBytes,
 } from "./data.js";
 import {
   checkRequired, checkEmail, checkPassword, collect, hasErrors,
@@ -182,6 +183,7 @@ const SETTINGS_SECTIONS = [
   { id: "account", label: "Account" },
   { id: "notifications", label: "Notifications" },
   { id: "appearance", label: "Appearance" },
+  { id: "storage", label: "Storage" },
 ];
 
 function Toggle({ on, onChange, disabled = false }) {
@@ -294,6 +296,45 @@ function PushChannelRow() {
         )}
       </div>
       <span className="label">VIA VAPID</span>
+    </div>
+  );
+}
+
+// Database and image sizes, and whether the retention rule is on. The numbers
+// cover the whole server, so every user sees the same ones.
+export function StorageSection() {
+  const [storage, setStorage] = useState(null);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchStorage()
+      .then((s) => { if (!cancelled) setStorage(s); })
+      .catch((e) => { if (!cancelled) setError(e.message); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const size = (key) => (storage ? formatBytes(storage[key]) : "…");
+  const days = storage?.retention_unknown_days;
+
+  return (
+    <div className="settings-section">
+      <h3>Storage</h3>
+      <p className="lead">Images live in the database, so it grows with every capture. The backup dump grows with it.</p>
+      {error && <div className="field-help field-error">Couldn't load storage sizes: {error}</div>}
+      <Field label="Database" help="The whole database on disk.">
+        <span className="tnum" style={{ fontSize: 20, fontWeight: 800 }}>{size("database_bytes")}</span>
+      </Field>
+      <Field label="Images" help="Full images and thumbnails, part of the database size.">
+        <span className="tnum" style={{ fontSize: 20, fontWeight: 800 }}>{size("image_bytes")}</span>
+      </Field>
+      <Field label="Retention" help="Set by RETENTION_UNKNOWN_DAYS on the server.">
+        <span>
+          {storage == null ? "…"
+            : days > 0 ? `Unknown sightings older than ${days} days are deleted daily.`
+            : "Off. Nothing is deleted."}
+        </span>
+      </Field>
     </div>
   );
 }
@@ -506,6 +547,8 @@ export function SettingsPage() {
               </Field>
             </div>
           )}
+
+          {section === "storage" && <StorageSection />}
         </div>
       </div>
 

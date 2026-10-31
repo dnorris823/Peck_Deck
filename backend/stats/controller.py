@@ -8,11 +8,13 @@ from litestar.params import FromQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import user_guard
+from ..config import settings
 from . import operations
 from .schemas import (
     DashboardResponse,
     HourStatsResponse,
     SpeciesCountResponse,
+    StorageResponse,
 )
 
 
@@ -116,3 +118,14 @@ class StatsController(Controller):
     async def heatmap(self, request: Request, db: NamedDependency[AsyncSession]) -> list[list[int]]:
         return await operations.heatmap(db, request.state.user_id)
 
+    @get("/storage")
+    async def storage(self, db: NamedDependency[AsyncSession]) -> StorageResponse:
+        """Database size and image storage size, for Settings.
+
+        Both numbers cover the whole server, not only the caller's devices.
+        `retention_unknown_days` is 0 when the retention rule is off.
+        """
+        data = await operations.storage(db)
+        return StorageResponse(
+            **data, retention_unknown_days=settings.RETENTION_UNKNOWN_DAYS
+        )
