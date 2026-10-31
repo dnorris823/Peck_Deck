@@ -87,7 +87,20 @@ class SightingUpdated:
     payload: dict[str, Any]
 
 
-HubEvent = SightingEvent | SightingDeleted | SightingUpdated
+@dataclass(frozen=True)
+class SightingsDeleted:
+    """Many sightings removed at once from one device, by a bulk delete.
+
+    The stream sends it as a resync. One ``sighting_deleted`` per row would make
+    each open tab refetch its stats once per row, thousands of times for a
+    date-range delete. A single reload costs less and refills the window.
+    """
+
+    device_id: int
+    count: int
+
+
+HubEvent = SightingEvent | SightingDeleted | SightingUpdated | SightingsDeleted
 
 
 class SightingHub:

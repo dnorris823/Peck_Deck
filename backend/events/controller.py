@@ -51,7 +51,14 @@ from ..database.connection import get_session_factory
 from ..database.models import Sighting
 from ..sightings.operations import _accessible_device_ids
 from ..sightings.schemas import sighting_response
-from .hub import RESYNC, SightingDeleted, SightingEvent, SightingUpdated, sighting_hub
+from .hub import (
+    RESYNC,
+    SightingDeleted,
+    SightingEvent,
+    SightingsDeleted,
+    SightingUpdated,
+    sighting_hub,
+)
 
 logger = logging.getLogger("peckdeck.events")
 
@@ -162,8 +169,14 @@ async def _generate(
                     yield ServerSentEventMessage(event="resync", data="overflow")
                     continue
 
-                assert isinstance(item, (SightingEvent, SightingDeleted, SightingUpdated))
+                assert isinstance(
+                    item, (SightingEvent, SightingDeleted, SightingUpdated, SightingsDeleted)
+                )
                 if item.device_id not in device_ids:
+                    continue
+                if isinstance(item, SightingsDeleted):
+                    # See SightingsDeleted. The client reloads on any resync.
+                    yield ServerSentEventMessage(event="resync", data="bulk_delete")
                     continue
                 if isinstance(item, SightingDeleted):
                     # No `id`. The client resumes from the last id it saw, and

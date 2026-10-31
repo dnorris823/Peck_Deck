@@ -2,13 +2,17 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 from litestar import Controller, Request, delete, get, post, put
+from litestar.background_tasks import BackgroundTask
 from litestar.exceptions import HTTPException, NotFoundException
 from litestar.di import NamedDependency
 from litestar.params import FromPath, FromQuery
+from litestar.response import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import DEVICE_TOKEN, USER_JWT, device_guard, user_guard
+from ..events.hub import SightingsDeleted, sighting_hub
 from ..live.address import check_live_url
+from ..sightings.operations import count_sightings_before, delete_sightings_before
 from ..users.operations import get_user_by_email, get_user_by_id
 from .operations import (
     add_device_user,
@@ -34,6 +38,7 @@ from .schemas import (
     DeviceTokenResponse,
     RegisterDevice,
     RegisteredDeviceResponse,
+    SightingCount,
     TierMix,
     UpdateDevice,
 )
@@ -104,6 +109,22 @@ def _member(user) -> DeviceMember:
 def _assert_owner(request: Request, device) -> None:
     if device.owner_id != request.state.user_id and request.state.role != "owner":
         raise HTTPException(status_code=403, detail="Forbidden")
+
+
+def _parse_before(before: str) -> datetime:
+    """An ISO-8601 instant. A value with no offset counts as UTC."""
+    try:
+        parsed = datetime.fromisoformat(before)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="before must be ISO-8601 (e.g. 2026-10-28 or 2026-10-28T07:00:00Z)",
+        )
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+async def _announce(event: SightingsDeleted) -> None:
+    sighting_hub.publish(event)
 
 
 class DeviceController(Controller):
@@ -186,6 +207,55 @@ class DeviceController(Controller):
         logger.info(
             "device %d deleted with %d sightings by user %d",
             device_id, sightings, request.state.user_id,
+        )
+
+    @get("/{device_id:int}/sightings/count", guards=[user_guard], security=USER_JWT)
+    async def count_old_sightings(
+        self,
+        device_id: FromPath[int],
+        before: FromQuery[str],
+        request: Request,
+        db: NamedDependency[AsyncSession],
+    ) -> SightingCount:
+        """How many sightings `DELETE /devices/{id}/sightings` would remove.
+
+        Feeder owner or owner role only, like the delete it previews.
+        """
+        device = await get_device(db, device_id)
+        if device is None:
+            raise NotFoundException()
+        _assert_owner(request, device)
+        return SightingCount(count=await count_sightings_before(db, device_id, _parse_before(before)))
+
+    @delete("/{device_id:int}/sightings", guards=[user_guard], security=USER_JWT, status_code=204)
+    async def delete_old_sightings(
+        self,
+        device_id: FromPath[int],
+        before: FromQuery[str],
+        request: Request,
+        db: NamedDependency[AsyncSession],
+    ) -> Response[None]:
+        """Delete the feeder's sightings older than `before`, with their images.
+
+        **Feeder owner or owner role only.** `before` is required, so no request
+        clears a feeder's whole history by leaving it out.
+        """
+        device = await get_device(db, device_id)
+        if device is None:
+            raise NotFoundException()
+        _assert_owner(request, device)
+        cutoff = _parse_before(before)
+        count = await delete_sightings_before(db, device_id, cutoff)
+        logger.info(
+            "%d sightings before %s deleted from device %d by user %d",
+            count, cutoff.isoformat(), device_id, request.state.user_id,
+        )
+        # Published after the commit, like DELETE /sightings/{id}.
+        return Response(
+            content=None,
+            status_code=204,
+            background=BackgroundTask(_announce, SightingsDeleted(device_id=device_id, count=count))
+            if count else None,
         )
 
     @put("/{device_id:int}", guards=[user_guard], security=USER_JWT)

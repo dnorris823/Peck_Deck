@@ -5,8 +5,10 @@ import { SightingImage } from "./SightingImage.jsx";
 import { Icon } from "./Icon.jsx";
 import { Empty } from "./Empty.jsx";
 import { useData } from "./DataContext.jsx";
+import { canDeleteSighting } from "./SightingDetail.jsx";
 import {
-  confidenceLevel, downloadExport, fmtDateLabel, fmtDayHeading, fmtTime, tierInfo,
+  confidenceLevel, deleteSightings, downloadExport, fmtDateLabel, fmtDayHeading, fmtTime,
+  tierInfo,
 } from "./data.js";
 
 // Inclusive lower bound (ms since epoch) for a named range, or 0 for "all time".
@@ -53,12 +55,17 @@ export function ConfidenceChip({ s, long = false }) {
   );
 }
 
-export function SightingTile({ s, onClick, showDate = false }) {
+// `selected` is null outside select mode. In select mode a click toggles the
+// tile instead of opening it, and `disabled` marks one the user cannot delete.
+export function SightingTile({ s, onClick, showDate = false, selected = null, disabled = false }) {
+  const selecting = selected !== null;
   return (
-    <button type="button" className="tile" onClick={() => onClick(s)}
+    <button type="button" className={`tile${selecting ? " selecting" : ""}${selected ? " selected" : ""}`}
+      onClick={() => onClick(s)} disabled={disabled} aria-pressed={selecting ? selected : undefined}
       aria-label={`${s.species.common}, ${fmtTime(s.datetime)}`}>
       <div className="tile-img">
         <SightingImage sighting={s} />
+        {selecting && !disabled && <span className="tile-check" aria-hidden="true">{selected ? "✓" : ""}</span>}
         <span className="tile-badge tile-badge-l">{fmtTime(s.datetime)}</span>
         <span className="tile-badge tile-badge-r"><ConfidenceChip s={s} /></span>
       </div>
@@ -109,6 +116,58 @@ function ExportCsvButton() {
   );
 }
 
+// The bar shown in select mode. Deletes only the selected tiles that the
+// filters still show, so a hidden tile never goes by surprise.
+function SelectBar({ chosen, selectable, onSelectAll, onClear, onCancel, onDone }) {
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const n = chosen.length;
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteSightings(chosen.map(s => s.id));
+      await onDone();
+    } catch (e) {
+      setError(e.message || "Delete failed.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="select-bar card" role="region" aria-label="Selected sightings">
+      {confirming ? (
+        <>
+          <span>Delete {n} sighting{n === 1 ? "" : "s"} and {n === 1 ? "its photo" : "their photos"}? This cannot be undone.</span>
+          <span className="select-bar-actions">
+            <button className="btn sm" onClick={() => setConfirming(false)}>Keep</button>
+            <button className="btn danger sm" onClick={submit} disabled={busy}>
+              {busy ? "Deleting…" : `Delete ${n}`}
+            </button>
+          </span>
+        </>
+      ) : (
+        <>
+          <span className="tnum">{n} selected</span>
+          <span className="select-bar-actions">
+            <button className="btn ghost sm" onClick={onSelectAll} disabled={selectable === 0}>
+              Select all shown ({selectable})
+            </button>
+            {n > 0 && <button className="btn ghost sm" onClick={onClear}>Clear</button>}
+            <button className="btn sm" onClick={onCancel}>Cancel</button>
+            <button className="btn danger sm" onClick={() => setConfirming(true)} disabled={n === 0}>
+              Delete {n}…
+            </button>
+          </span>
+        </>
+      )}
+      {error && <div className="field-help field-error" role="alert">{error}</div>}
+    </div>
+  );
+}
+
 // Newest-first sightings split into local calendar days.
 function groupByDay(sightings) {
   const groups = [];
@@ -124,8 +183,10 @@ function groupByDay(sightings) {
 // `initialDay` opens History on one local day, as Home's yesterday line does.
 // That day shows as its own choice before the named ranges.
 export function Sightings({ openSighting, initialSpecies = "all", initialDay = null }) {
-  const { data } = useData();
-  const { SIGHTINGS, SPECIES, DEVICES } = data;
+  const { data, reload } = useData();
+  const { SIGHTINGS, SPECIES, DEVICES, ME } = data;
+  // Null outside select mode, else the ids ticked so far.
+  const [selected, setSelected] = useState(null);
   const [device, setDevice] = useState("all");
   const [species, setSpecies] = useState(initialSpecies);
   // Coming from a species page, start wide: that species' visits may be old.
@@ -142,6 +203,18 @@ export function Sightings({ openSighting, initialSpecies = "all", initialDay = n
   }, [SIGHTINGS, device, species, range, initialDay]);
 
   const groups = useMemo(() => groupByDay(filtered), [filtered]);
+  const canDelete = s => canDeleteSighting(s, ME);
+  const deletable = filtered.filter(canDelete);
+  const chosen = selected ? filtered.filter(s => selected.has(s.id)) : [];
+
+  function clickTile(s) {
+    if (!selected) return openSighting(s);
+    setSelected(sel => {
+      const next = new Set(sel);
+      if (next.has(s.id)) next.delete(s.id); else next.add(s.id);
+      return next;
+    });
+  }
   const hasAny = SIGHTINGS.length > 0;
   // Only species that appear in the loaded sightings are worth filtering by.
   const seenSpecies = useMemo(() => {
@@ -184,8 +257,24 @@ export function Sightings({ openSighting, initialSpecies = "all", initialDay = n
           {seenSpecies.map(s => <option key={s.id} value={s.id}>{s.common}</option>)}
         </select>
 
-        <span className="toolbar-end"><ExportCsvButton /></span>
+        <span className="toolbar-end">
+          {!selected && SIGHTINGS.some(canDelete) && (
+            <button type="button" className="btn sm" onClick={() => setSelected(new Set())}>Select</button>
+          )}
+          <ExportCsvButton />
+        </span>
       </div>
+
+      {selected && (
+        <SelectBar
+          chosen={chosen}
+          selectable={deletable.length}
+          onSelectAll={() => setSelected(new Set(deletable.map(s => s.id)))}
+          onClear={() => setSelected(new Set())}
+          onCancel={() => setSelected(null)}
+          onDone={async () => { await reload(); setSelected(null); }}
+        />
+      )}
 
       {groups.length > 0 ? (
         groups.map(g => (
@@ -195,7 +284,11 @@ export function Sightings({ openSighting, initialSpecies = "all", initialDay = n
               <span className="label tnum">{g.items.length} visit{g.items.length === 1 ? "" : "s"}</span>
             </h2>
             <div className="gallery">
-              {g.items.map(s => <SightingTile key={s.id} s={s} onClick={openSighting} />)}
+              {g.items.map(s => (
+                <SightingTile key={s.id} s={s} onClick={clickTile}
+                  selected={selected ? selected.has(s.id) : null}
+                  disabled={!!selected && !canDelete(s)} />
+              ))}
             </div>
           </section>
         ))

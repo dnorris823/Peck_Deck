@@ -322,6 +322,21 @@ export async function deleteSighting(id) {
   return apiDelete(`/sightings/${id}`);
 }
 
+// Many at once, as `{ deleted }`. All or nothing: one sighting on a feeder the
+// user cannot manage refuses the lot with 403.
+export async function deleteSightings(ids) {
+  return apiSend("/sightings/delete", "POST", { ids });
+}
+
+// `{ count }` of the feeder's sightings older than `before`, a Date.
+export async function countSightingsBefore(deviceId, before) {
+  return apiGet(`/devices/${deviceId}/sightings/count?before=${encodeURIComponent(before.toISOString())}`);
+}
+
+export async function deleteSightingsBefore(deviceId, before) {
+  return apiDelete(`/devices/${deviceId}/sightings?before=${encodeURIComponent(before.toISOString())}`);
+}
+
 // Set the species a person says this is. Resolves to the raw updated row.
 export async function correctSighting(id, speciesId) {
   return apiSend(`/sightings/${id}`, "PATCH", { species_id: speciesId });

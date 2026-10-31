@@ -105,6 +105,11 @@ class RegisteredDeviceResponse(DeviceResponse):
 
 
 @dataclass
+class SightingCount:
+    count: int
+
+
+@dataclass
 class DeviceTokenResponse:
     id: int
     token: str

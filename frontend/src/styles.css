@@ -420,6 +420,26 @@ h1, h2, h3 { font-weight: 800; margin: 0; }
   box-shadow: var(--shadow-lift);
 }
 
+/* History's select mode. A ticked tile gets an accent ring and a check. */
+.tile.selected { border-color: var(--acc); box-shadow: 0 0 0 2px var(--acc); }
+.tile:disabled { opacity: 0.45; cursor: not-allowed; transform: none; box-shadow: none; }
+.tile-check {
+  position: absolute; top: 8px; right: 8px; z-index: 1;
+  width: 26px; height: 26px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 15px; font-weight: 800;
+  background: rgba(255, 255, 255, 0.92); color: var(--acc);
+  border: 2px solid var(--acc);
+}
+.tile.selected .tile-check { background: var(--acc); color: #ffffff; }
+.tile.selecting .tile-badge-r { display: none; }
+.select-bar {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+  padding: 10px 14px; margin: 8px 0 0;
+  position: sticky; top: 8px; z-index: 5;
+}
+.select-bar-actions { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; }
+
 /* ---------- Sections ---------- */
 .section-title {
   font-size: 12px;

@@ -45,6 +45,18 @@ class SightingResponse:
 
 
 @dataclass
+class DeleteSightings:
+    """The sightings to delete, by id. At most ``MAX_BULK_DELETE``."""
+
+    ids: list[int]
+
+
+@dataclass
+class DeletedCount:
+    deleted: int
+
+
+@dataclass
 class CorrectSpecies:
     """Body of ``PATCH /sightings/{id}``."""
 
