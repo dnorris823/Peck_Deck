@@ -129,18 +129,22 @@ class BackendClient:
             logger.exception("Unexpected error posting sighting")
             return UploadOutcome.RETRY
 
-    async def heartbeat(self) -> UploadOutcome:
-        """Tell the backend this station is up.
+    async def heartbeat(self, live_url: str | None = None) -> UploadOutcome:
+        """Tell the backend this station is up, and where its live video is.
 
         The backend derives online/offline from when it last heard from the
         device. Uploads count too, but a quiet feeder uploads nothing, so the
         heartbeat is what keeps the status true between visits.
+
+        ``live_url`` is where MediaMTX answers WHEP. None leaves it out, and the
+        backend then records that this station has no live video.
         """
+        body = {"live_url": live_url} if live_url else {}
         try:
             async with aiohttp.ClientSession(timeout=self._short_timeout) as session:
                 async with session.post(
                     f"{self._base}/devices/me/heartbeat",
-                    json={},
+                    json=body,
                     headers=self._auth(),
                 ) as resp:
                     outcome = _classify_status(resp.status)

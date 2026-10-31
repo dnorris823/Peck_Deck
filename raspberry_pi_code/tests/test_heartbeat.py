@@ -60,7 +60,7 @@ class _FakeClient:
         self._outcomes = list(outcomes)
         self.calls = 0
 
-    async def heartbeat(self):
+    async def heartbeat(self, live_url=None):
         self.calls += 1
         item = self._outcomes.pop(0) if self._outcomes else UploadOutcome.OK
         if isinstance(item, Exception):
