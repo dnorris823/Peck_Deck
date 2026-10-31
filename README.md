@@ -51,6 +51,8 @@ Smaller cleanups without a milestone are in the
 |---|---|
 | Running anything locally | `CONTRIBUTING.md` |
 | Setting up the Pi | `SETUP.md` |
+| Adding a user | `docs/user-onboarding.md` |
+| Adding a feeder at another house | `docs/feeder-onboarding.md` |
 | Requirements | `PRD.md` |
 | Models and measured accuracy | `machine_learning/MODELS.md` |
 | Backups, migrations, health checks, tests | `docs/operations.md` |
