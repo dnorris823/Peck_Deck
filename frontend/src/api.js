@@ -100,13 +100,15 @@ export async function apiObjectUrl(path) {
 // DELETE with no body. Kept separate from apiSend because a DELETE that carries
 // a Content-Type but no payload confuses some proxies, and the routes that need
 // it (push subscriptions) identify the target with a query parameter.
-export async function apiDelete(path) {
+// `keepalive` lets the request outlive the page, for a DELETE sent on pagehide.
+export async function apiDelete(path, { keepalive = false } = {}) {
   const token = getToken();
   let res;
   try {
     res = await fetch(`/api${path}`, {
       method: "DELETE",
       headers: token ? { Authorization: `Bearer ${token}` } : {},
+      ...(keepalive ? { keepalive: true } : {}),
     });
   } catch {
     throw new Error("Can't reach the server. Is the backend running?");
@@ -158,4 +160,40 @@ export async function apiSend(path, method, body) {
     throw err;
   }
   return res.status === 204 ? null : res.json();
+}
+
+// POST an SDP offer and return the SDP answer, for WHEP. The body is plain SDP,
+// not JSON. `location` is the session URL that a DELETE ends. A failure carries
+// `status`, so the caller can tell "feeder not streaming" (503) from the rest.
+export async function apiPostSdp(path, sdp) {
+  const token = getToken();
+  let res;
+  try {
+    res = await fetch(`/api${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/sdp",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: sdp,
+    });
+  } catch {
+    throw new Error("Can't reach the server. Is the backend running?");
+  }
+  if (res.status === 401) {
+    clearToken();
+    throw new AuthError("Your session has expired. Please sign in again.");
+  }
+  if (!res.ok) {
+    let detail = null;
+    try {
+      detail = (await res.json())?.detail;
+    } catch {
+      /* non-JSON error body */
+    }
+    const err = new Error(detail || `Request to ${path} failed (${res.status}).`);
+    err.status = res.status;
+    throw err;
+  }
+  return { answer: await res.text(), location: res.headers.get("Location") };
 }

@@ -4,10 +4,11 @@ import { Icon } from "./Icon.jsx";
 import { useData } from "./DataContext.jsx";
 import { useDialog } from "./Modal.jsx";
 
-// The four tabs sit in the top bar on desktop and in the tab bar on a phone.
+// The five tabs sit in the top bar on desktop and in the tab bar on a phone.
 // The rest live under More.
 export const NAV = [
   { id: "latest", label: "Latest", icon: "home" },
+  { id: "live", label: "Live", icon: "video" },
   { id: "species", label: "Species", icon: "book" },
   { id: "history", label: "History", icon: "feather" },
   { id: "feeders", label: "Feeders", icon: "device" },
@@ -95,7 +96,7 @@ export function TopBar({ route, setRoute, moreOpen, onMore }) {
   );
 }
 
-// Phone navigation: the four tabs, then More for Users, Settings and sign out.
+// Phone navigation: the five tabs, then More for Users, Settings and sign out.
 export function TabBar({ route, setRoute, moreOpen, onMore }) {
   const inMore = MORE.some(n => n.id === route);
   return (

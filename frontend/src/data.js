@@ -60,6 +60,9 @@ function mapDevice(d) {
     battery: d.battery == null ? null : d.battery,
     signal: d.signal || "none",
     lastSeen: d.last_seen ? fmtRelative(new Date(d.last_seen)) : "never",
+    lastSeenAt: d.last_seen ? new Date(d.last_seen) : null,
+    // Whether the feeder can stream now. A backend without the field says no.
+    liveAvailable: !!d.live_available,
     todaySightings: d.today_sightings,
     weekSightings: d.week_sightings,
     allTime: d.all_time_sightings,

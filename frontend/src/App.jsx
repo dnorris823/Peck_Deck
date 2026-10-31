@@ -6,6 +6,7 @@ import { Sightings } from "./Sightings.jsx";
 import { SightingDetail } from "./SightingDetail.jsx";
 import { SpeciesPage } from "./Species.jsx";
 import { DevicesPage } from "./Devices.jsx";
+import { LivePage } from "./Live.jsx";
 import { UsersPage, SettingsPage } from "./UsersSettings.jsx";
 import { Login } from "./Login.jsx";
 import { DataProvider, useData } from "./DataContext.jsx";
@@ -199,6 +200,7 @@ function AppShell({ onLogout }) {
         <main className="main">
           <div className="page" data-screen-label={NAV.find(n => n.id === route)?.label || route}>
             {route === "latest" && <Dashboard openSighting={openSighting} go={go} selectedId={openId} />}
+            {route === "live" && <LivePage go={go} />}
             {route === "history" && (
               <Sightings key={`${speciesFilter}|${historyDay?.getTime()}`} openSighting={openSighting}
                 initialSpecies={speciesFilter} initialDay={historyDay} />
