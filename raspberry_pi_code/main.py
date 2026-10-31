@@ -8,13 +8,18 @@ Or after `pip install -e .`:
 """
 
 import asyncio
+import contextlib
 import logging
 import sys
+from collections.abc import Callable
 
 from .api_client import BackendClient, UploadOutcome
 from .camera.base import CameraBase
 from .camera.pi_camera import PiCamera
 from .config import Config
+from .live import RTSP_PUBLISH_URL
+from .live.address import LiveUrl
+from .live.demand import LiveDemandServer
 from .pipeline import Pipeline
 from .trigger.base import TriggerBase
 
@@ -47,6 +52,32 @@ def _build_trigger(config: Config, camera: CameraBase) -> TriggerBase:
     )
 
 
+def _build_live(config: Config, camera: PiCamera) -> LiveDemandServer | None:
+    """The live demand server, or None when LIVE_ENABLED is false."""
+    if not config.live_enabled:
+        return None
+    return LiveDemandServer(
+        config.live_demand_socket,
+        start=lambda: camera.start_live(RTSP_PUBLISH_URL, config.live_bitrate),
+        stop=camera.stop_live,
+    )
+
+
+def _no_live_url() -> str | None:
+    return None
+
+
+def _live_url_source(config: Config, live: LiveDemandServer | None) -> Callable[[], str | None]:
+    """What the heartbeat reports as live_url.
+
+    Nothing when live video is off, or when the demand socket did not open,
+    because then no viewer could start the encoder.
+    """
+    if live is None or not live.listening:
+        return _no_live_url
+    return LiveUrl(config.live_url, config.backend_url)
+
+
 async def _sync_loop(pipeline: Pipeline, interval: int) -> None:
     while True:
         await asyncio.sleep(interval)
@@ -56,17 +87,25 @@ async def _sync_loop(pipeline: Pipeline, interval: int) -> None:
             logging.getLogger(__name__).exception("Sync loop error")
 
 
-async def _heartbeat_loop(client: BackendClient, interval: float) -> None:
+async def _heartbeat_loop(
+    client: BackendClient,
+    interval: float,
+    live_url: Callable[[], str | None] = _no_live_url,
+) -> None:
     """Report to the backend every `interval` seconds, starting now.
 
     Logs only when the result changes, so a backend that is down for an hour
     costs one warning, not sixty. Nothing here may stop capture.
+
+    ``live_url`` runs in a worker thread each beat, because deriving it looks up
+    the route to the backend, which may resolve a host name.
     """
     logger = logging.getLogger(__name__)
     last_ok: bool | None = None
     while True:
         try:
-            outcome = await client.heartbeat()
+            url = await asyncio.to_thread(live_url)
+            outcome = await client.heartbeat(live_url=url)
         except Exception:
             logger.exception("Heartbeat error")
             outcome = UploadOutcome.RETRY
@@ -92,24 +131,28 @@ async def _run() -> None:
     # One camera for the whole run. picamera2 allows one owner per camera, and
     # the camera trigger streams from it all the time, so the trigger and the
     # pipeline share this instance. Nothing else may open the camera.
-    camera = PiCamera(config.image_width, config.image_height, config.jpeg_quality)
+    camera = PiCamera(config.image_width, config.image_height, config.jpeg_quality,
+                      fps=config.live_fps)
     trigger = _build_trigger(config, camera)
+    live = _build_live(config, camera)
 
     pipeline = Pipeline(config, camera=camera)
     pipeline.setup()
 
     logger.info(
         "Peck Deck Pi starting  [tier=%s  trigger=camera  visit_gap=%.0fs  "
-        "motion=%.3f  detect=%.2f  fps=%.1f  roi=%s]",
+        "motion=%.3f  detect=%.2f  fps=%.1f  roi=%s  live=%s]",
         config.tier_preference,
         config.camera_visit_gap_seconds,
         config.camera_motion_threshold,
         config.camera_detection_threshold,
         config.camera_analysis_fps,
         ",".join(f"{v:g}" for v in config.camera_roi),
+        "on" if live is not None else "off",
     )
 
-    async with camera, trigger:
+    # The live server exits first, so the encoder stops before the camera does.
+    async with camera, trigger, live or contextlib.nullcontext():
         background = [
             asyncio.create_task(
                 _sync_loop(pipeline, config.sync_interval_seconds),
@@ -123,6 +166,7 @@ async def _run() -> None:
                     BackendClient(config.backend_url, config.device_token,
                                   config.backend_connect_timeout),
                     config.heartbeat_interval_seconds,
+                    _live_url_source(config, live),
                 ),
                 name="heartbeat",
             ),

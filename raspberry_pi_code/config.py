@@ -40,6 +40,13 @@ def _opt_float(name: str) -> float | None:
     return float(raw) if raw not in (None, "") else None
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return raw.strip().lower() in ("1", "true", "yes", "on")
+
+
 FULL_FRAME: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)
 
 
@@ -125,6 +132,19 @@ class Config:
     image_width: int = int(os.getenv("IMAGE_WIDTH", "1920"))
     image_height: int = int(os.getenv("IMAGE_HEIGHT", "1080"))
     jpeg_quality: int = int(os.getenv("JPEG_QUALITY", "90"))
+
+    # Live video. The service encodes H.264 from the lores stream only while a
+    # demand connection is open on LIVE_DEMAND_SOCKET, and MediaMTX serves it.
+    # False opens no socket and sends no live_url in the heartbeat.
+    live_enabled: bool = _env_bool("LIVE_ENABLED", True)
+    # Camera frame rate. It sets the sensor timing for every stream, not just
+    # the encoder, so it applies even with live video off.
+    live_fps: int = int(os.getenv("LIVE_FPS", "30"))
+    live_bitrate: int = int(os.getenv("LIVE_BITRATE", "2000000"))
+    live_demand_socket: str = os.getenv("LIVE_DEMAND_SOCKET", "/run/peck-deck/live.sock")
+    # Where the backend sends WHEP offers. Empty means derive it from the route
+    # to BACKEND_URL on every heartbeat, because the Pi's address comes from DHCP.
+    live_url: str = os.getenv("LIVE_URL", "")
 
     # Storage
     cache_dir: str = os.getenv("CACHE_DIR", "/var/lib/peck_deck/cache")

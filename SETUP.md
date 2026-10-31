@@ -231,6 +231,34 @@ ExecStartPre=-/home/pi/peck_deck/.venv/bin/python scripts/provision_device.py
 ExecStart=/home/pi/peck_deck/.venv/bin/python -m raspberry_pi_code.main
 Restart=on-failure
 RestartSec=10
+# Creates /run/peck-deck, owned by User=, for the live video demand socket.
+# systemd removes it when the service stops.
+RuntimeDirectory=peck-deck
+
+[Install]
+WantedBy=multi-user.target
+```
+
+MediaMTX serves live video. It runs as the same user as `peck-deck`, so its
+`live_demand` helper can open the demand socket. Install it as in §11 first.
+
+```ini
+# /etc/systemd/system/mediamtx.service
+[Unit]
+Description=MediaMTX live video for Peck Deck
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pi
+# runOnDemand in the config runs .venv/bin/python from here.
+WorkingDirectory=/home/pi/peck_deck
+# Read credentials and addresses. Root-owned 0600. No leading `-`: without
+# the file the unit fails, rather than run with no reader able to log in.
+EnvironmentFile=/etc/peck_deck/mediamtx.env
+ExecStart=/opt/mediamtx/mediamtx /home/pi/peck_deck/raspberry_pi_code/live/mediamtx.yml
+Restart=on-failure
+RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
@@ -264,8 +292,8 @@ Read that line — a `DEVICE_NAME` typo otherwise registers a *second* device si
 and sightings split across two rows that both look healthy in the app.
 
 ```bash
-sudo systemctl enable peck-deck
-sudo systemctl start peck-deck
+sudo systemctl enable peck-deck mediamtx
+sudo systemctl start peck-deck mediamtx
 sudo journalctl -u peck-deck -f   # live logs
 ```
 
@@ -328,6 +356,136 @@ size, because every stream sees the same field of view.
 uses all four Pi 5 cores. On the Pi 5, one detection took 138 ms on one thread
 and 63 ms on four. The startup log line `Bird detector loaded` shows the count.
 
+## 11. Live video
+
+The web app shows the feeder live over WebRTC. MediaMTX on the Pi does the
+WebRTC work. The backend relays the browser's offer to it, as described in
+`docs/live-video.md`. The video goes from the Pi to the browser directly.
+
+```
+viewer arrives ─▶ MediaMTX runs `python -m raspberry_pi_code.live_demand`
+live_demand ─▶ connects to LIVE_DEMAND_SOCKET ─▶ the Pi service starts the encoder
+encoder ─▶ RTSP to 127.0.0.1:8554/feeder ─▶ MediaMTX ─▶ WebRTC to the browser
+last viewer gone 10 s ─▶ MediaMTX stops live_demand ─▶ the service stops the encoder
+```
+
+The encoder is libx264 in picamera2, on the 1280x720 lores stream. The Pi 5 has
+no hardware H.264 encoder. It runs only while someone watches.
+
+### Install MediaMTX
+
+The pinned version is **v1.21.3**. Check the download against the release's
+checksum file.
+
+```bash
+V=v1.21.3
+cd "$(mktemp -d)"
+curl -fsSLO https://github.com/bluenviron/mediamtx/releases/download/$V/mediamtx_${V}_linux_arm64.tar.gz
+curl -fsSLO https://github.com/bluenviron/mediamtx/releases/download/$V/checksums.sha256
+grep linux_arm64 checksums.sha256 | sha256sum -c -
+sudo install -d /opt/mediamtx
+sudo tar -xzf mediamtx_${V}_linux_arm64.tar.gz -C /opt/mediamtx
+/opt/mediamtx/mediamtx --version
+```
+
+### Config
+
+The config is `raspberry_pi_code/live/mediamtx.yml`. It holds no secrets.
+
+- Only RTSP and WebRTC are on. RTMP, HLS, SRT, MoQ, the API, metrics, pprof and
+  playback are off.
+- RTSP listens on `127.0.0.1:8554`, TCP only, for the Pi service.
+- Anyone on localhost may publish to `feeder`. Nobody else may publish.
+- Reading `feeder` needs the read user. The env file supplies its name and
+  password. The committed placeholders match no request, so a missing env file
+  locks every reader out.
+- The one path, `feeder`, runs the `live_demand` helper on demand, with a 10 s
+  start timeout and a 10 s close delay.
+
+### Env file
+
+MediaMTX reads `MTX_*` variables as overrides of the config. The read user is
+the second entry of `authInternalUsers`, index 1. Checked on v1.21.3.
+
+```bash
+sudo install -d -m 700 /etc/peck_deck
+sudo tee /etc/peck_deck/mediamtx.env >/dev/null <<'ENV'
+# Must equal LIVE_READ_USER and LIVE_READ_PASSWORD in the backend .env.
+MTX_AUTHINTERNALUSERS_1_USER=peck-live
+MTX_AUTHINTERNALUSERS_1_PASS=a-long-random-password
+# The Pi's LAN address. Add its Tailscale address after a comma, so live video
+# also works away from home.
+MTX_WEBRTCADDITIONALHOSTS=192.168.4.104
+ENV
+sudo chmod 600 /etc/peck_deck/mediamtx.env
+```
+
+MediaMTX also offers the address of every network interface, so the LAN and
+Tailscale addresses reach the browser even without `MTX_WEBRTCADDITIONALHOSTS`.
+Set it anyway, and give the Pi a DHCP reservation as in §8. The backend and the
+browser both need the Pi's address to stay put.
+
+Then install the unit from §9 and start it.
+
+### Firewall ports
+
+| Port | Who connects | Why |
+|---|---|---|
+| 8889/tcp | The gaming PC | WHEP signalling. The backend relays offers here. |
+| 8189/udp | Every browser that watches | WebRTC media, once ICE completes. |
+| 8554/tcp | Nobody off the Pi | RTSP publish. It listens on 127.0.0.1 only. |
+
+Raspberry Pi OS has no firewall by default. If you add one, open the first two
+on the LAN and on the Tailscale interface.
+
+### Settings
+
+| Setting | Default | What it does |
+|---|---|---|
+| `LIVE_ENABLED` | `true` | `false` opens no demand socket and sends no `live_url`, so the app shows no live view. |
+| `LIVE_FPS` | `30` | Camera frame rate for every stream. It fixes the frame time, so it also caps the exposure time. |
+| `LIVE_BITRATE` | `2000000` | H.264 bitrate in bits per second. |
+| `LIVE_DEMAND_SOCKET` | `/run/peck-deck/live.sock` | The Unix socket `live_demand` connects to. Mode 0600, so only the service's user can start the encoder. |
+| `LIVE_URL` | derived | Where the backend sends WHEP offers. Unset means `http://<lan-ip>:8889/feeder/whep`, with the Pi's address on the route to `BACKEND_URL`. The service works it out again on every heartbeat. |
+
+The heartbeat sends `live_url` only when it is `http` or `https` on a private
+IPv4 address: 10/8, 172.16/12, 192.168/16, or 100.64/10. The backend refuses
+anything else with 400, and a refused heartbeat would show the station offline.
+So the Pi drops such a URL and logs it once.
+
+### Check it
+
+```bash
+systemctl is-active mediamtx
+# No credentials: 401.
+curl -s -o /dev/null -w '%{http_code}\n' -X POST -H 'Content-Type: application/sdp' \
+  --data 'v=0' http://<pi>:8889/feeder/whep
+```
+
+Then open the live view in the app. The service log shows `Live encoder
+started` when the first viewer arrives, and `Live encoder stopped` 10 s after
+the last one leaves. With no viewer, `top` shows the service at its idle CPU.
+
+### Measured on the Pi 5
+
+Camera Module 3 Wide, 2026-10-30. CPU is the service process, as a percentage
+of one core. The Pi 5 has four.
+
+| State | Camera fps | Service CPU |
+|---|---|---|
+| Old still configuration, no detector | 14.9 | 4% |
+| Video configuration, no viewer | 30.0 | 8% |
+| Encoder running | 30.0 | 50% |
+| Encoder, and the detector on every tick | 30.0 | 151% |
+
+A WHEP reader on the gaming PC received 30.0 fps at 1280x720. Its first frame
+came 1.3 s after the offer. High-quality denoise holds 30 fps, so stills keep it.
+In a dim room, stills come out darker than under the old configuration, because
+the fixed 33 ms frame time caps the exposure.
+
+The motion check now sees a 320x180 frame, every 4th pixel of the lores Y plane.
+On an unchanged scene, no tick reached `CAMERA_MOTION_THRESHOLD`, as before.
+
 ---
 
 ## Quick reference — what blocks what
@@ -341,3 +499,4 @@ and 63 ms on four. The startup log line `Bird detector loaded` shows the count.
 | Tier 3 cloud classification | Backend built, `ANTHROPIC_API_KEY` in backend `.env`, `TIER_PREFERENCE=auto` or `cloud` (§7) |
 | Offline sync | Backend reachable (§6, §8) |
 | Auto-start on boot | systemd unit installed (§9) |
+| Live video | MediaMTX and its env file (§11), backend `LIVE_READ_*` set, `LIVE_ENABLED=true` |
