@@ -43,8 +43,10 @@
 /* ---------- Tokens ----------
    Names follow the approved mockups, so a screen rebuild can lift their CSS:
    bg page, fg text, mu muted text, line hairline, chip filled control, sheet
-   raised surface, face and night for the 24-hour dial. --bg, --sheet and --chip
-   are mirrored in SURFACES in src/accent.js. Keep the two in step. */
+   raised surface, face and night for the 24-hour dial. These blocks are the
+   default Peck Deck palette, mirrored in PECK_DECK in src/themes.js. Keep the
+   two in step. Appearance.jsx sets the active theme's tokens inline on <html>,
+   so these only paint the page before any script runs. */
 :root {
   --bg: #faf9f7;
   --fg: #151413;
@@ -87,10 +89,14 @@
   --shadow-lift: 0 8px 24px rgba(21, 20, 19, 0.1), 0 1px 3px rgba(21, 20, 19, 0.06);
   --shadow-modal: 0 24px 64px rgba(21, 20, 19, 0.24), 0 4px 12px rgba(21, 20, 19, 0.1);
 
+  /* The accent for screens with no bird. Each theme sets its own. */
+  --pal-acc: #6f6b66;
+  --pal-on-acc: #ffffff;
+
   color-scheme: light;
 }
 
-/* Dark theme. [data-theme="dusk"] on <html>, set by Appearance.jsx. */
+/* Dark mode. [data-theme="dusk"] on <html>, set by Appearance.jsx. */
 [data-theme="dusk"] {
   --bg: #0f0e0d;
   --fg: #f4f2ef;
@@ -117,23 +123,26 @@
   --shadow-lift: 0 10px 28px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-modal: 0 24px 64px rgba(0, 0, 0, 0.65), 0 4px 14px rgba(0, 0, 0, 0.45);
 
+  --pal-acc: #89857f;
+  --pal-on-acc: #151413;
+
   color-scheme: dark;
 }
 
 /* ---------- Species accent ----------
    useSpeciesAccent() in src/accent.js sets --acc-day and --acc-dusk, already
    fitted to 4.5:1, on the element that shows a bird. These rules turn the pair
-   for the active theme into --acc on every element, so the accent follows the
-   nearest bird and a theme switch needs no re-render. The fallbacks are the
-   neutral accent, for screens with no bird. accent.test.js checks they match. */
+   for the active mode into --acc on every element, so the accent follows the
+   nearest bird and a mode or theme switch needs no re-render. With no bird
+   above it, an element falls back to the theme accent, --pal-acc. */
 :root, :root * {
-  --acc: var(--acc-day, #6f6b66);
-  --on-acc: var(--on-acc-day, #ffffff);
+  --acc: var(--acc-day, var(--pal-acc));
+  --on-acc: var(--on-acc-day, var(--pal-on-acc));
   --acc-soft: color-mix(in srgb, var(--acc) 14%, transparent);
 }
 [data-theme="dusk"], [data-theme="dusk"] * {
-  --acc: var(--acc-dusk, #89857f);
-  --on-acc: var(--on-acc-dusk, #151413);
+  --acc: var(--acc-dusk, var(--pal-acc));
+  --on-acc: var(--on-acc-dusk, var(--pal-on-acc));
 }
 
 /* ---------- Reset ---------- */
@@ -645,6 +654,39 @@ h1, h2, h3 { font-weight: 800; margin: 0; }
 .field-ok { color: var(--ok); }
 .field-control { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
 .field-control .segmented { align-self: flex-start; }
+
+/* Theme picker in Settings > Appearance. The ring uses --fg, not the accent,
+   because the accent belongs to the bird on screen. */
+.theme-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+}
+.theme-swatch {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--sheet);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+  transition: border-color 120ms, box-shadow 120ms;
+}
+.theme-swatch:hover { border-color: var(--line-strong); }
+.theme-swatch.active { border-color: var(--fg); box-shadow: 0 0 0 1px var(--fg); }
+.theme-swatch-preview {
+  display: flex;
+  height: 40px;
+  border-radius: 7px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.theme-swatch-preview > span { flex: 1; display: grid; place-items: center; }
+.theme-swatch-preview i { width: 12px; height: 12px; border-radius: 50%; background: currentColor; }
+.theme-swatch-label { padding: 0 2px 2px; }
 
 input[type="text"], input[type="email"], input[type="password"], select, textarea {
   background: var(--sheet);

@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import { Icon } from "./Icon.jsx";
 import { useData } from "./DataContext.jsx";
 import { useAppearance } from "./Appearance.jsx";
+import { PALETTES, themeTokens } from "./themes.js";
 import { Modal, TextInput, SelectInput, FormNote } from "./Modal.jsx";
 import {
   currentSubscription, disablePush, enablePush, fetchPushConfig, permission,
@@ -527,9 +528,21 @@ export function SettingsPage() {
           {section === "appearance" && (
             <div className="settings-section">
               <h3>Appearance</h3>
-              <p className="lead">Saved in this browser. The accent colour follows the bird on screen.</p>
-              <Field label="Theme" help="Auto follows your device's light or dark setting.">
-                <div className="segmented" role="group" aria-label="Theme">
+              <p className="lead">Saved in this browser. A bird on screen sets the accent colour. The theme sets it everywhere else.</p>
+              <Field label="Theme" help="Each theme has a light and a dark version.">
+                <div className="theme-picker" role="group" aria-label="Theme">
+                  {PALETTES.map(({ id, label }) => (
+                    <button key={id} className={"theme-swatch" + (appearance.palette === id ? " active" : "")}
+                      aria-pressed={appearance.palette === id}
+                      onClick={() => updateAppearance({ palette: id })}>
+                      <ThemePreview id={id} />
+                      <span className="theme-swatch-label">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </Field>
+              <Field label="Mode" help="Auto follows your device's light or dark setting.">
+                <div className="segmented" role="group" aria-label="Mode">
                   {[["auto", "Auto"], ["day", "Light"], ["dusk", "Dark"]].map(([id, label]) => (
                     <button key={id} className={appearance.theme === id ? "active" : ""}
                       aria-pressed={appearance.theme === id}
@@ -562,5 +575,21 @@ export function SettingsPage() {
         />
       )}
     </>
+  );
+}
+
+// A theme's light half and dark half side by side, each with its accent dot.
+function ThemePreview({ id }) {
+  return (
+    <span className="theme-swatch-preview" aria-hidden="true">
+      {["day", "dusk"].map((mode) => {
+        const t = themeTokens(id, mode);
+        return (
+          <span key={mode} style={{ background: t["--bg"], color: t["--pal-acc"] }}>
+            <i />
+          </span>
+        );
+      })}
+    </span>
   );
 }

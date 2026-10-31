@@ -2,7 +2,12 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App.jsx";
 import { registerServiceWorker } from "./registerSW.js";
+import { applyAppearance, loadAppearance } from "./Appearance.jsx";
 import "./styles.css";
+
+// Apply the saved theme before the first render, so the app does not paint in
+// the default palette and then switch.
+applyAppearance(loadAppearance());
 
 createRoot(document.getElementById("root")).render(<App />);
 
