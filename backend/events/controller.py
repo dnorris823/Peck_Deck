@@ -46,7 +46,7 @@ from litestar import Controller, Request, get
 from litestar.response import ServerSentEvent, ServerSentEventMessage
 from sqlalchemy import select
 
-from ..auth.guards import user_guard
+from ..auth.guards import USER_JWT, user_guard
 from ..database.connection import get_session_factory
 from ..database.models import Sighting
 from ..sightings.operations import _accessible_device_ids
@@ -105,7 +105,7 @@ def _parse_last_event_id(raw: str | None) -> int | None:
 class EventController(Controller):
     path = "/events"
 
-    @get("/", guards=[user_guard])
+    @get("/", guards=[user_guard], security=USER_JWT)
     async def stream(self, request: Request) -> ServerSentEvent:
         user_id = request.state.user_id
         last_event_id = _parse_last_event_id(request.headers.get("Last-Event-ID"))

@@ -6,7 +6,7 @@ from litestar.di import NamedDependency
 from litestar.params import FromPath
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth.guards import device_guard, user_guard
+from ..auth.guards import DEVICE_TOKEN, USER_JWT, device_guard, user_guard
 from ..live.address import check_live_url
 from ..users.operations import get_or_create_preferences
 from .operations import (
@@ -99,12 +99,12 @@ class DeviceController(Controller):
     # Guards are per-handler (not class-level) so the Pi-facing heartbeat can use
     # device_guard without also running user_guard — Litestar stacks the two.
 
-    @get("/", guards=[user_guard])
+    @get("/", guards=[user_guard], security=USER_JWT)
     async def list_devices(self, request: Request, db: NamedDependency[AsyncSession]) -> list[DeviceResponse]:
         devices = await get_devices_for_user(db, request.state.user_id)
         return [await _to_response(db, d) for d in devices]
 
-    @post("/", guards=[user_guard], status_code=201)
+    @post("/", guards=[user_guard], security=USER_JWT, status_code=201)
     async def register(
         self, data: RegisterDevice, request: Request, db: NamedDependency[AsyncSession]
     ) -> RegisteredDeviceResponse:
@@ -119,7 +119,7 @@ class DeviceController(Controller):
         response = await _to_response(db, device)
         return RegisteredDeviceResponse(**vars(response), token=device.token)
 
-    @get("/{device_id:int}/token", guards=[user_guard])
+    @get("/{device_id:int}/token", guards=[user_guard], security=USER_JWT)
     async def get_token(
         self, device_id: FromPath[int], request: Request, db: NamedDependency[AsyncSession]
     ) -> DeviceTokenResponse:
@@ -131,7 +131,7 @@ class DeviceController(Controller):
         _assert_owner(request, device)
         return DeviceTokenResponse(id=device.id, token=device.token)
 
-    @post("/{device_id:int}/token", guards=[user_guard], status_code=200)
+    @post("/{device_id:int}/token", guards=[user_guard], security=USER_JWT, status_code=200)
     async def rotate_token(
         self, device_id: FromPath[int], request: Request, db: NamedDependency[AsyncSession]
     ) -> DeviceTokenResponse:
@@ -145,7 +145,7 @@ class DeviceController(Controller):
         device = await rotate_device_token(db, device)
         return DeviceTokenResponse(id=device.id, token=device.token)
 
-    @delete("/{device_id:int}", guards=[user_guard], status_code=204)
+    @delete("/{device_id:int}", guards=[user_guard], security=USER_JWT, status_code=204)
     async def remove(
         self, device_id: FromPath[int], request: Request, db: NamedDependency[AsyncSession]
     ) -> None:
@@ -162,7 +162,7 @@ class DeviceController(Controller):
                 detail=f"Device has {sightings} sightings. Delete them before the device.",
             )
 
-    @put("/{device_id:int}", guards=[user_guard])
+    @put("/{device_id:int}", guards=[user_guard], security=USER_JWT)
     async def update(
         self, device_id: FromPath[int], data: UpdateDevice, request: Request, db: NamedDependency[AsyncSession]
     ) -> DeviceResponse:
@@ -180,7 +180,7 @@ class DeviceController(Controller):
         )
         return await _to_response(db, device)
 
-    @post("/me/heartbeat", guards=[device_guard], status_code=200)
+    @post("/me/heartbeat", guards=[device_guard], security=DEVICE_TOKEN, status_code=200)
     async def heartbeat_self(
         self, data: DeviceHeartbeat, request: Request, db: NamedDependency[AsyncSession]
     ) -> DeviceResponse:
@@ -191,7 +191,7 @@ class DeviceController(Controller):
         device = await _record_heartbeat(db, device, data)
         return await _to_response(db, device)
 
-    @post("/{device_id:int}/heartbeat", guards=[device_guard], status_code=200)
+    @post("/{device_id:int}/heartbeat", guards=[device_guard], security=DEVICE_TOKEN, status_code=200)
     async def heartbeat(
         self, device_id: FromPath[int], data: DeviceHeartbeat, request: Request, db: NamedDependency[AsyncSession]
     ) -> DeviceResponse:
@@ -204,7 +204,7 @@ class DeviceController(Controller):
         device = await _record_heartbeat(db, device, data)
         return await _to_response(db, device)
 
-    @post("/{device_id:int}/users", guards=[user_guard], status_code=204)
+    @post("/{device_id:int}/users", guards=[user_guard], security=USER_JWT, status_code=204)
     async def add_user(
         self, device_id: FromPath[int], data: AddDeviceUser, request: Request, db: NamedDependency[AsyncSession]
     ) -> None:
@@ -214,7 +214,7 @@ class DeviceController(Controller):
         _assert_owner(request, device)
         await add_device_user(db, device_id, data.user_id)
 
-    @delete("/{device_id:int}/users/{uid:int}", guards=[user_guard], status_code=204)
+    @delete("/{device_id:int}/users/{uid:int}", guards=[user_guard], security=USER_JWT, status_code=204)
     async def remove_user(
         self, device_id: FromPath[int], uid: FromPath[int], request: Request, db: NamedDependency[AsyncSession]
     ) -> None:

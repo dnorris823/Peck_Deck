@@ -7,7 +7,7 @@ from litestar.exceptions import HTTPException
 from litestar.params import FromQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth.guards import user_guard
+from ..auth.guards import USER_JWT, user_guard
 from ..config import settings
 from . import operations
 from .schemas import (
@@ -56,6 +56,7 @@ def _species_count_response(row: dict) -> SpeciesCountResponse:
 class StatsController(Controller):
     path = "/stats"
     guards = [user_guard]
+    security = USER_JWT
 
     @get("/dashboard")
     async def dashboard(self, request: Request, db: NamedDependency[AsyncSession]) -> DashboardResponse:

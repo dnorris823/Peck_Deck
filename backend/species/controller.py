@@ -6,7 +6,7 @@ from litestar.exceptions import NotFoundException
 from litestar.params import FromPath
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth.guards import user_guard
+from ..auth.guards import USER_JWT, user_guard
 from .operations import create_species, get_species, list_species
 from .schemas import CreateSpecies, SpeciesResponse
 
@@ -30,6 +30,7 @@ def _to_response(s) -> SpeciesResponse:
 class SpeciesController(Controller):
     path = "/species"
     guards = [user_guard]
+    security = USER_JWT
 
     @get("/")
     async def list_all(self, db: NamedDependency[AsyncSession]) -> list[SpeciesResponse]:

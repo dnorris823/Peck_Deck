@@ -21,7 +21,7 @@ from litestar.exceptions import HTTPException, NotFoundException
 from litestar.params import FromQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..auth.guards import user_guard
+from ..auth.guards import USER_JWT, user_guard
 from ..database.models import PushSubscription
 from .push import delete_subscription, list_subscriptions, upsert_subscription
 from .push_sender import b64url_decode, push_enabled, vapid_public_key
@@ -78,6 +78,7 @@ def _validate_keys(p256dh: str, auth: str) -> None:
 class PushController(Controller):
     path = "/push"
     guards = [user_guard]
+    security = USER_JWT
     tags = ["notifications"]
 
     @get("/config")
