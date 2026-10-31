@@ -239,10 +239,10 @@ describe("accent", () => {
     expect(accentOf()).toBe(speciesAccent(S.species).day.acc);
   });
 
-  it("falls back to the neutral accent for a species with no palette", () => {
+  it("falls back to the theme accent for a species with no palette", () => {
     const sparrow = { ...S, species: { ...S.species, palette: [] } };
     render(<SightingDetail s={sparrow} onClose={vi.fn()} />);
-    expect(accentOf()).toBe(speciesAccent(null).day.acc);
+    expect(accentOf()).toBe("var(--pal-acc)");
   });
 });
 

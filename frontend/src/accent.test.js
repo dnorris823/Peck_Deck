@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  MIN_CONTRAST, NEUTRAL_ACCENT, SURFACES, accentStyle, baseAccent, contrast, fitAccent,
+  MIN_CONTRAST, SURFACES, accentStyle, baseAccent, contrast, fitAccent,
   onAccent, speciesAccent,
 } from "./accent.js";
 
@@ -14,6 +14,8 @@ const CHICKADEE = { palette: ["#1c2620", "#d4cdb8", "#7a6f5a"] };
 const GOLDFINCH = { palette: ["#d4a23a", "#1c1810", "#8a6f1f"] };
 const BLUE_JAY = { palette: ["#3f6e89", "#15263a", "#d4cdb8"] };
 const HOUSE_SPARROW = { palette: [] }; // no palette in the seed
+
+const SEEDS = [HOUSE_FINCH, CHICKADEE, GOLDFINCH, BLUE_JAY];
 
 const passesEverywhere = (hex, theme) =>
   SURFACES[theme].every((surface) => contrast(hex, surface) >= MIN_CONTRAST);
@@ -33,28 +35,31 @@ describe("accent fallback", () => {
     expect(baseAccent(HOUSE_FINCH)).toBe("#bf6952");
   });
 
-  it("falls back to the neutral accent for an empty palette", () => {
-    expect(baseAccent(HOUSE_SPARROW)).toBe(NEUTRAL_ACCENT);
+  it("has no base for an empty palette", () => {
+    expect(baseAccent(HOUSE_SPARROW)).toBeNull();
+    expect(speciesAccent(HOUSE_SPARROW)).toBeNull();
   });
 
-  it("falls back for a missing species, a missing palette or a malformed colour", () => {
-    expect(baseAccent(null)).toBe(NEUTRAL_ACCENT);
-    expect(baseAccent({})).toBe(NEUTRAL_ACCENT);
-    expect(baseAccent({ palette: ["not a colour"] })).toBe(NEUTRAL_ACCENT);
+  it("has no base for a missing species, a missing palette or a malformed colour", () => {
+    expect(baseAccent(null)).toBeNull();
+    expect(baseAccent({})).toBeNull();
+    expect(baseAccent({ palette: ["not a colour"] })).toBeNull();
   });
 
-  it("gives an empty-palette species the same accent as no species", () => {
-    expect(speciesAccent(HOUSE_SPARROW)).toEqual(speciesAccent(null));
+  it("points an empty-palette species at the theme accent", () => {
+    // It must still set the pair, or it would show the colour of a bird
+    // further up the page, such as the latest visitor on the shell.
+    const style = accentStyle(HOUSE_SPARROW);
+    expect(style).toEqual(accentStyle(null));
+    expect(style["--acc-day"]).toBe("var(--pal-acc)");
+    expect(style["--acc-dusk"]).toBe("var(--pal-acc)");
+    expect(style["--on-acc-day"]).toBe("var(--pal-on-acc)");
   });
 
-  it("matches the neutral defaults hard-coded in styles.css", () => {
-    // The stylesheet holds the accent for screens with no bird, before any
-    // inline style applies. It must be the neutral accent, already fitted.
-    const { day, dusk } = speciesAccent(null);
-    expect(css).toContain(`var(--acc-day, ${day.acc})`);
-    expect(css).toContain(`var(--on-acc-day, ${day.onAcc})`);
-    expect(css).toContain(`var(--acc-dusk, ${dusk.acc})`);
-    expect(css).toContain(`var(--on-acc-dusk, ${dusk.onAcc})`);
+  it("falls back to the theme accent in styles.css", () => {
+    // An element with no bird above it has no --acc-day or --acc-dusk.
+    expect(css).toContain("var(--acc-day, var(--pal-acc))");
+    expect(css).toContain("var(--acc-dusk, var(--pal-acc))");
   });
 });
 
@@ -87,8 +92,8 @@ describe("contrast adjustment", () => {
     expect(g).toBeGreaterThan(b);
   });
 
-  it("makes every seed palette and the neutral pass in both themes", () => {
-    for (const sp of [HOUSE_FINCH, CHICKADEE, GOLDFINCH, BLUE_JAY, HOUSE_SPARROW]) {
+  it("makes every seed palette pass on every theme in both modes", () => {
+    for (const sp of SEEDS) {
       const { day, dusk } = speciesAccent(sp);
       expect(passesEverywhere(day.acc, "day")).toBe(true);
       expect(passesEverywhere(dusk.acc, "dusk")).toBe(true);
@@ -96,7 +101,7 @@ describe("contrast adjustment", () => {
   });
 
   it("picks the text colour that reads on an accent fill", () => {
-    for (const sp of [HOUSE_FINCH, CHICKADEE, GOLDFINCH, BLUE_JAY, HOUSE_SPARROW]) {
+    for (const sp of SEEDS) {
       const { day, dusk } = speciesAccent(sp);
       expect(contrast(day.onAcc, day.acc)).toBeGreaterThanOrEqual(MIN_CONTRAST);
       expect(contrast(dusk.onAcc, dusk.acc)).toBeGreaterThanOrEqual(MIN_CONTRAST);
