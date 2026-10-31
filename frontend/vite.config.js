@@ -25,9 +25,6 @@ export default defineConfig({
     restoreMocks: true,
     css: false,
   },
-  preview: {
-    allowedHosts: [".ts.net", ".litestar.dev", ".litestar.localhost"],
-  },
   server: {
     port: 5173,
     // Proxy API calls to the Litestar backend (docker compose exposes :8000).
@@ -36,9 +33,12 @@ export default defineConfig({
     proxy: apiProxy,
   },
   // `npm run build && npm run preview` — how the PWA (service worker, install
-  // prompt, offline reload) is tested without deploying.
+  // prompt, offline reload) is tested without deploying. One block only: a second
+  // `preview` key replaces the first, and that once dropped allowedHosts.
+  // Tailscale Serve sends a *.ts.net host, so without it the phone gets 403.
   preview: {
     port: 4173,
     proxy: apiProxy,
+    allowedHosts: [".ts.net", ".litestar.dev", ".litestar.localhost"],
   },
 });
