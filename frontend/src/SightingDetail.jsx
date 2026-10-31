@@ -617,6 +617,12 @@ export function SightingDetail({ s, onClose, onMove, onCorrected, backLabel = "B
               ))}
             </dd>
           </div>
+          {s.weather && (
+            <div>
+              <dt>Weather</dt>
+              <dd>{s.weather}</dd>
+            </div>
+          )}
           <div>
             <dt>Uploaded</dt>
             <dd>{s.delayed ? "Queued, sent later" : "Live, not queued"}</dd>

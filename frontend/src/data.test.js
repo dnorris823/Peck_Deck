@@ -98,7 +98,7 @@ describe("loadAll", () => {
     expect(data.SIGHTINGS[0].species.common).toBe("Northern Cardinal");
   });
 
-  it("carries the tier trace and the delayed flag", async () => {
+  it("carries the tier trace, the delayed flag and the weather", async () => {
     const trace = [
       { tier: "gpu", outcome: "accepted", confidence: 0.71, threshold: 0.6 },
       { tier: "local", outcome: "not_run", confidence: null, threshold: 0.85 },
@@ -107,15 +107,17 @@ describe("loadAll", () => {
       "/sightings?limit=100": [
         { id: 1000, species_id: 1, device_id: 10, datetime: "2026-07-19T12:00:00Z",
           confidence_score: 0.71, classification_tier_used: "gpu", has_image: true,
-          delayed: true, tier_trace: trace },
+          delayed: true, tier_trace: trace, weather_conditions: "4 °C, light snow" },
         { id: 1002, species_id: 1, device_id: 10, datetime: "2026-07-19T11:00:00Z",
           confidence_score: 0.9, classification_tier_used: "gpu", has_image: true,
-          delayed: false, tier_trace: null },
+          delayed: false, tier_trace: null, weather_conditions: null },
       ],
     });
     const data = await loadAll();
-    expect(data.SIGHTINGS[0]).toMatchObject({ delayed: true, tierTrace: trace });
-    expect(data.SIGHTINGS[1]).toMatchObject({ delayed: false, tierTrace: null });
+    expect(data.SIGHTINGS[0]).toMatchObject({
+      delayed: true, tierTrace: trace, weather: "4 °C, light snow",
+    });
+    expect(data.SIGHTINGS[1]).toMatchObject({ delayed: false, tierTrace: null, weather: null });
   });
 
   it("clamps heatmap counts into the CSS heat range (0..4)", async () => {

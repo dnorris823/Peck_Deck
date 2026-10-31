@@ -275,6 +275,14 @@ describe("header and details", () => {
     expect(screen.getByText("Queued, sent later")).toBeInTheDocument();
   });
 
+  it("shows the weather when the sighting has it", () => {
+    const { rerender } = render(<SightingDetail s={S} onClose={vi.fn()} />);
+    expect(screen.queryByText("Weather")).not.toBeInTheDocument();
+    rerender(<SightingDetail s={{ ...S, weather: "4 °C, light snow" }} onClose={vi.fn()} />);
+    expect(screen.getByText("Weather")).toBeInTheDocument();
+    expect(screen.getByText("4 °C, light snow")).toBeInTheDocument();
+  });
+
   it("adds the busy hours to the context line", async () => {
     fetchSpeciesHours.mockResolvedValue({ peak_hours: [17, 18] });
     render(<SightingDetail s={S} onClose={vi.fn()} />);
