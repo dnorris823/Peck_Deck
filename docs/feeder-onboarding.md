@@ -159,8 +159,8 @@ env $(sudo cat /etc/peck_deck/owner.env | xargs) .venv/bin/python scripts/provis
 
 It must print `matched existing device 'peck-lakehouse' (id N)`. Note the id. If
 it prints `registered new device`, the name did not match step 5. It made a
-second feeder with no city. Fix `DEVICE_NAME`, and delete the extra feeder with
-`DELETE /devices/{id}`.
+second feeder with no city. Fix `DEVICE_NAME`, then open the extra feeder under
+**Feeders** and use **Remove feeder**.
 
 If that user changes their password later, the feeder keeps working. The token
 does not depend on the password. Provisioning fails without harm until you

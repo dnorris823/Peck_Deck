@@ -1277,6 +1277,16 @@
               }
             ]
           },
+          "owner_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "state": {
             "oneOf": [
               {
@@ -1697,6 +1707,18 @@
             "required": true,
             "schema": {
               "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "delete_sightings",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
             }
           }
         ],

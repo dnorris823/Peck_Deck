@@ -73,10 +73,11 @@ async def rotate_device_token(db: AsyncSession, device: Device) -> Device:
     return device
 
 
-async def delete_device(db: AsyncSession, device_id: int) -> int:
-    """Delete the device and its viewer links, unless it has sightings.
+async def delete_device(db: AsyncSession, device_id: int, *, with_sightings: bool = False) -> int:
+    """Delete the device and its viewer links.
 
-    Returns the device's sighting count. Nothing is deleted unless it is 0.
+    Returns the device's sighting count. Without ``with_sightings`` nothing is
+    deleted unless it is 0. With it, the sightings and their images go too.
     The row lock makes a sighting insert wait on the delete, so the count
     cannot go stale between the check and the delete. SQLite ignores it.
     """
@@ -86,11 +87,29 @@ async def delete_device(db: AsyncSession, device_id: int) -> int:
             select(func.count()).select_from(Sighting).where(Sighting.device_id == device_id)
         )
     ).scalar_one()
-    if count:
+    if count and not with_sightings:
         return count
+    await db.execute(delete(Sighting).where(Sighting.device_id == device_id))
     await db.execute(delete(DeviceUser).where(DeviceUser.device_id == device_id))
     await db.execute(delete(Device).where(Device.id == device_id))
-    return 0
+    return count
+
+
+async def transfer_device(db: AsyncSession, device: Device, new_owner_id: int) -> Device:
+    """Hand the feeder to another user. The old owner stays on as a member.
+
+    The new owner's member row goes, because an owner is not also a member.
+    """
+    old_owner_id = device.owner_id
+    await db.execute(
+        delete(DeviceUser).where(
+            DeviceUser.device_id == device.id, DeviceUser.user_id == new_owner_id
+        )
+    )
+    device.owner_id = new_owner_id
+    await db.flush()
+    await add_device_user(db, device.id, old_owner_id)
+    return device
 
 
 async def get_sighting_counts(db: AsyncSession, device_id: int) -> dict[str, int]:
