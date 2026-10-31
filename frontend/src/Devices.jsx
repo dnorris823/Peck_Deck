@@ -2,11 +2,12 @@
 import React, { useRef, useState } from "react";
 import { Icon } from "./Icon.jsx";
 import { useData } from "./DataContext.jsx";
-import { Modal, TextInput, FormNote, useDialog } from "./Modal.jsx";
+import { Modal, TextInput, SelectInput, FormNote, useDialog } from "./Modal.jsx";
 import { Empty } from "./Empty.jsx";
 import { SightingImage } from "./SightingImage.jsx";
 import {
-  AV_COLORS, createDevice, fmtRelative, initials, tierInfo, updateDevice,
+  AV_COLORS, createDevice, deleteDevice, fetchDeviceToken, fmtRelative, initials,
+  rotateDeviceToken, tierInfo, updateDevice,
 } from "./data.js";
 import { canManageFeeder, useFeederAccess } from "./feederAccess.js";
 
@@ -312,6 +313,167 @@ function FeederRecipients({ d, me, users, onLostAccess }) {
   );
 }
 
+// Hand the feeder to another user. Only an owner-role user sees this, since
+// only they can list users. The old owner stays on as a member.
+function FeederOwner({ d, users, onSaved }) {
+  const [ownerId, setOwnerId] = useState(String(d.ownerId));
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const current = users.find(u => u.id === d.ownerId);
+  const next = users.find(u => String(u.id) === ownerId);
+  const options = users.map(u => [String(u.id), u.name]);
+  if (!current) options.unshift([String(d.ownerId), "Current owner"]);
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    try {
+      await updateDevice(d.id, { owner_id: Number(ownerId) });
+      await onSaved();
+    } catch (e) {
+      setError(e.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="settings-section" style={{ marginTop: 24, display: "grid", gap: 10 }}>
+      <div className="label">Owner</div>
+      <SelectInput label="Owned by" value={ownerId} onChange={v => { setOwnerId(v); setError(null); }}
+        options={options} />
+      {next && next.id !== d.ownerId && (
+        <>
+          <div className="field-help">
+            {next.name} becomes the owner. {current ? current.name : "The current owner"} stays
+            on as a member. Provision its Pi with {next.name}'s account from now on.
+          </div>
+          <div className="row" style={{ gap: 8, justifyContent: "flex-end" }}>
+            <button className="btn" onClick={() => setOwnerId(String(d.ownerId))}>Cancel</button>
+            <button className="btn primary" onClick={submit} disabled={busy}>
+              {busy ? "Handing over…" : `Make ${next.name} the owner`}
+            </button>
+          </div>
+        </>
+      )}
+      <FormNote error={error} />
+    </div>
+  );
+}
+
+// The Pi's DEVICE_TOKEN. Rotating it cuts off a lost or replaced Pi, the way a
+// password reset cuts off a user.
+function FeederToken({ d }) {
+  const [token, setToken] = useState(null);
+  const [confirming, setConfirming] = useState(false);
+  const [note, setNote] = useState(null);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  async function run(action, done) {
+    setBusy(true);
+    setError(null);
+    try {
+      setToken((await action(d.id)).token);
+      setNote(done);
+      setConfirming(false);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="settings-section" style={{ marginTop: 24, display: "grid", gap: 10 }}>
+      <div className="label">Device token</div>
+      {token && (
+        <>
+          <div className="card mono" style={{ padding: "12px 16px", fontSize: 12, wordBreak: "break-all" }}>
+            {token}
+          </div>
+          <div><button className="btn sm" onClick={() => navigator.clipboard?.writeText(token)}>Copy token</button></div>
+        </>
+      )}
+      {confirming ? (
+        <>
+          <div className="field-help">
+            The current token stops working at once, and the Pi stops uploading. Put the new
+            token in DEVICE_TOKEN in the Pi's .env, or run scripts/provision_device.py on it.
+            Its captures wait in the offline queue until then.
+          </div>
+          <div className="row" style={{ gap: 8 }}>
+            <button className="btn" onClick={() => setConfirming(false)}>Cancel</button>
+            <button className="btn danger" disabled={busy}
+              onClick={() => run(rotateDeviceToken, "New token. Give it to the Pi.")}>
+              {busy ? "Rotating…" : "Rotate token"}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div className="row" style={{ gap: 8 }}>
+          {!token && (
+            <button className="btn" disabled={busy} onClick={() => run(fetchDeviceToken, null)}>Show token</button>
+          )}
+          <button className="btn" onClick={() => { setConfirming(true); setNote(null); }}>Rotate token…</button>
+        </div>
+      )}
+      <div className="field-help">The Pi signs its uploads with this. Rotate it for a lost or replaced Pi.</div>
+      <FormNote error={error} note={note} />
+    </div>
+  );
+}
+
+// Removing a feeder with sightings deletes them too. They hold the only copy
+// of each photo, so the owner types the feeder's name to confirm.
+function RemoveFeeder({ d, onRemoved }) {
+  const [confirming, setConfirming] = useState(false);
+  const [typed, setTyped] = useState("");
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const count = d.allTime;
+  const ready = count === 0 || typed.trim() === d.name;
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteDevice(d.id, { withSightings: count > 0 });
+      await onRemoved();
+    } catch (e) {
+      setError(e.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="settings-section" style={{ marginTop: 24, display: "grid", gap: 10 }}>
+      <div className="label">Remove</div>
+      {confirming ? (
+        <>
+          <div className="field-help">
+            {count > 0
+              ? `Remove ${d.name} and its ${count.toLocaleString()} sightings? Their photos are deleted too, and cannot be recovered.`
+              : `Remove ${d.name}? It has no sightings.`}
+            {" "}If its Pi is still running, its uploads stop.
+          </div>
+          {count > 0 && (
+            <TextInput label={`Type ${d.name} to confirm`} value={typed} onChange={setTyped} />
+          )}
+          <div className="row" style={{ gap: 8 }}>
+            <button className="btn" onClick={() => { setConfirming(false); setTyped(""); }}>Cancel</button>
+            <button className="btn danger" onClick={submit} disabled={busy || !ready}>
+              {busy ? "Removing…" : `Remove ${d.name}`}
+            </button>
+          </div>
+        </>
+      ) : (
+        <div><button className="btn" onClick={() => setConfirming(true)}>Remove feeder…</button></div>
+      )}
+      <FormNote error={error} />
+    </div>
+  );
+}
+
 function DeviceDetail({ d, onClose }) {
   const { data, reload } = useData();
   const panelRef = useRef(null);
@@ -331,7 +493,14 @@ function DeviceDetail({ d, onClose }) {
           {manage ? (
             <>
               <FeederDetailsForm d={d} onSaved={reload} />
-              <FeederRecipients d={d} me={data.ME} users={data.USERS} onLostAccess={reload} />
+              {/* Keyed on the owner, so a handover refetches the list. */}
+              <FeederRecipients key={d.ownerId} d={d} me={data.ME} users={data.USERS} onLostAccess={reload} />
+              {data.USERS.length > 0 && (
+                <FeederOwner key={`owner-${d.ownerId}`} d={d} users={data.USERS} onSaved={reload} />
+              )}
+              <FeederToken d={d} />
+              {/* The reload drops the feeder from the list, which closes this dialog. */}
+              <RemoveFeeder d={d} onRemoved={reload} />
             </>
           ) : (
             <div className="field-help" style={{ marginTop: 24 }}>

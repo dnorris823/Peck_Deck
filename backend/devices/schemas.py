@@ -12,12 +12,14 @@ class RegisterDevice:
 @dataclass
 class UpdateDevice:
     """Fields to change. A missing field stays. An empty city, state or feed
-    type clears it."""
+    type clears it. A new ``owner_id`` hands the feeder to that user, and the
+    old owner stays on as a member."""
 
     name: str | None = None
     city: str | None = None
     state: str | None = None
     feed_type: str | None = None
+    owner_id: int | None = None
 
 
 @dataclass

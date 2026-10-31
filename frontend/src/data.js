@@ -400,6 +400,23 @@ export async function updateDevice(deviceId, patch) {
   return apiSend(`/devices/${deviceId}`, "PUT", patch);
 }
 
+// Feeder owner or owner role only. `{ id, token }`, for the Pi's DEVICE_TOKEN.
+export async function fetchDeviceToken(deviceId) {
+  return apiGet(`/devices/${deviceId}/token`);
+}
+
+// Mints a new token. The old one fails at once, so the Pi stops uploading
+// until it has the new one.
+export async function rotateDeviceToken(deviceId) {
+  return apiSend(`/devices/${deviceId}/token`, "POST", {});
+}
+
+// Without `withSightings` the server refuses a feeder that has sightings (409).
+// With it, the sightings and their photos are deleted too.
+export async function deleteDevice(deviceId, { withSightings = false } = {}) {
+  return apiDelete(`/devices/${deviceId}${withSightings ? "?delete_sightings=true" : ""}`);
+}
+
 // The feeder's owner and members, as `{ owner, members }`. They get its alerts.
 export async function fetchFeederAccess(deviceId) {
   return apiGet(`/devices/${deviceId}/users`);

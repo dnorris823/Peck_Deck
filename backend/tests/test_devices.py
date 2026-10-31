@@ -271,6 +271,20 @@ def test_delete_is_refused_while_sightings_exist(client, monkeypatch):
     assert beat.status_code == 200
 
 
+def test_delete_with_sightings_removes_the_feeder_and_its_sightings(client, monkeypatch):
+    headers = _fresh_owner(client)
+    device = client.post("/devices", json={"name": "Placeholder"}, headers=headers).json()
+    upload = _upload(client, device["token"], monkeypatch)
+    assert upload.status_code == 201
+    sighting_id = upload.json()["id"]
+
+    res = client.delete("/devices/%d?delete_sightings=true" % device["id"], headers=headers)
+    assert res.status_code == 204
+
+    assert all(d["id"] != device["id"] for d in client.get("/devices", headers=headers).json())
+    assert client.get("/sightings/%d" % sighting_id, headers=headers).status_code == 404
+
+
 def test_viewer_cannot_delete_device(client, viewer_headers):
     res = client.delete("/devices/%d" % IDS["dev1_id"], headers=viewer_headers)
     assert res.status_code == 403
@@ -357,3 +371,40 @@ def test_update_device_location_and_clear_it(client):
     assert body["feed_type"] == "suet"
 
     assert client.put(path, json={"name": "  "}, headers=headers).status_code == 400
+
+
+# --- Handing a feeder to another owner. ---
+
+def test_transfer_hands_the_feeder_over_and_keeps_the_old_owner_as_member(client):
+    old_id, old = _fresh_viewer(client)
+    new_id, new = _fresh_viewer(client)
+    device = client.post("/devices", json={"name": "Hand Me On"}, headers=old).json()
+    path = "/devices/%d" % device["id"]
+    # The new owner was a member first. That row goes, since an owner is not a member.
+    client.post(path + "/users", json={"user_id": new_id}, headers=old)
+
+    res = client.put(path, json={"owner_id": new_id}, headers=old)
+    assert res.status_code == 200
+    assert res.json()["owner_id"] == new_id
+
+    access = client.get(path + "/users", headers=new).json()
+    assert access["owner"]["id"] == new_id
+    assert [m["id"] for m in access["members"]] == [old_id]
+    # The old owner still sees it, but can no longer act as its owner.
+    assert [d["id"] for d in client.get("/devices", headers=old).json()] == [device["id"]]
+    assert client.get(path + "/token", headers=old).status_code == 403
+    assert client.get(path + "/token", headers=new).status_code == 200
+
+
+def test_transfer_rejects_an_unknown_user(client):
+    headers = _fresh_owner(client)
+    device = client.post("/devices", json={"name": "Stay Put"}, headers=headers).json()
+    res = client.put("/devices/%d" % device["id"], json={"owner_id": 999999}, headers=headers)
+    assert res.status_code == 400
+    assert client.get("/devices/%d/users" % device["id"], headers=headers).json()["owner"]["id"]         == device["owner_id"]
+
+
+def test_member_cannot_transfer_a_feeder(client, viewer_headers):
+    res = client.put("/devices/%d" % IDS["dev1_id"], json={"owner_id": IDS["viewer_id"]},
+                     headers=viewer_headers)
+    assert res.status_code == 403

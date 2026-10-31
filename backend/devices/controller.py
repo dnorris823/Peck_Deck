@@ -1,9 +1,10 @@
+import logging
 from datetime import datetime, timedelta, timezone
 
 from litestar import Controller, Request, delete, get, post, put
 from litestar.exceptions import HTTPException, NotFoundException
 from litestar.di import NamedDependency
-from litestar.params import FromPath
+from litestar.params import FromPath, FromQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import DEVICE_TOKEN, USER_JWT, device_guard, user_guard
@@ -20,6 +21,7 @@ from .operations import (
     get_tier_mix,
     remove_device_user,
     rotate_device_token,
+    transfer_device,
     update_device,
     update_device_telemetry,
 )
@@ -35,6 +37,8 @@ from .schemas import (
     TierMix,
     UpdateDevice,
 )
+
+logger = logging.getLogger("peckdeck.devices")
 
 
 def _derive_status(device) -> str:
@@ -156,20 +160,33 @@ class DeviceController(Controller):
 
     @delete("/{device_id:int}", guards=[user_guard], security=USER_JWT, status_code=204)
     async def remove(
-        self, device_id: FromPath[int], request: Request, db: NamedDependency[AsyncSession]
+        self,
+        device_id: FromPath[int],
+        request: Request,
+        db: NamedDependency[AsyncSession],
+        delete_sightings: FromQuery[bool] = False,
     ) -> None:
-        # Refused while sightings exist. They hold the only copy of each image,
-        # so a cascade would make one click destroy the feeder's whole history.
+        """Delete a feeder. **Feeder owner or owner role only.**
+
+        Refused with 409 while sightings exist, unless `delete_sightings=true`.
+        The sightings hold the only copy of each image, so the caller must ask
+        for them to go. A plain delete must never destroy the feeder's history.
+        """
         device = await get_device(db, device_id)
         if device is None:
             raise NotFoundException()
         _assert_owner(request, device)
-        sightings = await delete_device(db, device_id)
-        if sightings:
+        sightings = await delete_device(db, device_id, with_sightings=delete_sightings)
+        if sightings and not delete_sightings:
             raise HTTPException(
                 status_code=409,
-                detail=f"Device has {sightings} sightings. Delete them before the device.",
+                detail=f"Device has {sightings} sightings. Delete them before the device, "
+                "or send delete_sightings=true.",
             )
+        logger.info(
+            "device %d deleted with %d sightings by user %d",
+            device_id, sightings, request.state.user_id,
+        )
 
     @put("/{device_id:int}", guards=[user_guard], security=USER_JWT)
     async def update(
@@ -181,6 +198,10 @@ class DeviceController(Controller):
         _assert_owner(request, device)
         if data.name is not None and not data.name.strip():
             raise HTTPException(status_code=400, detail="A feeder needs a name.")
+        if data.owner_id is not None and data.owner_id != device.owner_id:
+            if await get_user_by_id(db, data.owner_id) is None:
+                raise HTTPException(status_code=400, detail="No such user.")
+            device = await transfer_device(db, device, data.owner_id)
         device = await update_device(
             db,
             device,

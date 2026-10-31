@@ -1,5 +1,5 @@
 // Feeders page: each card's tier counts and the Tier 2 warning beside them,
-// and the settings dialog that shares a feeder and edits its location.
+// and the settings dialog that shares, edits, hands over and removes a feeder.
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
@@ -12,10 +12,16 @@ vi.mock("./data.js", async (importOriginal) => ({
   addFeederMember: vi.fn(),
   removeFeederMember: vi.fn(),
   updateDevice: vi.fn(),
+  deleteDevice: vi.fn(),
+  fetchDeviceToken: vi.fn(),
+  rotateDeviceToken: vi.fn(),
 }));
 
 import { DevicesPage, tierMixText } from "./Devices.jsx";
-import { addFeederMember, fetchFeederAccess, removeFeederMember, updateDevice } from "./data.js";
+import {
+  addFeederMember, deleteDevice, fetchDeviceToken, fetchFeederAccess, removeFeederMember,
+  rotateDeviceToken, updateDevice,
+} from "./data.js";
 
 const mix = (counts, more = {}) => ({
   hours: 24, counts: { gpu: 0, local: 0, cloud: 0, none: 0, ...counts },
@@ -79,13 +85,16 @@ describe("Feeder settings", () => {
     vi.mocked(addFeederMember).mockReset();
     vi.mocked(removeFeederMember).mockReset();
     vi.mocked(updateDevice).mockReset();
+    vi.mocked(deleteDevice).mockReset();
+    vi.mocked(fetchDeviceToken).mockReset();
+    vi.mocked(rotateDeviceToken).mockReset();
   });
 
   it("lists the owner and members as recipients, not every user with email on", async () => {
     vi.mocked(fetchFeederAccess).mockResolvedValue({ owner, members: [brother] });
     const dialog = openFeeder({ id: 1, role: "owner" });
-    await within(dialog).findByText("Sam Norris");
-    expect(within(dialog).getByText("Dominic Norris")).toBeInTheDocument();
+    await within(dialog).findByText("Sam Norris", { selector: "div" });
+    expect(within(dialog).getByText("Dominic Norris", { selector: "div" })).toBeInTheDocument();
     // Pat has email alerts on but is not on this feeder.
     expect(within(dialog).queryByText("Pat Norris", { selector: "div" })).toBeNull();
     expect(fetchFeederAccess).toHaveBeenCalledWith(7);
@@ -97,7 +106,7 @@ describe("Feeder settings", () => {
       .mockResolvedValueOnce({ owner, members: [dad] })
       .mockResolvedValueOnce({ owner, members: [] });
     const dialog = openFeeder({ id: 1, role: "owner" });
-    await within(dialog).findByText("Dominic Norris");
+    await within(dialog).findByText("Dominic Norris", { selector: "div" });
 
     fireEvent.change(within(dialog).getByLabelText("Share with"), { target: { value: " pat@peck.deck " } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Add" }));
@@ -113,7 +122,7 @@ describe("Feeder settings", () => {
     vi.mocked(fetchFeederAccess).mockResolvedValue({ owner, members: [] });
     vi.mocked(addFeederMember).mockRejectedValue(new Error("No user has that email."));
     const dialog = openFeeder({ id: 1, role: "owner" });
-    await within(dialog).findByText("Dominic Norris");
+    await within(dialog).findByText("Dominic Norris", { selector: "div" });
     fireEvent.change(within(dialog).getByLabelText("Share with"), { target: { value: "x@y.z" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Add" }));
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("No user has that email.");
@@ -136,8 +145,76 @@ describe("Feeder settings", () => {
     vi.mocked(fetchFeederAccess).mockResolvedValue({ owner: brother, members: [] });
     const dialog = openFeeder({ id: 2, role: "viewer" },
       { ...feeder(7, "Maple", null), ownerId: 2 });
-    await within(dialog).findByText("Sam Norris");
+    await within(dialog).findByText("Sam Norris", { selector: "div" });
     expect(within(dialog).getByLabelText("Share with")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Remove feeder…" })).toBeInTheDocument();
+    // A viewer cannot list users, so there is no one to hand the feeder to.
+    expect(within(dialog).queryByLabelText("Owned by")).toBeNull();
+  });
+
+  it("removes a feeder with sightings only after its name is typed", async () => {
+    vi.mocked(fetchFeederAccess).mockResolvedValue({ owner, members: [] });
+    vi.mocked(deleteDevice).mockResolvedValue(null);
+    const dialog = openFeeder({ id: 1, role: "owner" },
+      { ...feeder(7, "Maple", null), ownerId: 1, allTime: 4252 });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove feeder…" }));
+    expect(within(dialog).getByText(/its 4,252 sightings/)).toBeInTheDocument();
+
+    const remove = within(dialog).getByRole("button", { name: "Remove Maple" });
+    expect(remove).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText("Type Maple to confirm"), { target: { value: "Mapl" } });
+    expect(remove).toBeDisabled();
+    fireEvent.change(within(dialog).getByLabelText("Type Maple to confirm"), { target: { value: "Maple" } });
+    fireEvent.click(remove);
+    await waitFor(() => expect(deleteDevice).toHaveBeenCalledWith(7, { withSightings: true }));
+  });
+
+  it("removes an empty feeder without asking for its sightings to go", async () => {
+    vi.mocked(fetchFeederAccess).mockResolvedValue({ owner, members: [] });
+    vi.mocked(deleteDevice).mockResolvedValue(null);
+    const dialog = openFeeder({ id: 1, role: "owner" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove feeder…" }));
+    expect(within(dialog).queryByLabelText("Type Maple to confirm")).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove Maple" }));
+    await waitFor(() => expect(deleteDevice).toHaveBeenCalledWith(7, { withSightings: false }));
+  });
+
+  it("shows the server's refusal when a removal fails", async () => {
+    vi.mocked(fetchFeederAccess).mockResolvedValue({ owner, members: [] });
+    vi.mocked(deleteDevice).mockRejectedValue(new Error("Device has 3 sightings."));
+    const dialog = openFeeder({ id: 1, role: "owner" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove feeder…" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Remove Maple" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent("Device has 3 sightings.");
+  });
+
+  it("rotates the token only after a confirm, and shows the new one", async () => {
+    vi.mocked(fetchFeederAccess).mockResolvedValue({ owner, members: [] });
+    vi.mocked(rotateDeviceToken).mockResolvedValue({ id: 7, token: "new-token-abc" });
+    const dialog = openFeeder({ id: 1, role: "owner" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Rotate token…" }));
+    expect(rotateDeviceToken).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Rotate token" }));
+    expect(await within(dialog).findByText("new-token-abc")).toBeInTheDocument();
+    expect(rotateDeviceToken).toHaveBeenCalledWith(7);
+  });
+
+  it("shows the current token on request", async () => {
+    vi.mocked(fetchFeederAccess).mockResolvedValue({ owner, members: [] });
+    vi.mocked(fetchDeviceToken).mockResolvedValue({ id: 7, token: "current-token" });
+    const dialog = openFeeder({ id: 1, role: "owner" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Show token" }));
+    expect(await within(dialog).findByText("current-token")).toBeInTheDocument();
+  });
+
+  it("hands the feeder to another user", async () => {
+    vi.mocked(fetchFeederAccess).mockResolvedValue({ owner, members: [] });
+    vi.mocked(updateDevice).mockResolvedValue({});
+    const dialog = openFeeder({ id: 1, role: "owner" });
+    fireEvent.change(within(dialog).getByLabelText("Owned by"), { target: { value: "3" } });
+    expect(within(dialog).getByText(/Dominic Norris stays on as a member/)).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Make Pat Norris the owner" }));
+    await waitFor(() => expect(updateDevice).toHaveBeenCalledWith(7, { owner_id: 3 }));
   });
 
   it("gives a member no controls and asks for no member list", () => {
