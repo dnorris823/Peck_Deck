@@ -61,3 +61,23 @@ def test_provisions_a_new_device_then_the_existing_one(client, provision, monkey
     beat = client.post("/devices/me/heartbeat", json={},
                        headers={"Authorization": f"Bearer {first}"})
     assert beat.status_code == 200
+
+
+def test_provisioning_picks_up_a_rotated_token(client, provision, monkeypatch):
+    module, env_path = provision
+    monkeypatch.setenv("DEVICE_NAME", f"pi-{secrets.token_hex(4)}")
+
+    module.main()
+    old = _token_in(env_path)
+    device_id = client.post("/devices/me/heartbeat", json={},
+                            headers={"Authorization": f"Bearer {old}"}).json()["id"]
+
+    # The owner rotates the token from the app. The Pi's copy is now refused.
+    owner = client.post("/login", json={
+        "email": module.os.environ["PECK_OWNER_EMAIL"], "password": "pw",
+    }).json()["access_token"]
+    rotated = client.post(f"/devices/{device_id}/token",
+                          headers={"Authorization": f"Bearer {owner}"}).json()["token"]
+
+    module.main()  # the Pi's next start
+    assert _token_in(env_path) == rotated != old

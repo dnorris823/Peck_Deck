@@ -12,11 +12,13 @@ from ..users.operations import get_or_create_preferences
 from .operations import (
     add_device_user,
     create_device,
+    delete_device,
     get_device,
     get_devices_for_user,
     get_sighting_counts,
     get_tier_mix,
     remove_device_user,
+    rotate_device_token,
     update_device,
     update_device_telemetry,
 )
@@ -128,6 +130,37 @@ class DeviceController(Controller):
             raise NotFoundException()
         _assert_owner(request, device)
         return DeviceTokenResponse(id=device.id, token=device.token)
+
+    @post("/{device_id:int}/token", guards=[user_guard], status_code=200)
+    async def rotate_token(
+        self, device_id: FromPath[int], request: Request, db: NamedDependency[AsyncSession]
+    ) -> DeviceTokenResponse:
+        # Owner only, like the read above. The old token fails from the commit
+        # on. The Pi picks up the new one through scripts/provision_device.py,
+        # which reads it from the GET route on its next start.
+        device = await get_device(db, device_id)
+        if device is None:
+            raise NotFoundException()
+        _assert_owner(request, device)
+        device = await rotate_device_token(db, device)
+        return DeviceTokenResponse(id=device.id, token=device.token)
+
+    @delete("/{device_id:int}", guards=[user_guard], status_code=204)
+    async def remove(
+        self, device_id: FromPath[int], request: Request, db: NamedDependency[AsyncSession]
+    ) -> None:
+        # Refused while sightings exist. They hold the only copy of each image,
+        # so a cascade would make one click destroy the feeder's whole history.
+        device = await get_device(db, device_id)
+        if device is None:
+            raise NotFoundException()
+        _assert_owner(request, device)
+        sightings = await delete_device(db, device_id)
+        if sightings:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Device has {sightings} sightings. Delete them before the device.",
+            )
 
     @put("/{device_id:int}", guards=[user_guard])
     async def update(

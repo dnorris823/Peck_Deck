@@ -6,10 +6,11 @@ this on itself as a systemd ``ExecStartPre``; there is no enrolment endpoint and
 hand-paste over SSH.
 
 Why it exists: ``device_guard`` is a plain equality match on ``Device.token`` with no
-expiry or rotation, so a stale token is indistinguishable from a wrong one — 401
+expiry, so a stale token is indistinguishable from a wrong one — 401
 forever, with the offline queue filling silently behind it. Tokens go stale because
 ``backend/seed.py`` mints a fresh ``secrets.token_urlsafe(32)`` on every seed, so
-wiping the database volume orphans whatever the Pi is holding. Rather than make tokens
+wiping the database volume orphans whatever the Pi is holding. An owner rotating
+the token with ``POST /devices/{id}/token`` does the same. Rather than make tokens
 survive a reseed, re-provisioning costs one command that runs itself.
 
     python scripts/provision_device.py
