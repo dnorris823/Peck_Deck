@@ -21,6 +21,9 @@ class UpdateDevice:
 class DeviceHeartbeat:
     battery: float | None = None
     signal: str | None = None
+    # Where the Pi's MediaMTX answers WHEP offers. A private IP literal only,
+    # see backend/live/address.py. Omitting it clears the stored address.
+    live_url: str | None = None
 
 
 @dataclass
@@ -63,6 +66,8 @@ class DeviceResponse:
     week_sightings: int
     all_time_sightings: int
     tier_mix: TierMix
+    # A live_url is stored and the device is not offline. The URL stays private.
+    live_available: bool
 
 
 @dataclass

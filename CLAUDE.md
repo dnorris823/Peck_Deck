@@ -17,6 +17,7 @@ history, not instructions.
 |---|---|
 | Live updates over SSE | `docs/live-updates-sse.md` |
 | PWA and web push | `docs/pwa-and-web-push.md` |
+| Live video and the WHEP relay | `docs/live-video.md` |
 | Backups, migrations, health, OpenAPI, test suites | `docs/operations.md` |
 | Running anything locally | `CONTRIBUTING.md` |
 | Pi setup | `SETUP.md` |

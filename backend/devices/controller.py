@@ -7,6 +7,7 @@ from litestar.params import FromPath
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import device_guard, user_guard
+from ..live.address import check_live_url
 from ..users.operations import get_or_create_preferences
 from .operations import (
     add_device_user,
@@ -49,6 +50,11 @@ def _derive_status(device) -> str:
     return "online"
 
 
+def live_available(device) -> bool:
+    """Whether the relay should try this device's MediaMTX."""
+    return device.live_url is not None and _derive_status(device) != "offline"
+
+
 async def _to_response(db: AsyncSession, device) -> DeviceResponse:
     counts = await get_sighting_counts(db, device.id)
     return DeviceResponse(
@@ -66,6 +72,17 @@ async def _to_response(db: AsyncSession, device) -> DeviceResponse:
         week_sightings=counts["week"],
         all_time_sightings=counts["all_time"],
         tier_mix=TierMix(**await get_tier_mix(db, device.id)),
+        live_available=live_available(device),
+    )
+
+
+async def _record_heartbeat(db: AsyncSession, device, data: DeviceHeartbeat):
+    if data.live_url is not None:
+        problem = check_live_url(data.live_url)
+        if problem:
+            raise HTTPException(status_code=400, detail=problem)
+    return await update_device_telemetry(
+        db, device, battery=data.battery, signal=data.signal, live_url=data.live_url
     )
 
 
@@ -138,9 +155,7 @@ class DeviceController(Controller):
         device = await get_device(db, request.state.device_id)
         if device is None:
             raise NotFoundException()
-        device = await update_device_telemetry(
-            db, device, battery=data.battery, signal=data.signal
-        )
+        device = await _record_heartbeat(db, device, data)
         return await _to_response(db, device)
 
     @post("/{device_id:int}/heartbeat", guards=[device_guard], status_code=200)
@@ -153,9 +168,7 @@ class DeviceController(Controller):
         device = await get_device(db, device_id)
         if device is None:
             raise NotFoundException()
-        device = await update_device_telemetry(
-            db, device, battery=data.battery, signal=data.signal
-        )
+        device = await _record_heartbeat(db, device, data)
         return await _to_response(db, device)
 
     @post("/{device_id:int}/users", guards=[user_guard], status_code=204)
