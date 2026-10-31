@@ -108,7 +108,7 @@ running app:
 |---|---|
 | `http://localhost:8000/schema` | Interactive docs (Swagger UI / ReDoc) |
 | `http://localhost:8000/schema/openapi.json` | Raw OpenAPI 3.1 document |
-| `docs/openapi.json` | Committed snapshot — 26 paths, 35 operations |
+| `docs/openapi.json` | Committed snapshot — 33 paths, 44 operations |
 
 Both auth schemes are documented in the spec (`UserJWT`, `DeviceToken`), so the
 Pi/frontend contract is self-describing.

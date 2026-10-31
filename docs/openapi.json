@@ -1017,6 +1017,26 @@
         "title": "SpeciesResponse",
         "type": "object"
       },
+      "StorageResponse": {
+        "properties": {
+          "database_bytes": {
+            "type": "integer"
+          },
+          "image_bytes": {
+            "type": "integer"
+          },
+          "retention_unknown_days": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "database_bytes",
+          "image_bytes",
+          "retention_unknown_days"
+        ],
+        "title": "StorageResponse",
+        "type": "object"
+      },
       "SubscribeRequest": {
         "properties": {
           "endpoint": {
@@ -3601,6 +3621,26 @@
           }
         },
         "summary": "SpeciesCounts"
+      }
+    },
+    "/stats/storage": {
+      "get": {
+        "deprecated": false,
+        "operationId": "StatsStorageStorage",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StorageResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "summary": "Storage"
       }
     },
     "/users": {
