@@ -6,8 +6,8 @@ import { Modal, TextInput, SelectInput, FormNote, useDialog } from "./Modal.jsx"
 import { Empty } from "./Empty.jsx";
 import { SightingImage } from "./SightingImage.jsx";
 import {
-  AV_COLORS, createDevice, deleteDevice, fetchDeviceToken, fmtRelative, initials,
-  rotateDeviceToken, tierInfo, updateDevice,
+  AV_COLORS, countSightingsBefore, createDevice, deleteDevice, deleteSightingsBefore,
+  fetchDeviceToken, fmtRelative, initials, rotateDeviceToken, tierInfo, updateDevice,
 } from "./data.js";
 import { canManageFeeder, useFeederAccess } from "./feederAccess.js";
 
@@ -423,6 +423,81 @@ function FeederToken({ d }) {
   );
 }
 
+// "YYYY-MM-DD" from a date input, as local midnight that day.
+function localMidnight(value) {
+  const [y, m, day] = value.split("-").map(Number);
+  return new Date(y, m - 1, day);
+}
+
+// Deletes every sighting older than a date, for test captures from before the
+// feeder went live. History holds only the newest 100, so it cannot reach them.
+// The count comes first, and nothing goes until the owner confirms it.
+function ClearOldSightings({ d, onCleared }) {
+  const [date, setDate] = useState("");
+  const [count, setCount] = useState(null);
+  const [note, setNote] = useState(null);
+  const [error, setError] = useState(null);
+  const [busy, setBusy] = useState(false);
+
+  function pick(v) { setDate(v); setCount(null); setNote(null); setError(null); }
+
+  async function check() {
+    setBusy(true);
+    setError(null);
+    try {
+      setCount((await countSightingsBefore(d.id, localMidnight(date))).count);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submit() {
+    setBusy(true);
+    setError(null);
+    try {
+      await deleteSightingsBefore(d.id, localMidnight(date));
+      setNote(`Deleted ${count.toLocaleString()} sightings.`);
+      setCount(null);
+      await onCleared();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="settings-section" style={{ marginTop: 24, display: "grid", gap: 10 }}>
+      <div className="label">Old sightings</div>
+      <div className="row" style={{ gap: 8, alignItems: "flex-end" }}>
+        <div style={{ flex: 1 }}>
+          <TextInput label="Delete sightings before" type="date" value={date} onChange={pick} />
+        </div>
+        <button className="btn" onClick={check} disabled={busy || !date}>Check</button>
+      </div>
+      {count === 0 && <div className="field-help">No sightings before that day.</div>}
+      {count > 0 && (
+        <>
+          <div className="field-help">
+            {count.toLocaleString()} sightings from before {localMidnight(date).toLocaleDateString()} and
+            their photos will be deleted. This cannot be undone.
+          </div>
+          <div className="row" style={{ gap: 8 }}>
+            <button className="btn" onClick={() => setCount(null)}>Cancel</button>
+            <button className="btn danger" onClick={submit} disabled={busy}>
+              {busy ? "Deleting…" : `Delete ${count.toLocaleString()} sightings`}
+            </button>
+          </div>
+        </>
+      )}
+      <div className="field-help">For test captures from before the feeder went live. To pick single photos, use Select in History.</div>
+      <FormNote error={error} note={note} />
+    </div>
+  );
+}
+
 // Removing a feeder with sightings deletes them too. They hold the only copy
 // of each photo, so the owner types the feeder's name to confirm.
 function RemoveFeeder({ d, onRemoved }) {
@@ -499,6 +574,7 @@ function DeviceDetail({ d, onClose }) {
                 <FeederOwner key={`owner-${d.ownerId}`} d={d} users={data.USERS} onSaved={reload} />
               )}
               <FeederToken d={d} />
+              {d.allTime > 0 && <ClearOldSightings d={d} onCleared={reload} />}
               {/* The reload drops the feeder from the list, which closes this dialog. */}
               <RemoveFeeder d={d} onRemoved={reload} />
             </>

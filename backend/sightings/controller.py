@@ -16,7 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import DEVICE_TOKEN, USER_JWT, device_guard, user_guard
 from ..devices.operations import mark_device_seen
-from ..events.hub import SightingDeleted, SightingUpdated, sighting_hub
+from ..events.hub import SightingDeleted, SightingsDeleted, SightingUpdated, sighting_hub
 from ..species.operations import get_species
 from . import export as export_ops
 from .aftercare import schedule_aftercare
@@ -24,13 +24,22 @@ from .operations import (
     correct_species,
     create_sighting,
     delete_sighting,
+    delete_sightings,
     get_image_bytes,
     get_sighting,
     get_sighting_device,
+    get_sighting_devices,
     list_sightings,
     user_can_access_device,
 )
-from .schemas import CorrectSpecies, SightingResponse, parse_tier_trace, sighting_response
+from .schemas import (
+    CorrectSpecies,
+    DeletedCount,
+    DeleteSightings,
+    SightingResponse,
+    parse_tier_trace,
+    sighting_response,
+)
 from .thumbnails import make_thumbnail
 from .weather import schedule_weather
 
@@ -46,9 +55,15 @@ IMAGE_CACHE_CONTROL = "private, max-age=31536000, immutable"
 FALLBACK_CACHE_CONTROL = "private, max-age=86400"
 
 
-async def _announce(event: SightingDeleted | SightingUpdated) -> None:
+# A bulk delete takes at most this many ids. History holds 100 sightings, so
+# the web app never comes near it. It bounds the IN list and the request body.
+MAX_BULK_DELETE = 500
+
+
+async def _announce(*events: SightingDeleted | SightingUpdated | SightingsDeleted) -> None:
     # BackgroundTask awaits its function, and publish() is sync.
-    sighting_hub.publish(event)
+    for event in events:
+        sighting_hub.publish(event)
 
 
 from dataclasses import dataclass, field
@@ -275,6 +290,47 @@ class SightingController(Controller):
                 SightingUpdated(
                     sighting_id=sighting_id, device_id=device_id, payload=asdict(body)
                 ),
+            ),
+        )
+
+    @post("/delete", guards=[user_guard], security=USER_JWT, status_code=200)
+    async def delete_many(
+        self, data: DeleteSightings, request: Request, db: NamedDependency[AsyncSession]
+    ) -> Response[DeletedCount]:
+        """Remove many sightings and their images. Device owner or owner role only.
+
+        All or nothing: one id on a device the caller cannot manage refuses the
+        whole request with 403. Ids that no longer exist are skipped, so a
+        retry after a dropped response does not fail.
+        """
+        ids = sorted(set(data.ids))
+        if not ids:
+            raise HTTPException(status_code=400, detail="Send at least one id.")
+        if len(ids) > MAX_BULK_DELETE:
+            raise HTTPException(
+                status_code=400, detail=f"Send at most {MAX_BULK_DELETE} ids per request."
+            )
+        targets = await get_sighting_devices(db, ids)
+        user_id, role = request.state.user_id, request.state.role
+        if any(owner_id != user_id and role != "owner" for _, _, owner_id in targets):
+            raise HTTPException(status_code=403, detail="Forbidden")
+
+        await delete_sightings(db, [sid for sid, _, _ in targets])
+        per_device: dict[int, int] = {}
+        for _, device_id, _ in targets:
+            per_device[device_id] = per_device.get(device_id, 0) + 1
+        logger.info(
+            "%d sightings deleted from devices %s by user %d",
+            len(targets), sorted(per_device), user_id,
+        )
+
+        # After the commit, for the reason given on delete_one below.
+        return Response(
+            content=DeletedCount(deleted=len(targets)),
+            status_code=200,
+            background=BackgroundTask(
+                _announce,
+                *(SightingsDeleted(device_id=d, count=n) for d, n in per_device.items()),
             ),
         )
 

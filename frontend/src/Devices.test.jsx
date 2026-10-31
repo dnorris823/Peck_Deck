@@ -15,12 +15,14 @@ vi.mock("./data.js", async (importOriginal) => ({
   deleteDevice: vi.fn(),
   fetchDeviceToken: vi.fn(),
   rotateDeviceToken: vi.fn(),
+  countSightingsBefore: vi.fn(),
+  deleteSightingsBefore: vi.fn(),
 }));
 
 import { DevicesPage, tierMixText } from "./Devices.jsx";
 import {
-  addFeederMember, deleteDevice, fetchDeviceToken, fetchFeederAccess, removeFeederMember,
-  rotateDeviceToken, updateDevice,
+  addFeederMember, countSightingsBefore, deleteDevice, deleteSightingsBefore, fetchDeviceToken,
+  fetchFeederAccess, removeFeederMember, rotateDeviceToken, updateDevice,
 } from "./data.js";
 
 const mix = (counts, more = {}) => ({
@@ -88,6 +90,8 @@ describe("Feeder settings", () => {
     vi.mocked(deleteDevice).mockReset();
     vi.mocked(fetchDeviceToken).mockReset();
     vi.mocked(rotateDeviceToken).mockReset();
+    vi.mocked(countSightingsBefore).mockReset();
+    vi.mocked(deleteSightingsBefore).mockReset();
   });
 
   it("lists the owner and members as recipients, not every user with email on", async () => {
@@ -205,6 +209,44 @@ describe("Feeder settings", () => {
     const dialog = openFeeder({ id: 1, role: "owner" });
     fireEvent.click(within(dialog).getByRole("button", { name: "Show token" }));
     expect(await within(dialog).findByText("current-token")).toBeInTheDocument();
+  });
+
+  it("counts the sightings before a date, then deletes them on confirm", async () => {
+    vi.mocked(fetchFeederAccess).mockResolvedValue({ owner, members: [] });
+    vi.mocked(countSightingsBefore).mockResolvedValue({ count: 4388 });
+    vi.mocked(deleteSightingsBefore).mockResolvedValue(null);
+    const dialog = openFeeder({ id: 1, role: "owner" },
+      { ...feeder(7, "Maple", null), ownerId: 1, allTime: 4397 });
+
+    fireEvent.change(within(dialog).getByLabelText("Delete sightings before"),
+      { target: { value: "2026-10-28" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Check" }));
+    const confirm = await within(dialog).findByRole("button", { name: "Delete 4,388 sightings" });
+    // Local midnight on the picked day.
+    expect(countSightingsBefore).toHaveBeenCalledWith(7, new Date(2026, 9, 28));
+    expect(deleteSightingsBefore).not.toHaveBeenCalled();
+
+    fireEvent.click(confirm);
+    expect(await within(dialog).findByText("Deleted 4,388 sightings.")).toBeInTheDocument();
+    expect(deleteSightingsBefore).toHaveBeenCalledWith(7, new Date(2026, 9, 28));
+  });
+
+  it("says so when no sightings are older than the date", async () => {
+    vi.mocked(fetchFeederAccess).mockResolvedValue({ owner, members: [] });
+    vi.mocked(countSightingsBefore).mockResolvedValue({ count: 0 });
+    const dialog = openFeeder({ id: 1, role: "owner" },
+      { ...feeder(7, "Maple", null), ownerId: 1, allTime: 3 });
+    fireEvent.change(within(dialog).getByLabelText("Delete sightings before"),
+      { target: { value: "2020-01-01" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Check" }));
+    expect(await within(dialog).findByText("No sightings before that day.")).toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: /^Delete .* sightings$/ })).toBeNull();
+  });
+
+  it("hides the date delete for a feeder with no sightings", () => {
+    vi.mocked(fetchFeederAccess).mockResolvedValue({ owner, members: [] });
+    const dialog = openFeeder({ id: 1, role: "owner" });
+    expect(within(dialog).queryByLabelText("Delete sightings before")).toBeNull();
   });
 
   it("hands the feeder to another user", async () => {

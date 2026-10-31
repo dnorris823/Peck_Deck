@@ -175,6 +175,44 @@ async def correct_species(
     return sighting, bool(has_image)
 
 
+async def get_sighting_devices(
+    db: AsyncSession, sighting_ids: list[int]
+) -> list[tuple[int, int, int]]:
+    """``(sighting_id, device_id, device owner_id)`` for each id that exists.
+
+    Selects ints only, like ``get_sighting_device``, so no image is read.
+    """
+    result = await db.execute(
+        select(Sighting.id, Sighting.device_id, Device.owner_id)
+        .join(Device, Sighting.device_id == Device.id)
+        .where(Sighting.id.in_(sighting_ids))
+    )
+    return [tuple(row) for row in result.all()]
+
+
+async def delete_sightings(db: AsyncSession, sighting_ids: list[int]) -> None:
+    await db.execute(delete(Sighting).where(Sighting.id.in_(sighting_ids)))
+
+
+async def count_sightings_before(db: AsyncSession, device_id: int, before: datetime) -> int:
+    result = await db.execute(
+        select(func.count()).select_from(Sighting).where(
+            Sighting.device_id == device_id, Sighting.datetime < before
+        )
+    )
+    return result.scalar_one()
+
+
+async def delete_sightings_before(db: AsyncSession, device_id: int, before: datetime) -> int:
+    """Delete the device's sightings older than ``before``. Returns how many."""
+    count = await count_sightings_before(db, device_id, before)
+    if count:
+        await db.execute(
+            delete(Sighting).where(Sighting.device_id == device_id, Sighting.datetime < before)
+        )
+    return count
+
+
 async def delete_sighting(db: AsyncSession, sighting_id: int) -> None:
     # The image is the row's `image_data` column, so it goes with the row.
     await db.execute(delete(Sighting).where(Sighting.id == sighting_id))

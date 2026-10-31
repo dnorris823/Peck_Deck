@@ -50,5 +50,11 @@ Notes that will bite otherwise:
   loaded, it fetches the species list first, because `mapAll` drops a sighting
   it cannot join to a species. The tab that made the change applies it itself,
   then ignores the echo on the stream by `id` and `corrected_at`.
+- **A bulk delete sends `resync`, not one `sighting_deleted` per row.**
+  `POST /sightings/delete` and `DELETE /devices/{id}/sightings` publish one
+  `SightingsDeleted` per device, after the commit. The stream turns it into
+  `resync` with data `bulk_delete`, scoped like any event. One event per row
+  would make every open tab refetch its stats once per row, thousands of times
+  for a date-range delete.
 - A subscriber's device scope is resolved **once, at connect**, so a device
   shared with a user mid-stream appears on their next reconnect.

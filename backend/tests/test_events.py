@@ -22,6 +22,7 @@ from backend.events.hub import (
     SightingDeleted,
     SightingEvent,
     SightingHub,
+    SightingsDeleted,
     SightingUpdated,
     sighting_hub,
 )
@@ -214,6 +215,24 @@ def test_forwards_an_update_without_moving_the_resume_point(client, owner_device
     assert out[0].event == "sighting_updated"
     assert json.loads(out[0].data) == payload
     # An update names an older row, so its id would move the resume point back.
+    assert out[0].id is None
+
+
+def test_bulk_delete_becomes_a_scoped_resync(client, owner_devices):
+    from backend.tests.conftest import IDS
+
+    unreachable = max(owner_devices) + 500
+    _, out = _drive(
+        IDS["owner_id"],
+        publish=[
+            SightingsDeleted(device_id=unreachable, count=40),
+            SightingsDeleted(device_id=owner_devices[0], count=3),
+        ],
+    )
+
+    # One reload, not one stats refetch per row. Scoped like any other event.
+    assert out[0].event == "resync"
+    assert out[0].data == "bulk_delete"
     assert out[0].id is None
 
 
