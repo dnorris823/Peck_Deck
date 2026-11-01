@@ -1,4 +1,5 @@
 import json
+from dataclasses import asdict
 from datetime import datetime
 
 from litestar import Controller, Request, get
@@ -16,6 +17,8 @@ from . import operations
 from .schemas import (
     DashboardResponse,
     HourStatsResponse,
+    LifeListResponse,
+    LifeListSpecies,
     SpeciesCountResponse,
     StorageResponse,
 )
@@ -23,6 +26,10 @@ from .schemas import (
 
 # A cap well past any real history. Without one, a huge value overflows timedelta.
 MAX_DAYS = 36500
+
+# Years the life list accepts. datetime refuses year 10000, and no feeder ran
+# before 2000.
+MIN_YEAR, MAX_YEAR = 2000, 9998
 
 
 def _zone_or_400(tz: str) -> str:
@@ -54,6 +61,15 @@ def _species_count_response(row: dict) -> SpeciesCountResponse:
         first_seen=row["first_seen"],
         last_seen=row["last_seen"],
         peak_hours=row["peak_hours"],
+    )
+
+
+def _life_list_species(row: dict) -> LifeListSpecies:
+    return LifeListSpecies(
+        **asdict(_species_count_response(row)),
+        first_feeder_id=row["first_feeder_id"],
+        first_feeder_name=row["first_feeder_name"],
+        new_in_year=row["new_in_year"],
     )
 
 
@@ -108,6 +124,39 @@ class StatsController(Controller):
             device_id=device_id,
         )
         return [_species_count_response(r) for r in rows]
+
+    @get("/life-list")
+    async def life_list(
+        self,
+        request: Request,
+        db: NamedDependency[AsyncSession],
+        year: FromQuery[int | None] = None,
+        tz: FromQuery[str] = "UTC",
+        device_id: FromQuery[int | None] = None,
+    ) -> LifeListResponse:
+        """Every bird species the feeders recorded, for one year or all time.
+
+        Without `year` it is the life list. With it, the year list, from local
+        midnight on 1 January in `tz`. Each row has the visit count, first and
+        last seen and the first feeder in that range, and `new_in_year`. With
+        `device_id`, it covers that one feeder. Animals and "Unknown" are left out.
+        """
+        if year is not None and not MIN_YEAR <= year <= MAX_YEAR:
+            raise HTTPException(
+                status_code=400, detail=f"year must be {MIN_YEAR} to {MAX_YEAR}"
+            )
+        data = await operations.life_list(
+            db,
+            request.state.user_id,
+            tz=_zone_or_400(tz),
+            year=year,
+            device_id=device_id,
+        )
+        return LifeListResponse(
+            year=data["year"],
+            years=data["years"],
+            species=[_life_list_species(r) for r in data["species"]],
+        )
 
     @get("/hours")
     async def hours(
