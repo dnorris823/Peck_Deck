@@ -9,6 +9,7 @@ import { DevicesPage } from "./Devices.jsx";
 import { LivePage } from "./Live.jsx";
 import { UsersPage } from "./Users.jsx";
 import { AnimalsPage } from "./Animals.jsx";
+import { ComparePage } from "./Compare.jsx";
 import { SettingsPage } from "./UsersSettings.jsx";
 import { Login } from "./Login.jsx";
 import { DataProvider, useData } from "./DataContext.jsx";
@@ -225,6 +226,7 @@ function AppShell({ onLogout }) {
             {route === "species" && <SpeciesPage go={go} openSighting={openSighting} />}
             {route === "feeders" && <DevicesPage />}
             {route === "animals" && <AnimalsPage />}
+            {route === "compare" && <ComparePage go={go} />}
             {route === "users" && <UsersPage />}
             {route === "settings" && <SettingsPage />}
           </div>

@@ -1,0 +1,16 @@
+/* Compare view: the feeder cards reuse the Feeders page's .station-grid and
+   .device-stats. This adds the "only here" list and the first of year table. */
+.compare-section { margin-bottom: 22px; }
+.compare-swatch { width: 9px; height: 9px; border-radius: 50%; display: inline-block; margin-right: 7px; vertical-align: 0; flex: none; }
+.compare-only-title { font-size: 13px; font-weight: 700; margin: 14px 0 6px; }
+.compare-only { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13.5px; }
+.compare-only li { display: inline-flex; align-items: center; }
+/* Wide with many feeders, so it scrolls sideways on a phone with the species
+   column held in place. */
+.compare-scroll { overflow-x: auto; }
+.compare-table { border-collapse: collapse; font-size: 13.5px; min-width: 100%; }
+.compare-table caption { text-align: left; margin-bottom: 8px; }
+.compare-table th, .compare-table td { padding: 6px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--line); }
+.compare-table thead th { font-size: 12px; color: var(--mu); font-weight: 700; }
+.compare-table th:first-child { text-align: left; position: sticky; left: 0; background: var(--bg); font-weight: 600; }
+.compare-earliest { font-weight: 800; }

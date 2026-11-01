@@ -12,6 +12,7 @@ export function Icon({ name, className = "nav-icon" }) {
     search: <g stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round"><circle cx="7" cy="7" r="4.2" /><path d="M10.5 10.5 L13 13" /></g>,
     bell: <path d="M4 11.5 V8 a 4 4 0 0 1 8 0 V11.5 L13 12.5 H3 Z M6.5 12.5 a 1.5 1.5 0 0 0 3 0" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinejoin="round" />,
     plus: <path d="M8 3 V13 M3 8 H13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />,
+    compare: <g stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinejoin="round"><rect x="2.5" y="6" width="4.5" height="7.5" rx="0.8" /><rect x="9" y="2.5" width="4.5" height="11" rx="0.8" /></g>,
     paw: <g fill="currentColor"><ellipse cx="8" cy="11" rx="3" ry="2.4" /><circle cx="4" cy="7.5" r="1.3" /><circle cx="6.5" cy="5" r="1.3" /><circle cx="9.5" cy="5" r="1.3" /><circle cx="12" cy="7.5" r="1.3" /></g>,
     filter: <path d="M3 4 H13 L10 8 V12 L6 13.5 V8 Z" stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinejoin="round" />,
     chev: <path d="M5 4 L9 8 L5 12" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />,
