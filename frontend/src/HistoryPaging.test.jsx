@@ -60,8 +60,12 @@ function serve(rows) {
   };
 }
 
-const tiles = () => screen.queryAllByRole("button", { name: /House Sparrow|Pine Siskin/ });
+// Plain DOM queries, not ByRole. A role query works out the accessible name of
+// every button on the page, and with 500 tiles that made the paging test
+// take over 5 s on CI.
+const tiles = () => [...document.querySelectorAll(".tile")];
 const shownCount = () => document.querySelector(".page-meta-num").textContent;
+const moreButton = () => document.querySelector(".history-more button");
 
 let rows;
 beforeEach(() => {
@@ -90,10 +94,11 @@ describe("History paging", () => {
     expect(first.has("from_date")).toBe(true);
     expect(first.has("species_id")).toBe(false);
 
-    // Scroll to the end until the server has no more.
-    while (screen.queryByRole("button", { name: "Load older visits" })) {
-      fireEvent.click(screen.getByRole("button", { name: "Load older visits" }));
-      await waitFor(() => expect(screen.queryByRole("button", { name: "Loading…" })).toBeNull());
+    // Scroll to the end until the server has no more. The fake server answers
+    // in a microtask, so an async act settles each page with no polling.
+    while (moreButton()) {
+      expect(moreButton()).toHaveTextContent("Load older visits");
+      await act(async () => { fireEvent.click(moreButton()); });
     }
 
     expect(tiles()).toHaveLength(501);
@@ -104,7 +109,8 @@ describe("History paging", () => {
     expect(vi.mocked(apiGet).mock.calls.filter(([p]) => p.startsWith("/sightings?"))).toHaveLength(7);
     expect(last.get("to_date")).toBe(rows[498].datetime);
     expect(last.get("offset")).toBe("1");
-  });
+    // A backstop for a slow CI runner. The test takes well under a second locally.
+  }, 15_000);
 
   it("finds a species visit from 25 days ago", async () => {
     render(<Sightings openSighting={() => {}} />);

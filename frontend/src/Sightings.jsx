@@ -305,14 +305,33 @@ export function Sightings({ openSighting, initialSpecies = "all", initialDay = n
   const deletable = filtered.filter(canDelete);
   const chosen = selected ? filtered.filter(s => selected.has(s.id)) : [];
 
-  function clickTile(s) {
-    if (!selected) return openSighting(s);
-    setSelected(sel => {
-      const next = new Set(sel);
-      if (next.has(s.id)) next.delete(s.id); else next.add(s.id);
-      return next;
-    });
-  }
+  // Memoized, so a page starting to load redraws the button, not every tile.
+  // With a few hundred visits loaded, that redraw was most of the cost.
+  const gallery = useMemo(() => {
+    function clickTile(s) {
+      if (!selected) return openSighting(s);
+      setSelected(sel => {
+        const next = new Set(sel);
+        if (next.has(s.id)) next.delete(s.id); else next.add(s.id);
+        return next;
+      });
+    }
+    return groups.map(g => (
+      <section key={g.key} className="day-group">
+        <h2 className="day-head">
+          <span>{fmtDayHeading(g.date)}</span>
+          <span className="label tnum">{g.items.length} visit{g.items.length === 1 ? "" : "s"}</span>
+        </h2>
+        <div className="gallery">
+          {g.items.map(s => (
+            <SightingTile key={s.id} s={s} onClick={clickTile}
+              selected={selected ? selected.has(s.id) : null}
+              disabled={!!selected && !canDeleteSighting(s, ME)} />
+          ))}
+        </div>
+      </section>
+    ));
+  }, [groups, selected, ME, openSighting]);
   const hasAny = SIGHTINGS.length > 0 || filtered.length > 0;
   // Species with at least one visit, from the counts, so an old visitor is
   // still on the list. The current choice stays even with no count.
@@ -384,23 +403,7 @@ export function Sightings({ openSighting, initialSpecies = "all", initialDay = n
         />
       )}
 
-      {groups.length > 0 ? (
-        groups.map(g => (
-          <section key={g.key} className="day-group">
-            <h2 className="day-head">
-              <span>{fmtDayHeading(g.date)}</span>
-              <span className="label tnum">{g.items.length} visit{g.items.length === 1 ? "" : "s"}</span>
-            </h2>
-            <div className="gallery">
-              {g.items.map(s => (
-                <SightingTile key={s.id} s={s} onClick={clickTile}
-                  selected={selected ? selected.has(s.id) : null}
-                  disabled={!!selected && !canDelete(s)} />
-              ))}
-            </div>
-          </section>
-        ))
-      ) : history.loading ? (
+      {groups.length > 0 ? gallery : history.loading ? (
         <div className="history-more label">Loading…</div>
       ) : history.error ? null : hasAny ? (
         <Empty
