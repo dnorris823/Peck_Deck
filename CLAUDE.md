@@ -66,6 +66,8 @@ derivable by reading the code or running `ls`, it does not belong here.
   model, generate a migration. The container migrates on start.
 - After changing a route, run `python scripts/export_openapi.py`, so the contract
   change shows up as a diff in review.
+- **The Pi's systemd units exist twice**, in `SETUP.md` §9 and in
+  `scripts/install_pi.sh`. Change both, or a reinstalled feeder runs the old unit.
 
 ## Classification tiers
 
