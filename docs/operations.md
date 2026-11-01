@@ -78,6 +78,7 @@ GPU once the server answers again. The code is in `backend/sightings/recheck.py`
 |---|---|---|
 | `INFERENCE_SERVER_URL` | `http://host.docker.internal:8001` | Where the API reaches the inference server. The default reaches the host from the `api` container. |
 | `TIER2_RECHECK_INTERVAL_SECONDS` | `60` | How often the task looks for waiting sightings and calls `GET /health`. `0` turns the re-check off. A negative value refuses to start. |
+| `TIER2_ANIMAL_THRESHOLD` | `0.30` | The bar for Tier 2's animal answer. Keep it equal to the Pi's `TIER2_ANIMAL_THRESHOLD`. |
 
 - The upload marks a sighting pending when its trace shows Tier 2 `failed`, or
   shows every tier `not_run` with tier `none`. A sighting with no trace, or
@@ -90,6 +91,10 @@ GPU once the server answers again. The code is in `backend/sightings/recheck.py`
 - Tier 2 replaces the species when it meets the `gpu` threshold from the
   sighting's trace. Below it, the answer closer to its own tier's bar wins.
   `provisional_species_id` keeps the Pi's species.
+- A feeder animal wins first, by the Pi's rule. It meets `TIER2_ANIMAL_THRESHOLD`
+  and beats Tier 2's bird. The sighting then takes the animal species, with
+  `kind = 'animal'` and its group, whatever Tier 1 said. Tier 1 knows birds
+  only, so a squirrel caught with the 5080 off is a Tier 1 bird until then.
 - A connection error, a timeout or a 5xx ends the pass, and the rows stay
   pending. A 4xx marks that one row done with no change.
 - A sighting a person corrected keeps their species.

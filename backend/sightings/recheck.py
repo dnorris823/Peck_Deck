@@ -16,6 +16,9 @@ Pi's live requests still get a turn.
 - A 4xx for one image marks that row done with no change, so one bad image
   cannot block the queue.
 - A sighting a person corrected is marked done and keeps their species.
+- A feeder animal wins by the Pi's rule: it meets ``TIER2_ANIMAL_THRESHOLD`` and
+  beats Tier 2's bird. The sighting then takes the animal species, whatever
+  Tier 1 said, because Tier 1 knows birds only.
 - ``tier_trace`` stays as the Pi wrote it. The Tier 2 warning on the feeder
   card reads the Pi's own attempt, and a re-check must not hide the outage.
 - A changed row goes to open tabs as ``SightingUpdated``. No push goes out.
@@ -34,9 +37,11 @@ import aiohttp
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..config import settings
 from ..database.connection import get_session_factory
 from ..database.models import Sighting
 from ..events.hub import SightingUpdated, sighting_hub
+from ..species.operations import ANIMAL
 from .aftercare import enrich_if_sparse
 from .operations import HAS_IMAGE, SKIP_IMAGE, species_for_names
 from .schemas import sighting_response
@@ -150,10 +155,52 @@ class ImageRejected(Exception):
 
 
 @dataclass(frozen=True)
+class AnimalAnswer:
+    """The ``animal`` field of ``POST /classify``, a row of feeder_animals.csv."""
+
+    common_name: str
+    scientific_name: str
+    group: str
+    confidence: float
+
+
+@dataclass(frozen=True)
 class Answer:
     common_name: str
     scientific_name: str
     confidence: float
+    # Tier 2's best feeder animal. None from an older server, or a model with
+    # no animal in its label space.
+    animal: AnimalAnswer | None = None
+
+
+def _animal(raw) -> AnimalAnswer | None:
+    """Read the ``animal`` field. A malformed one is dropped, and the bird stands."""
+    if raw is None:
+        return None
+    try:
+        return AnimalAnswer(
+            common_name=str(raw["common_name"]),
+            scientific_name=str(raw.get("scientific_name") or ""),
+            group=str(raw["group"]).strip().lower(),
+            confidence=float(raw["confidence"]),
+        )
+    except (AttributeError, KeyError, TypeError, ValueError):
+        logger.warning("tier2 recheck: ignoring a malformed animal field: %.200r", raw)
+        return None
+
+
+def winning_animal(answer: Answer, threshold: float) -> AnimalAnswer | None:
+    """The animal, if it wins by the Pi's rule in ``Pipeline._winning_animal``.
+
+    It wins when it meets ``threshold`` and beats Tier 2's bird confidence.
+    """
+    animal = answer.animal
+    if animal is None or not animal.group:
+        return None
+    if animal.confidence < threshold or animal.confidence <= answer.confidence:
+        return None
+    return animal
 
 
 class InferenceClient:
@@ -194,6 +241,7 @@ class InferenceClient:
                 common_name=str(body["common_name"]),
                 scientific_name=str(body.get("scientific_name") or ""),
                 confidence=float(body["confidence"]),
+                animal=_animal(body.get("animal")),
             )
         except (KeyError, TypeError, ValueError) as exc:
             # A server bug, not a bad image. Try again on a later pass.
@@ -270,10 +318,19 @@ async def _apply(sighting_id: int, answer: Answer | None, *, outcome: str = "") 
             if outcome != "corrected":
                 s.rechecked_at = now
 
+            winner = None  # (common_name, confidence) of the answer that won
             if answer is not None:
+                animal = winning_animal(answer, settings.TIER2_ANIMAL_THRESHOLD)
                 # A person may have corrected it during the classify call.
                 if s.corrected_at is not None:
                     outcome = "corrected"
+                elif animal is not None:
+                    # Tier 1 knows birds only, so its answer never beats an animal.
+                    new_species = await species_for_names(
+                        db, animal.common_name, animal.scientific_name,
+                        kind=ANIMAL, animal_group=animal.group,
+                    )
+                    winner = (animal.common_name, animal.confidence)
                 elif _named(answer) and should_replace(
                     s.tier_trace, s.classification_tier_used,
                     s.confidence_score, answer.confidence,
@@ -281,20 +338,24 @@ async def _apply(sighting_id: int, answer: Answer | None, *, outcome: str = "") 
                     new_species = await species_for_names(
                         db, answer.common_name, answer.scientific_name
                     )
-                    s.provisional_species_id = s.species_id
-                    s.species_id = new_species.id
-                    s.classification_tier_used = "gpu"
-                    s.confidence_score = answer.confidence
-                    outcome = "replaced"
+                    winner = (answer.common_name, answer.confidence)
                 else:
                     outcome = "kept"
+            if new_species is not None:
+                s.provisional_species_id = s.species_id
+                s.species_id = new_species.id
+                s.classification_tier_used = "gpu"
+                s.confidence_score = winner[1]
+                outcome = "replaced"
             await db.flush()
             body = sighting_response(s, has_image=bool(has_image))
             device_id = s.device_id
 
+    if winner is None and answer is not None:
+        winner = (answer.common_name, answer.confidence)
     logger.info(
         "tier2 recheck: sighting %d %s%s", sighting_id, outcome,
-        f" ({answer.common_name}, {answer.confidence:.2f})" if answer else "",
+        f" ({winner[0]}, {winner[1]:.2f})" if winner else "",
     )
     # After the commit, so a tab that reads the row back sees the change.
     sighting_hub.publish(

@@ -57,6 +57,11 @@ class Settings:
     TIER2_RECHECK_INTERVAL_SECONDS: int = int(
         os.getenv("TIER2_RECHECK_INTERVAL_SECONDS", "60")
     )
+    # The re-check takes Tier 2's animal when it meets this bar and beats the
+    # bird, the same rule and default as the Pi's TIER2_ANIMAL_THRESHOLD. Keep
+    # the two equal, or a squirrel caught live and one re-checked later get
+    # different answers. See machine_learning/MODELS.md for the measurement.
+    TIER2_ANIMAL_THRESHOLD: float = float(os.getenv("TIER2_ANIMAL_THRESHOLD", "0.30"))
 
     # ── Environment ───────────────────────────────────────────────────────────
     # "development" | "production". Production refuses to start on insecure
