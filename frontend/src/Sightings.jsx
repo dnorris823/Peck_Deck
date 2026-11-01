@@ -1,6 +1,6 @@
 // Sightings gallery — filters + day-grouped photo grid. The detail view is
 // SightingDetail.jsx.
-import React, { useState, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { SightingImage } from "./SightingImage.jsx";
 import { Icon } from "./Icon.jsx";
 import { Empty } from "./Empty.jsx";
@@ -8,8 +8,11 @@ import { useData } from "./DataContext.jsx";
 import { canDeleteSighting } from "./SightingDetail.jsx";
 import {
   confidenceLevel, deleteSightings, downloadExport, fmtDateLabel, fmtDayHeading, fmtTime,
-  tierInfo,
+  mapSighting, tierInfo,
 } from "./data.js";
+import {
+  applyHistoryEvent, dayBounds, fetchHistoryPage, matchesHistory, mergeRows,
+} from "./history.js";
 
 // Inclusive lower bound (ms since epoch) for a named range, or 0 for "all time".
 export function rangeCutoff(range, now = Date.now()) {
@@ -24,12 +27,7 @@ export function rangeCutoff(range, now = Date.now()) {
   return 0; // all
 }
 
-// The local calendar day starting at `day`, as [start, next midnight) in ms.
-export function dayBounds(day) {
-  const start = new Date(day.getFullYear(), day.getMonth(), day.getDate());
-  const next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
-  return [start.getTime(), next.getTime()];
-}
+export { dayBounds };
 
 const RANGES = [
   ["today", "Today"],
@@ -117,8 +115,9 @@ function ExportCsvButton() {
 }
 
 // The bar shown in select mode. Deletes only the selected tiles that the
-// filters still show, so a hidden tile never goes by surprise.
-function SelectBar({ chosen, selectable, onSelectAll, onClear, onCancel, onDone }) {
+// filters still show, so a hidden tile never goes by surprise. Select all
+// takes the loaded pages only, and `more` says older visits are not loaded.
+function SelectBar({ chosen, selectable, more, onSelectAll, onClear, onCancel, onDone }) {
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -153,7 +152,7 @@ function SelectBar({ chosen, selectable, onSelectAll, onClear, onCancel, onDone 
           <span className="tnum">{n} selected</span>
           <span className="select-bar-actions">
             <button className="btn ghost sm" onClick={onSelectAll} disabled={selectable === 0}>
-              Select all shown ({selectable})
+              Select all loaded ({selectable})
             </button>
             {n > 0 && <button className="btn ghost sm" onClick={onClear}>Clear</button>}
             <button className="btn sm" onClick={onCancel}>Cancel</button>
@@ -162,6 +161,11 @@ function SelectBar({ chosen, selectable, onSelectAll, onClear, onCancel, onDone 
             </button>
           </span>
         </>
+      )}
+      {more && !confirming && (
+        <div className="select-bar-note field-help">
+          Select all takes the visits loaded so far. Scroll down to load older ones.
+        </div>
       )}
       {error && <div className="field-help field-error" role="alert">{error}</div>}
     </div>
@@ -180,11 +184,90 @@ function groupByDay(sightings) {
   return groups;
 }
 
+const EMPTY = { rows: [], done: false, loading: true, error: null };
+
+/**
+ * History's raw rows for `filters`, one page of 100 at a time, newest first.
+ * A filter change starts over. Streamed changes from DataContext apply here
+ * too, so a new visit that matches the filters shows at the top.
+ */
+export function useHistory(filters) {
+  const { subscribe } = useData();
+  const [list, setList] = useState(EMPTY);
+  // The filters the rows belong to. A page that lands after they changed is
+  // dropped.
+  const current = useRef(filters);
+  const busy = useRef(false);
+
+  const fetchPage = useCallback(async (loaded) => {
+    busy.current = true;
+    setList((l) => ({ ...l, loading: true, error: null }));
+    try {
+      const { rows, done } = await fetchHistoryPage(filters, loaded);
+      if (current.current !== filters) return;
+      setList((l) => ({ rows: mergeRows(l.rows, rows), done, loading: false, error: null }));
+    } catch (e) {
+      if (current.current !== filters) return;
+      setList((l) => ({ ...l, loading: false, error: e.message || "Couldn't load sightings." }));
+    } finally {
+      if (current.current === filters) busy.current = false;
+    }
+  }, [filters]);
+
+  useEffect(() => {
+    current.current = filters;
+    setList(EMPTY);
+    fetchPage([]);
+  }, [filters, fetchPage]);
+
+  useEffect(() => subscribe?.((event) => {
+    setList((l) => applyHistoryEvent(l, event, current.current));
+  }), [subscribe]);
+
+  const loadMore = useCallback(() => {
+    if (busy.current || list.done) return;
+    fetchPage(list.rows);
+  }, [fetchPage, list.rows, list.done]);
+
+  // Drop rows this tab deleted, ahead of their stream events.
+  const drop = useCallback((ids) => {
+    const gone = new Set(ids);
+    setList((l) => ({ ...l, rows: l.rows.filter((s) => !gone.has(s.id)) }));
+  }, []);
+
+  return { ...list, loadMore, drop };
+}
+
+// Loads the next page when it scrolls into view, or on a click where the
+// browser has no IntersectionObserver. Each page makes a new observer, so a
+// page too short to fill the screen loads the one after it. After an error
+// it waits for a click.
+function LoadMore({ onLoad, loading, error }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || error || typeof IntersectionObserver === "undefined") return undefined;
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) onLoad();
+    }, { rootMargin: "600px 0px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, [onLoad, error]);
+  return (
+    <div ref={ref} className="history-more">
+      {error && <div className="field-help field-error" role="alert">{error}</div>}
+      <button type="button" className="btn sm" onClick={onLoad} disabled={loading}>
+        {loading ? "Loading…" : error ? "Try again" : "Load older visits"}
+      </button>
+    </div>
+  );
+}
+
 // `initialDay` opens History on one local day, as Home's yesterday line does.
 // That day shows as its own choice before the named ranges.
 export function Sightings({ openSighting, initialSpecies = "all", initialDay = null }) {
   const { data, reload } = useData();
-  const { SIGHTINGS, SPECIES, DEVICES, ME } = data;
+  const { SIGHTINGS, SPECIES, SPECIES_COUNTS = [], DEVICES, ME } = data;
   // Null outside select mode, else the ids ticked so far.
   const [selected, setSelected] = useState(null);
   const [device, setDevice] = useState("all");
@@ -193,34 +276,73 @@ export function Sightings({ openSighting, initialSpecies = "all", initialDay = n
   const [range, setRange] = useState(initialDay ? "day" : initialSpecies === "all" ? "week" : "all");
   const ranges = initialDay ? [["day", fmtDayHeading(initialDay)], ...RANGES] : RANGES;
 
+  // The server filters, so a filter reaches every visit, not only the newest
+  // 100 that Home holds.
+  const filters = useMemo(() => {
+    const [from, to] = range === "day" ? dayBounds(initialDay) : [rangeCutoff(range) || null, null];
+    return {
+      deviceId: device === "all" ? null : device,
+      speciesId: species === "all" ? null : species,
+      from,
+      to,
+    };
+  }, [device, species, range, initialDay]);
+  const history = useHistory(filters);
+
   const filtered = useMemo(() => {
-    const [from, to] = range === "day" ? dayBounds(initialDay) : [rangeCutoff(range), Infinity];
-    return SIGHTINGS.filter(s =>
-      (device === "all" || s.device.id === device) &&
-      (species === "all" || s.species.id === species) &&
-      s.datetime.getTime() >= from && s.datetime.getTime() < to
-    );
-  }, [SIGHTINGS, device, species, range, initialDay]);
+    const speciesById = new Map(SPECIES.map(s => [s.id, s]));
+    const devicesById = new Map(DEVICES.map(d => [d.id, d]));
+    // Filtered again here, because a corrected species can move a held row
+    // out of the species filter.
+    return history.rows
+      .filter(row => matchesHistory(filters, row))
+      .map(row => mapSighting(row, speciesById, devicesById))
+      .filter(s => s.species && s.device);
+  }, [history.rows, filters, SPECIES, DEVICES]);
 
   const groups = useMemo(() => groupByDay(filtered), [filtered]);
   const canDelete = s => canDeleteSighting(s, ME);
   const deletable = filtered.filter(canDelete);
   const chosen = selected ? filtered.filter(s => selected.has(s.id)) : [];
 
-  function clickTile(s) {
-    if (!selected) return openSighting(s);
-    setSelected(sel => {
-      const next = new Set(sel);
-      if (next.has(s.id)) next.delete(s.id); else next.add(s.id);
-      return next;
-    });
-  }
-  const hasAny = SIGHTINGS.length > 0;
-  // Only species that appear in the loaded sightings are worth filtering by.
+  // Memoized, so a page starting to load redraws the button, not every tile.
+  // With a few hundred visits loaded, that redraw was most of the cost.
+  const gallery = useMemo(() => {
+    function clickTile(s) {
+      if (!selected) return openSighting(s);
+      setSelected(sel => {
+        const next = new Set(sel);
+        if (next.has(s.id)) next.delete(s.id); else next.add(s.id);
+        return next;
+      });
+    }
+    return groups.map(g => (
+      <section key={g.key} className="day-group">
+        <h2 className="day-head">
+          <span>{fmtDayHeading(g.date)}</span>
+          <span className="label tnum">{g.items.length} visit{g.items.length === 1 ? "" : "s"}</span>
+        </h2>
+        <div className="gallery">
+          {g.items.map(s => (
+            <SightingTile key={s.id} s={s} onClick={clickTile}
+              selected={selected ? selected.has(s.id) : null}
+              disabled={!!selected && !canDeleteSighting(s, ME)} />
+          ))}
+        </div>
+      </section>
+    ));
+  }, [groups, selected, ME, openSighting]);
+  const hasAny = SIGHTINGS.length > 0 || filtered.length > 0;
+  // Species with at least one visit, from the counts, so an old visitor is
+  // still on the list. The current choice stays even with no count.
   const seenSpecies = useMemo(() => {
-    const ids = new Set(SIGHTINGS.map(s => s.species.id));
+    const ids = new Set([
+      ...SPECIES_COUNTS.filter(c => c.count > 0).map(c => c.id),
+      ...SIGHTINGS.map(s => s.species.id),
+      species,
+    ]);
     return SPECIES.filter(s => ids.has(s.id)).sort((a, b) => a.common.localeCompare(b.common));
-  }, [SIGHTINGS, SPECIES]);
+  }, [SPECIES_COUNTS, SIGHTINGS, SPECIES, species]);
 
   return (
     <>
@@ -230,8 +352,8 @@ export function Sightings({ openSighting, initialSpecies = "all", initialDay = n
           <h1 className="page-title">History</h1>
         </div>
         <div className="page-meta">
-          <span className="page-meta-num tnum">{filtered.length}</span>
-          <span className="label">shown</span>
+          <span className="page-meta-num tnum">{filtered.length}{history.done ? "" : "+"}</span>
+          <span className="label">{history.done ? "shown" : "loaded"}</span>
         </div>
       </div>
 
@@ -258,7 +380,7 @@ export function Sightings({ openSighting, initialSpecies = "all", initialDay = n
         </select>
 
         <span className="toolbar-end">
-          {!selected && SIGHTINGS.some(canDelete) && (
+          {!selected && (filtered.some(canDelete) || SIGHTINGS.some(canDelete)) && (
             <button type="button" className="btn sm" onClick={() => setSelected(new Set())}>Select</button>
           )}
           <ExportCsvButton />
@@ -269,30 +391,21 @@ export function Sightings({ openSighting, initialSpecies = "all", initialDay = n
         <SelectBar
           chosen={chosen}
           selectable={deletable.length}
+          more={!history.done}
           onSelectAll={() => setSelected(new Set(deletable.map(s => s.id)))}
           onClear={() => setSelected(new Set())}
           onCancel={() => setSelected(null)}
-          onDone={async () => { await reload(); setSelected(null); }}
+          onDone={async () => {
+            history.drop(chosen.map(s => s.id));
+            setSelected(null);
+            await reload();
+          }}
         />
       )}
 
-      {groups.length > 0 ? (
-        groups.map(g => (
-          <section key={g.key} className="day-group">
-            <h2 className="day-head">
-              <span>{fmtDayHeading(g.date)}</span>
-              <span className="label tnum">{g.items.length} visit{g.items.length === 1 ? "" : "s"}</span>
-            </h2>
-            <div className="gallery">
-              {g.items.map(s => (
-                <SightingTile key={s.id} s={s} onClick={clickTile}
-                  selected={selected ? selected.has(s.id) : null}
-                  disabled={!!selected && !canDelete(s)} />
-              ))}
-            </div>
-          </section>
-        ))
-      ) : hasAny ? (
+      {groups.length > 0 ? gallery : history.loading ? (
+        <div className="history-more label">Loading…</div>
+      ) : history.error ? null : hasAny ? (
         <Empty
           icon="🔍"
           title="No sightings match"
@@ -306,6 +419,10 @@ export function Sightings({ openSighting, initialSpecies = "all", initialDay = n
           title="No sightings yet"
           hint="When a feeder spots a bird, its photo shows up here."
         />
+      )}
+
+      {(history.error || (!history.done && groups.length > 0)) && (
+        <LoadMore onLoad={history.loadMore} loading={history.loading} error={history.error} />
       )}
     </>
   );

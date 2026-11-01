@@ -54,7 +54,9 @@ async def list_sightings(
     if to_date is not None:
         query = query.where(Sighting.datetime <= to_date)
 
-    query = query.order_by(Sighting.datetime.desc()).limit(limit).offset(offset)
+    # The id breaks ties, so a page boundary between two rows with the same
+    # timestamp falls in the same place on every request.
+    query = query.order_by(Sighting.datetime.desc(), Sighting.id.desc()).limit(limit).offset(offset)
     result = await db.execute(query)
     return [(sighting, bool(has_image)) for sighting, has_image in result.all()]
 

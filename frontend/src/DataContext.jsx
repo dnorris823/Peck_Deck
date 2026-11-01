@@ -40,6 +40,16 @@ export function DataProvider({ children, onAuthError }) {
   // "id@corrected_at@weather". The tab that made a change applies it itself,
   // then hears it again on the stream.
   const appliedRef = useRef(new Set());
+  // History's listeners. History holds its own pages beyond the loaded window,
+  // so each streamed change goes to it as well.
+  const listenersRef = useRef(new Set());
+  const notify = useCallback((event) => {
+    for (const listener of listenersRef.current) listener(event);
+  }, []);
+  const subscribe = useCallback((listener) => {
+    listenersRef.current.add(listener);
+    return () => { listenersRef.current.delete(listener); };
+  }, []);
 
   const commit = useCallback((raw) => {
     rawRef.current = raw;
@@ -76,6 +86,7 @@ export function DataProvider({ children, onAuthError }) {
   // Apply one streamed sighting: prepend the row we were handed, then refetch
   // only what it invalidated.
   const applyStreamed = useCallback(async (sighting) => {
+    notify({ type: "sighting", sighting });
     const raw = rawRef.current;
     // Nothing loaded yet — the reload in flight will include this sighting
     // anyway, so there is nothing to patch onto.
@@ -97,11 +108,12 @@ export function DataProvider({ children, onAuthError }) {
       // The feed is already correct; the aggregates are merely a few visits
       // behind and the next event or manual refresh fixes them.
     }
-  }, [commit]);
+  }, [commit, notify]);
 
   // Drop a deleted sighting. The tab that deleted it calls this itself, so it
   // updates with the stream down. Every other tab gets it from the stream.
   const applyDeleted = useCallback(async (id) => {
+    notify({ type: "deleted", id });
     const raw = rawRef.current;
     if (!raw) return;
 
@@ -115,7 +127,7 @@ export function DataProvider({ children, onAuthError }) {
     } catch {
       // As for a new sighting: the feed is right, the counts catch up later.
     }
-  }, [commit]);
+  }, [commit, notify]);
 
   // Swap in an updated sighting, such as a corrected species. Applied whether
   // or not the row is in the loaded window, because the counts move either way.
@@ -126,6 +138,7 @@ export function DataProvider({ children, onAuthError }) {
       + `@${sighting.rechecked_at}@${sighting.tier2_recheck}`;
     if (appliedRef.current.has(version)) return;
     appliedRef.current.add(version);
+    notify({ type: "updated", sighting });
 
     // No new correction, such as the weather landing after the upload. No
     // count moves, so there is nothing to refetch.
@@ -154,7 +167,7 @@ export function DataProvider({ children, onAuthError }) {
       // it can show yet, so it loads everything.
       if (!known) reload();
     }
-  }, [commit, reload]);
+  }, [commit, notify, reload]);
 
   useEffect(() => {
     const stop = openSightingStream({
@@ -181,7 +194,7 @@ export function DataProvider({ children, onAuthError }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ data, loading, error, live, reload, patch, applyDeleted, applyUpdated }}>
+    <Ctx.Provider value={{ data, loading, error, live, reload, patch, applyDeleted, applyUpdated, subscribe }}>
       {children}
     </Ctx.Provider>
   );

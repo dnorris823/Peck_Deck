@@ -29,12 +29,19 @@ vi.mock("./data.js", async (importOriginal) => ({
   fetchSighting: vi.fn(),
   fetchSpeciesHours: () => Promise.resolve({ peak_hours: [] }),
 }));
+vi.mock("./history.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  fetchDayVisits: () => Promise.resolve([]),
+}));
+// A visit older than Home's list, as History hands one over.
+const OLD = { ...sighting(3, 9), datetime: new Date(2026, 6, 1, 9) };
 // A stub Home that opens a sighting the way every screen does, and reports the
 // visit it was told to outline.
 vi.mock("./Dashboard.jsx", () => ({
   Dashboard: ({ openSighting, selectedId }) => (
     <>
       <button onClick={() => openSighting(DATA.SIGHTINGS[1])}>open 11</button>
+      <button onClick={() => openSighting(OLD)}>open old</button>
       <output aria-label="Outlined visit">{selectedId ?? "none"}</output>
     </>
   ),
@@ -129,6 +136,14 @@ describe("opening from a screen", () => {
     });
     expect(dialog()).toBeNull();
     expect(window.location.search).toBe("");
+  });
+
+  it("shows a handed-over visit older than Home's list without fetching it again", () => {
+    render(<App />);
+    fireEvent.click(screen.getByRole("button", { name: "open old" }));
+    expect(window.location.search).toBe("?sighting=3");
+    expect(dialog()).toHaveAccessibleName("House Finch sighting");
+    expect(fetchSighting).not.toHaveBeenCalled();
   });
 
   it("tells Home which visit is open, as it moves and when it closes", () => {

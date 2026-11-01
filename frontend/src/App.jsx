@@ -53,6 +53,10 @@ export function urlWithSighting(id, location = window.location) {
  */
 function useOpenSighting() {
   const [openId, setOpenId] = useState(sightingFromUrl);
+  // The object the opening screen handed over. History and the detail strip
+  // hold visits older than Home's list, and App would otherwise fetch each one
+  // again by id, showing nothing until it lands.
+  const [given, setGiven] = useState(null);
   const openRef = useRef(openId);
   openRef.current = openId;
 
@@ -71,6 +75,7 @@ function useOpenSighting() {
     }
     openRef.current = sighting.id;
     setOpenId(sighting.id);
+    setGiven(sighting);
   }, []);
 
   const close = useCallback(() => {
@@ -84,25 +89,27 @@ function useOpenSighting() {
     else window.history.replaceState(null, "", urlWithSighting(null));
   }, []);
 
-  return { openId, show, close };
+  return { openId, given, show, close };
 }
 
 /**
  * The open sighting as an object. From the loaded list when it is there, else
- * fetched by id, for a push about a visit older than the loaded window. Both
- * go through mapSighting in data.js, the same as streamed ones.
+ * the object the opening screen handed over, else fetched by id, for a push
+ * about a visit older than the loaded window. All go through mapSighting in
+ * data.js, the same as streamed ones.
  *
  * Also returns a setter for the row a species correction sends back. A loaded
  * sighting updates through DataContext, but a fetched one is held only here.
  * The row is mapped at render, against data that by then holds its species.
  */
-function useSightingById(id, data, onMissing) {
+function useSightingById(id, data, onMissing, given = null) {
   const loaded = id == null ? null : data?.SIGHTINGS.find((s) => s.id === id) || null;
+  const handed = id != null && given?.id === id ? given : null;
   const [fetched, setFetched] = useState(null);
   const [corrected, setCorrected] = useState(null);
 
   useEffect(() => {
-    if (id == null || loaded || !data || fetched?.id === id) return;
+    if (id == null || loaded || handed || !data || fetched?.id === id) return;
     let cancelled = false;
     fetchSighting(id, data)
       .then((s) => {
@@ -113,12 +120,13 @@ function useSightingById(id, data, onMissing) {
       // Deleted, never existed, or unreachable: nothing to show.
       .catch(() => { if (!cancelled) onMissing(); });
     return () => { cancelled = true; };
-  }, [id, loaded, data, fetched, onMissing]);
+  }, [id, loaded, handed, data, fetched, onMissing]);
 
   if (loaded) return [loaded, setCorrected];
-  if (fetched?.id !== id) return [null, setCorrected];
+  const held = fetched?.id === id ? fetched : handed;
+  if (!held) return [null, setCorrected];
   const remapped = corrected?.id === id ? mapAgainst(corrected, data) : null;
-  return [remapped || fetched, setCorrected];
+  return [remapped || held, setCorrected];
 }
 
 export default function App() {
@@ -151,8 +159,8 @@ function AppShell({ onLogout }) {
   const { data, loading, error, reload } = useData();
   const online = useOnline();
   const [asked, setRoute] = useState(initialRoute);
-  const { openId, show: openSighting, close: closeSighting } = useOpenSighting();
-  const [sighting, onCorrected] = useSightingById(openId, data, closeSighting);
+  const { openId, given, show: openSighting, close: closeSighting } = useOpenSighting();
+  const [sighting, onCorrected] = useSightingById(openId, data, closeSighting, given);
   const [moreOpen, setMoreOpen] = useState(false);
   // Species filter handed to Sightings, so "View sightings" on a species lands
   // on that species' visits rather than the whole list.
