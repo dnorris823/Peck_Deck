@@ -19,6 +19,9 @@ class QueuedSighting:
     tier_used: str
     # TierAttempt dicts in chain order. None for a row queued by an older build.
     tier_trace: list[dict] | None = None
+    # [left, top, right, bottom] of the square the tiers classified. None for
+    # the full frame, or a row queued by an older build.
+    crop_box: list[int] | None = None
 
 
 class LocalCache:

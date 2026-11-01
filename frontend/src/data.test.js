@@ -123,6 +123,27 @@ describe("loadAll", () => {
     expect(data.SIGHTINGS[1]).toMatchObject({ delayed: false, tierTrace: null, weather: null });
   });
 
+  it("carries the Tier 2 re-check state and the Pi's replaced species", async () => {
+    routeApiGet({
+      "/sightings?limit=100": [
+        { id: 1000, species_id: 1, device_id: 10, datetime: "2026-07-19T12:00:00Z",
+          confidence_score: 0.9, classification_tier_used: "local", has_image: true,
+          tier2_recheck: "pending" },
+        { id: 1002, species_id: 1, device_id: 10, datetime: "2026-07-19T11:00:00Z",
+          confidence_score: 0.8, classification_tier_used: "gpu", has_image: true,
+          tier2_recheck: "done", provisional_species_id: 2,
+          rechecked_at: "2026-07-19T13:00:00Z" },
+      ],
+    });
+    const data = await loadAll();
+    expect(data.SIGHTINGS[0]).toMatchObject({
+      provisional: true, provisionalSpecies: null, recheckedAt: null,
+    });
+    expect(data.SIGHTINGS[1].provisional).toBe(false);
+    expect(data.SIGHTINGS[1].provisionalSpecies.common).toBe("Mystery Bird");
+    expect(data.SIGHTINGS[1].recheckedAt).toEqual(new Date("2026-07-19T13:00:00Z"));
+  });
+
   it("clamps heatmap counts into the CSS heat range (0..4)", async () => {
     routeApiGet();
     const data = await loadAll();

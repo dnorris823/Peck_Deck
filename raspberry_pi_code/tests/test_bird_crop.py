@@ -101,12 +101,13 @@ def test_write_crop_saves_the_pixels_inside_the_box(tmp_path):
     src = tmp_path / "frame.png"
     Image.fromarray(frame).save(src)
 
-    size = write_crop(
+    edges = write_crop(
         src, tmp_path / "crops" / "c.jpg", (910 / 1920, 490 / 1080, 100 / 1920, 100 / 1080),
         0.0, 95,
     )
 
-    assert size == (100, 100)
+    assert edges == (910, 490, 1010, 590)
+    assert Image.open(tmp_path / "crops" / "c.jpg").size == (100, 100)
     out = np.asarray(Image.open(tmp_path / "crops" / "c.jpg"))
     assert out[50, 50, 0] > 200 and out[50, 50, 1] < 60
 
@@ -278,3 +279,74 @@ class _PathOnlyTier(ClassifierBase):
 
     async def classify(self, image_path: Path) -> ClassificationResult | None:
         return ClassificationResult("House Finch", "Haemorhous mexicanus", 0.9, "gpu")
+
+
+# ── The upload carries the crop box ───────────────────────────────────────────
+
+
+def test_the_upload_carries_the_crop_box(tmp_path):
+    pipeline, _, client = _pipeline(tmp_path)
+    # 200 x 100 px box at (860, 490): a 300 px square centred on (960, 540).
+    _visit(pipeline, (860 / 1920, 490 / 1080, 200 / 1920, 100 / 1080))
+
+    assert client.posts[0]["crop_box"] == [810, 390, 1110, 690]
+
+
+def test_no_box_uploads_no_crop_box(tmp_path):
+    pipeline, _, client = _pipeline(tmp_path)
+    _visit(pipeline, None)
+
+    assert client.posts[0]["crop_box"] is None
+
+
+def test_a_queued_sighting_keeps_its_crop_box(tmp_path):
+    pipeline, _, client = _pipeline(tmp_path)
+
+    async def offline(**kwargs) -> UploadOutcome:
+        client.posts.append(kwargs)
+        return UploadOutcome.RETRY
+
+    client.post_sighting = offline
+    _visit(pipeline, (860 / 1920, 490 / 1080, 200 / 1920, 100 / 1080))
+
+    [queued] = pipeline._cache.get_pending()
+    assert queued.crop_box == [810, 390, 1110, 690]
+
+
+def test_the_client_sends_crop_box_as_a_json_form_field(tmp_path):
+    from aiohttp import web
+
+    from raspberry_pi_code.api_client import BackendClient
+
+    image = tmp_path / "bird.jpg"
+    Image.new("RGB", (64, 64)).save(image, "JPEG")
+    received: list[dict] = []
+
+    async def sightings(request):
+        form = await request.post()
+        received.append({k: v for k, v in form.items() if k != "image"})
+        return web.json_response({}, status=201)
+
+    async def run(crop_box):
+        app = web.Application()
+        app.add_routes([web.post("/sightings", sightings)])
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "127.0.0.1", 0)
+        await site.start()
+        port = site._server.sockets[0].getsockname()[1]
+        try:
+            client = BackendClient(f"http://127.0.0.1:{port}", "t", 5, 5)
+            return await client.post_sighting(
+                image_path=image, timestamp="2026-11-01T08:00:00+00:00",
+                common_name="House Finch", scientific_name="Haemorhous mexicanus",
+                confidence=0.9, tier_used="local", crop_box=crop_box,
+            )
+        finally:
+            await runner.cleanup()
+
+    assert asyncio.run(run([810, 390, 1110, 690])) is UploadOutcome.OK
+    assert asyncio.run(run(None)) is UploadOutcome.OK
+
+    assert received[0]["crop_box"] == "[810, 390, 1110, 690]"
+    assert "crop_box" not in received[1]

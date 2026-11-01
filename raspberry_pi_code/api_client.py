@@ -79,12 +79,17 @@ class BackendClient:
         confidence: float,
         tier_used: str,
         tier_trace: list[dict] | None = None,
+        crop_box: list[int] | None = None,
         delayed: bool = False,
     ) -> UploadOutcome:
         """Upload image + sighting metadata in a single multipart POST.
 
         ``tier_trace`` goes up as a JSON string. None leaves the field out,
         which is what a sighting queued by an older build carries.
+
+        ``crop_box`` goes up as a JSON ``[left, top, right, bottom]``, the
+        pixel edges of the square the tiers classified. None leaves it out, and
+        the backend's Tier 2 re-check then uses the full frame.
 
         Returns an :class:`UploadOutcome`; it is falsy for every failure, so
         callers that only care whether it worked can still just test it.
@@ -105,6 +110,8 @@ class BackendClient:
                     form.add_field("classification_tier_used", tier_used)
                     if tier_trace is not None:
                         form.add_field("tier_trace", json.dumps(tier_trace))
+                    if crop_box is not None:
+                        form.add_field("crop_box", json.dumps(list(crop_box)))
                     form.add_field("delayed", str(delayed).lower())
 
                     async with session.post(

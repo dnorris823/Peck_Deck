@@ -122,7 +122,8 @@ export function DataProvider({ children, onAuthError }) {
   const applyUpdated = useCallback(async (sighting) => {
     const raw = rawRef.current;
     if (!raw) return;
-    const version = `${sighting.id}@${sighting.corrected_at}@${sighting.weather_conditions}`;
+    const version = `${sighting.id}@${sighting.corrected_at}@${sighting.weather_conditions}`
+      + `@${sighting.rechecked_at}@${sighting.tier2_recheck}`;
     if (appliedRef.current.has(version)) return;
     appliedRef.current.add(version);
 

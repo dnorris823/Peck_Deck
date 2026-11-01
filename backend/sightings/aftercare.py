@@ -46,9 +46,16 @@ async def schedule_aftercare(db: AsyncSession, sighting) -> None:
     asyncio.create_task(
         notification_service.dispatch(sighting.id, sighting.device_id)
     )
-    # Enrich once, on first sighting: anything still missing gets filled in
-    # (wiki URL, description, family, order). Skipped when already complete so a
-    # busy feeder doesn't hammer Wikipedia/GBIF on every visit.
+    enrich_if_sparse(species)
+
+
+def enrich_if_sparse(species) -> None:
+    """Start species enrichment when the field-guide entry is incomplete.
+
+    Enrich once, on first sighting: anything still missing gets filled in
+    (wiki URL, description, family, order). Skipped when already complete so a
+    busy feeder doesn't hammer Wikipedia/GBIF on every visit.
+    """
     if species is not None and not (
         species.wiki_url and species.description and species.family
     ):

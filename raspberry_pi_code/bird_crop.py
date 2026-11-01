@@ -43,11 +43,14 @@ def square_around(
     return left, top, left + side, top + side
 
 
-def write_crop(src: Path, dst: Path, box: Box, margin: float, quality: int) -> tuple[int, int]:
+def write_crop(
+    src: Path, dst: Path, box: Box, margin: float, quality: int
+) -> tuple[int, int, int, int]:
     """Save the square crop of ``src`` around ``box`` to ``dst`` as a JPEG.
 
-    Returns the crop's (width, height). Blocking: call it through
-    ``asyncio.to_thread``.
+    Returns the crop's pixel edges (left, top, right, bottom). The upload sends
+    them as ``crop_box``, so the backend's Tier 2 re-check sees the same square.
+    Blocking: call it through ``asyncio.to_thread``.
     """
     from PIL import Image
 
@@ -56,4 +59,4 @@ def write_crop(src: Path, dst: Path, box: Box, margin: float, quality: int) -> t
         out = img.crop(edges).convert("RGB")
     dst.parent.mkdir(parents=True, exist_ok=True)
     out.save(dst, "JPEG", quality=quality)
-    return out.size
+    return edges

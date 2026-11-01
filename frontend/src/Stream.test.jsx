@@ -206,6 +206,23 @@ describe("streamed sightings", () => {
     expect(fetchAggregates).toHaveBeenCalledTimes(1);
   });
 
+  it("applies a GPU re-check that arrives after the weather", async () => {
+    fetchAggregates.mockResolvedValue({ species: [{ id: 1 }, { id: 5 }] });
+    renderProvider();
+    await waitFor(() => expect(screen.getByTestId("ids")).toHaveTextContent("3,2"));
+
+    const weathered = { ...BASE.sightings[0], weather_conditions: "4 °C", tier2_recheck: "pending" };
+    await handlers.onUpdated(weathered);
+    // Same weather, no correction. Only the re-check fields tell it apart.
+    await handlers.onUpdated({
+      ...weathered, species_id: 5, provisional_species_id: 1,
+      tier2_recheck: "done", rechecked_at: "2026-11-01T08:00:00+00:00",
+    });
+
+    await waitFor(() => expect(screen.getByTestId("species")).toHaveTextContent("5,1"));
+    expect(fetchAggregates).toHaveBeenCalledWith({ withSpecies: true });
+  });
+
   it("loads the species first when the correction names a new one", async () => {
     fetchAggregates.mockResolvedValue({ species: [{ id: 1 }, { id: 5 }] });
     renderProvider();

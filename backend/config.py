@@ -45,6 +45,19 @@ class Settings:
     # the rule off, and 0 is the default. See backend/retention.py.
     RETENTION_UNKNOWN_DAYS: int = int(os.getenv("RETENTION_UNKNOWN_DAYS", "0"))
 
+    # ── Tier 2 re-check ───────────────────────────────────────────────────────
+    # The inference server on this PC. The API runs in Docker and the server
+    # runs bare metal, so the default reaches the host from the container.
+    # See backend/sightings/recheck.py.
+    INFERENCE_SERVER_URL: str = os.getenv(
+        "INFERENCE_SERVER_URL", "http://host.docker.internal:8001"
+    )
+    # How often the re-check asks whether the server is back, while sightings
+    # wait for it. 0 turns the re-check off.
+    TIER2_RECHECK_INTERVAL_SECONDS: int = int(
+        os.getenv("TIER2_RECHECK_INTERVAL_SECONDS", "60")
+    )
+
     # ── Environment ───────────────────────────────────────────────────────────
     # "development" | "production". Production refuses to start on insecure
     # defaults (see backend/main.py).

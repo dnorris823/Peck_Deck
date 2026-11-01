@@ -26,6 +26,9 @@ os.environ["VAPID_PUBLIC_KEY"] = ""
 # No Open-Meteo calls from the suite. The weather tests turn it on themselves,
 # with the network call stubbed.
 os.environ["WEATHER_ENABLED"] = "false"
+# No background Tier 2 re-check, which would call the inference server. The
+# re-check tests drive single passes with a fake server.
+os.environ["TIER2_RECHECK_INTERVAL_SECONDS"] = "0"
 
 import asyncio  # noqa: E402
 

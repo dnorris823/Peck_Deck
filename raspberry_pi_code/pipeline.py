@@ -160,6 +160,7 @@ class Pipeline:
                 confidence=sighting.confidence,
                 tier_used=sighting.tier_used,
                 tier_trace=sighting.tier_trace,
+                crop_box=sighting.crop_box,
                 delayed=True,
             )
             if outcome is UploadOutcome.OK:
@@ -227,7 +228,7 @@ class Pipeline:
         event_id = capture.event_id
         image_path = capture.image_path
 
-        crop_path = await self._crop_for_classifiers(capture)
+        crop_path, crop_box = await self._crop_for_classifiers(capture)
         try:
             result, trace = await self._classify(crop_path or image_path)
         finally:
@@ -257,6 +258,7 @@ class Pipeline:
             confidence=result.confidence,
             tier_used=result.tier_used,
             tier_trace=_trace_json(trace),
+            crop_box=crop_box,
             delayed=False,
         )
 
@@ -273,19 +275,22 @@ class Pipeline:
                              "upload until DEVICE_TOKEN is re-provisioned")
             else:
                 logger.warning("Backend unreachable — queuing sighting locally")
-            self._enqueue_offline(capture, result, trace)
+            self._enqueue_offline(capture, result, trace, crop_box)
 
-    async def _crop_for_classifiers(self, capture: Capture) -> Path | None:
-        """Write the crop around the bird box. None means classify the full frame.
+    async def _crop_for_classifiers(
+        self, capture: Capture
+    ) -> tuple[Path | None, list[int] | None]:
+        """Write the crop around the bird box. Returns its path and pixel edges.
 
-        The crop lives outside the image cache, so eviction never counts it,
-        and ``_process`` deletes it after classification.
+        ``(None, None)`` means classify the full frame. The crop lives outside
+        the image cache, so eviction never counts it, and ``_process`` deletes
+        it after classification. The edges go up with the sighting.
         """
         if capture.box is None:
-            return None
+            return None, None
         crop_path = Path(self._cfg.cache_dir) / "crops" / f"{capture.event_id}.jpg"
         try:
-            size = await asyncio.to_thread(
+            left, top, right, bottom = await asyncio.to_thread(
                 write_crop,
                 capture.image_path,
                 crop_path,
@@ -298,12 +303,16 @@ class Pipeline:
                 "Could not crop event %s to the bird box. Classifying the full frame",
                 capture.event_id,
             )
-            return None
-        logger.info("Classifying a %dx%d crop around the bird box", *size)
-        return crop_path
+            return None, None
+        logger.info("Classifying a %dx%d crop around the bird box", right - left, bottom - top)
+        return crop_path, [left, top, right, bottom]
 
     def _enqueue_offline(
-        self, capture: Capture, result: ClassificationResult, trace: list[TierAttempt]
+        self,
+        capture: Capture,
+        result: ClassificationResult,
+        trace: list[TierAttempt],
+        crop_box: list[int] | None = None,
     ) -> None:
         self._cache.enqueue(
             QueuedSighting(
@@ -315,6 +324,7 @@ class Pipeline:
                 confidence=result.confidence,
                 tier_used=result.tier_used,
                 tier_trace=_trace_json(trace),
+                crop_box=crop_box,
             )
         )
 

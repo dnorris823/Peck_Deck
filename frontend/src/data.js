@@ -122,6 +122,14 @@ export function mapSighting(s, speciesById, devicesById) {
       ? null : speciesById.get(s.original_species_id) || null,
     correctedBy: s.corrected_by ?? null,
     correctedAt: s.corrected_at ? new Date(s.corrected_at) : null,
+    // True while the species is the Pi's fallback, waiting for the GPU tier to
+    // re-check it once the inference server is back. It may still change.
+    provisional: s.tier2_recheck === "pending",
+    // The species the Pi named, when the GPU re-check replaced it. Null
+    // otherwise.
+    provisionalSpecies: s.provisional_species_id == null
+      ? null : speciesById.get(s.provisional_species_id) || null,
+    recheckedAt: s.rechecked_at ? new Date(s.rechecked_at) : null,
   };
 }
 

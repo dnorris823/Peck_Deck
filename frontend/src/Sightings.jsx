@@ -73,7 +73,7 @@ export function SightingTile({ s, onClick, showDate = false, selected = null, di
         <div className="tile-name">{s.species.common}</div>
         <div className="tile-foot">
           <span>{showDate ? `${fmtDateLabel(s.datetime)} · ` : ""}{s.device.name}</span>
-          <span>{tierInfo(s.tier).short}</span>
+          <span>{tierInfo(s.tier).short}{s.provisional ? " · provisional" : ""}</span>
         </div>
       </div>
     </button>

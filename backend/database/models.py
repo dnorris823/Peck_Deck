@@ -5,11 +5,13 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     JSON,
     LargeBinary,
     String,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -174,6 +176,16 @@ class Species(Base):
 
 class Sighting(Base):
     __tablename__ = "sightings"
+    __table_args__ = (
+        # The re-check loop asks for pending rows every minute. Done and null
+        # rows are nearly every row, so the index holds only the pending ones.
+        Index(
+            "ix_sightings_tier2_recheck_pending",
+            "datetime",
+            postgresql_where=text("tier2_recheck = 'pending'"),
+            sqlite_where=text("tier2_recheck = 'pending'"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     species_id: Mapped[int] = mapped_column(Integer, ForeignKey("species.id"), nullable=False)
@@ -209,6 +221,22 @@ class Sighting(Base):
     )
     corrected_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    # The Tier 2 re-check. See backend/sightings/recheck.py. "pending" when the
+    # Pi's trace shows Tier 2 gave no answer, "done" once the backend asked it.
+    # Null on a sighting Tier 2 already answered, or that never had Tier 2.
+    tier2_recheck: Mapped[str | None] = mapped_column(String, nullable=True)
+    # The species the Pi named, set only when a re-check replaced it.
+    provisional_species_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("species.id"), nullable=True
+    )
+    rechecked_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Pixel edges [left, top, right, bottom] of the square the Pi classified.
+    # Null when the Pi classified the full frame, or sent no box.
+    crop_box: Mapped[list | None] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=True
     )
 
     species: Mapped["Species"] = relationship(

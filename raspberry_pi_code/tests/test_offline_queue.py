@@ -261,3 +261,26 @@ def test_a_row_queued_before_the_trace_existed_still_loads(tmp_path):
 
     assert pending.id == "old"
     assert pending.tier_trace is None
+
+
+def test_sync_uploads_the_queued_crop_box(tmp_path):
+    pipeline, client = _pipeline_with(tmp_path, UploadOutcome.OK)
+    path = _add_image(pipeline._cache, "e1", mtime=1000)
+    pipeline._cache.enqueue(replace(_queued("e1", path), crop_box=[10, 20, 310, 320]))
+
+    asyncio.run(pipeline.sync_offline_queue())
+
+    assert client.posts[0]["crop_box"] == [10, 20, 310, 320]
+
+
+def test_a_row_queued_before_the_crop_box_existed_still_loads(tmp_path):
+    """A queue.json written by an older build has no crop_box key."""
+    cache = _cache(tmp_path)
+    path = _add_image(cache, "old", mtime=1000)
+    row = asdict(_queued("old", path))
+    del row["crop_box"]
+    (tmp_path / "cache" / "queue.json").write_text(json.dumps([row]), encoding="utf-8")
+
+    [pending] = cache.get_pending()
+
+    assert pending.crop_box is None

@@ -827,8 +827,38 @@
               }
             ]
           },
+          "provisional_species_id": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "rechecked_at": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "species_id": {
             "type": "integer"
+          },
+          "tier2_recheck": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "tier_trace": {
             "oneOf": [
@@ -879,6 +909,16 @@
           },
           "confidence_score": {
             "type": "string"
+          },
+          "crop_box": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "delayed": {
             "default": "false",
