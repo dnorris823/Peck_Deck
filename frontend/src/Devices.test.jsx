@@ -20,7 +20,7 @@ vi.mock("./data.js", async (importOriginal) => ({
   logRefill: vi.fn(),
 }));
 
-import { DevicesPage, Power, feedLine, tierMixText } from "./Devices.jsx";
+import { DevicesPage, Power, backlogLine, feedLine, healthWarnings, tierMixText } from "./Devices.jsx";
 import {
   addFeederMember, countSightingsBefore, deleteDevice, deleteSightingsBefore, fetchDeviceToken,
   fetchFeederAccess, logRefill, removeFeederMember, rotateDeviceToken, updateDevice,
@@ -88,6 +88,55 @@ describe("Feeders", () => {
     expect(warnings).toHaveLength(1);
     expect(warnings[0].closest(".station-card")).toHaveTextContent("Porch");
     expect(warnings[0]).toHaveAttribute("title", "10 of 10 captures got no answer from the GPU server.");
+  });
+});
+
+describe("Pi health", () => {
+  const now = Date.parse("2026-11-01T12:00:00Z");
+  const health = (more) => ({
+    queued: 0, oldestQueuedAt: null, dropped: 0, diskFreeBytes: 20 * 1024 ** 3, cpuTempC: 50,
+    warnings: [], ...more,
+  });
+
+  it("says how many sightings wait to upload, and the oldest", () => {
+    const h = health({ queued: 14, oldestQueuedAt: new Date(now - 3.4 * 3600000) });
+    expect(backlogLine(h, now)).toBe("14 waiting to upload, oldest 3 h");
+    expect(backlogLine(health({ queued: 2 }), now)).toBe("2 waiting to upload");
+  });
+
+  it("says nothing for an empty queue or a Pi that does not report one", () => {
+    expect(backlogLine(health(), now)).toBeNull();
+    expect(backlogLine(health({ queued: null }), now)).toBeNull();
+    expect(backlogLine(null, now)).toBeNull();
+  });
+
+  it("words each warning the backend sends", () => {
+    const h = health({
+      dropped: 1, diskFreeBytes: 300 * 1024 ** 2, cpuTempC: 82.4,
+      warnings: ["dropped", "disk", "temp"],
+    });
+    expect(healthWarnings(h)).toEqual([
+      "1 sighting lost since start", "Disk nearly full, 300 MB free", "Running hot, 82 °C",
+    ]);
+    expect(healthWarnings(health())).toEqual([]);
+    expect(healthWarnings(null)).toEqual([]);
+  });
+
+  it("puts the backlog and the warnings on the right card", () => {
+    mockData = {
+      SIGHTINGS: [],
+      USERS: [],
+      DEVICES: [
+        { ...feeder(1, "Maple", null), piHealth: health({ queued: 3, dropped: 2, warnings: ["dropped"] }) },
+        { ...feeder(2, "Porch", null), piHealth: health() },
+      ],
+    };
+    render(<DevicesPage />);
+    const line = screen.getByText("3 waiting to upload");
+    expect(line.closest(".station-card")).toHaveTextContent("Maple");
+    expect(screen.getByText("2 sightings lost since start").closest(".station-card"))
+      .toHaveTextContent("Maple");
+    expect(screen.queryAllByText(/waiting to upload/)).toHaveLength(1);
   });
 });
 

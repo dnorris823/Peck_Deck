@@ -36,6 +36,16 @@ class DeviceHeartbeat:
     # Omitting it means the trigger is not running, and the feed check skips
     # the feeder.
     trigger_age_seconds: float | None = None
+    # The Pi's offline queue: how many sightings wait to upload, and the age of
+    # the oldest. An age, like the trigger's, so a drifting clock cannot move it.
+    queued_sightings: int | None = None
+    oldest_queued_age_seconds: float | None = None
+    # Sightings the Pi lost since it started: refused for good, image gone, or
+    # pushed out of a full queue. A motion capture nobody named is not a loss.
+    dropped_since_boot: int | None = None
+    disk_free_bytes: int | None = None
+    cpu_temp_c: float | None = None
+    # Omitting any of the five clears it, so the card never shows a stale value.
 
 
 @dataclass
@@ -99,6 +109,23 @@ class FeedStatus:
 
 
 @dataclass
+class PiHealth:
+    """The Pi's offline queue and vitals, from its latest heartbeat.
+
+    Each value is null when the Pi does not report it, as on older code.
+    ``warnings`` names what passed a limit: ``dropped``, ``disk`` or ``temp``.
+    The limits are in devices/operations.py.
+    """
+
+    queued_sightings: int | None
+    oldest_queued_at: str | None
+    dropped_since_boot: int | None
+    disk_free_bytes: int | None
+    cpu_temp_c: float | None
+    warnings: list[str]
+
+
+@dataclass
 class DeviceResponse:
     id: int
     name: str
@@ -118,6 +145,7 @@ class DeviceResponse:
     # A live_url is stored and the device is not offline. The URL stays private.
     live_available: bool
     feed: FeedStatus
+    pi_health: PiHealth
 
 
 @dataclass

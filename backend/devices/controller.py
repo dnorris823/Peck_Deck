@@ -25,6 +25,7 @@ from .operations import (
     get_devices_for_user,
     get_sighting_counts,
     get_tier_mix,
+    pi_health,
     remove_device_user,
     rotate_device_token,
     transfer_device,
@@ -39,6 +40,7 @@ from .schemas import (
     DeviceResponse,
     DeviceTokenResponse,
     FeedStatus,
+    PiHealth,
     RegisterDevice,
     RegisteredDeviceResponse,
     SightingCount,
@@ -95,10 +97,14 @@ async def _to_response(db: AsyncSession, device) -> DeviceResponse:
         tier_mix=TierMix(**await get_tier_mix(db, device.id)),
         live_available=live_available(device),
         feed=FeedStatus(**await get_feed_status(db, device.id)),
+        pi_health=PiHealth(**pi_health(device)),
     )
 
 
 POWER_SOURCES = ("mains", "battery")
+NON_NEGATIVE_HEARTBEAT_FIELDS = (
+    "queued_sightings", "oldest_queued_age_seconds", "dropped_since_boot", "disk_free_bytes",
+)
 
 
 async def _record_heartbeat(db: AsyncSession, device, data: DeviceHeartbeat):
@@ -113,9 +119,18 @@ async def _record_heartbeat(db: AsyncSession, device, data: DeviceHeartbeat):
         )
     if data.trigger_age_seconds is not None and data.trigger_age_seconds < 0:
         raise HTTPException(status_code=400, detail="trigger_age_seconds must be 0 or more")
+    for name in NON_NEGATIVE_HEARTBEAT_FIELDS:
+        value = getattr(data, name)
+        if value is not None and value < 0:
+            raise HTTPException(status_code=400, detail=f"{name} must be 0 or more")
     return await update_device_telemetry(
         db, device, battery=data.battery, signal=data.signal, live_url=data.live_url,
         power_source=data.power_source, trigger_age_seconds=data.trigger_age_seconds,
+        queued_sightings=data.queued_sightings,
+        oldest_queued_age_seconds=data.oldest_queued_age_seconds,
+        dropped_since_boot=data.dropped_since_boot,
+        disk_free_bytes=data.disk_free_bytes,
+        cpu_temp_c=data.cpu_temp_c,
     )
 
 

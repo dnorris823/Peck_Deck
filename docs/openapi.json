@@ -354,6 +354,36 @@
               }
             ]
           },
+          "cpu_temp_c": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "disk_free_bytes": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dropped_since_boot": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "live_url": {
             "oneOf": [
               {
@@ -364,10 +394,30 @@
               }
             ]
           },
+          "oldest_queued_age_seconds": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "power_source": {
             "oneOf": [
               {
                 "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "queued_sightings": {
+            "oneOf": [
+              {
+                "type": "integer"
               },
               {
                 "type": "null"
@@ -483,6 +533,9 @@
           "owner_id": {
             "type": "integer"
           },
+          "pi_health": {
+            "$ref": "#/components/schemas/PiHealth"
+          },
           "power_source": {
             "oneOf": [
               {
@@ -537,6 +590,7 @@
           "live_available",
           "name",
           "owner_id",
+          "pi_health",
           "power_source",
           "signal",
           "state",
@@ -818,6 +872,76 @@
         "title": "MeasureWithEffect",
         "type": "object"
       },
+      "PiHealth": {
+        "properties": {
+          "cpu_temp_c": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "disk_free_bytes": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "dropped_since_boot": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "oldest_queued_at": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "queued_sightings": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "cpu_temp_c",
+          "disk_free_bytes",
+          "dropped_since_boot",
+          "oldest_queued_at",
+          "queued_sightings",
+          "warnings"
+        ],
+        "title": "PiHealth",
+        "type": "object"
+      },
       "PreferencesResponse": {
         "properties": {
           "animal_alerts": {
@@ -1080,6 +1204,9 @@
           "owner_id": {
             "type": "integer"
           },
+          "pi_health": {
+            "$ref": "#/components/schemas/PiHealth"
+          },
           "power_source": {
             "oneOf": [
               {
@@ -1137,6 +1264,7 @@
           "live_available",
           "name",
           "owner_id",
+          "pi_health",
           "power_source",
           "signal",
           "state",

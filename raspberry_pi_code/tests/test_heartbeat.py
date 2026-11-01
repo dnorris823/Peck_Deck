@@ -70,6 +70,25 @@ def test_heartbeat_sends_a_zero_trigger_age():
     assert bodies[0] == {"trigger_age_seconds": 0.0}
 
 
+def test_heartbeat_sends_the_backlog_and_vitals_with_zeros_kept():
+    # Zero queued and zero dropped are real readings, not missing ones.
+    bodies = []
+
+    async def body(client, _seen):
+        await client.heartbeat(
+            trigger_age_seconds=1.0, queued_sightings=0, oldest_queued_age_seconds=None,
+            dropped_since_boot=0, disk_free_bytes=12_000_000_000, cpu_temp_c=51.2,
+        )
+        await client.heartbeat(queued_sightings=14, oldest_queued_age_seconds=10800.04)
+
+    asyncio.run(_with_backend(200, body, bodies))
+    assert bodies[0] == {
+        "trigger_age_seconds": 1.0, "queued_sightings": 0, "dropped_since_boot": 0,
+        "disk_free_bytes": 12_000_000_000, "cpu_temp_c": 51.2,
+    }
+    assert bodies[1] == {"queued_sightings": 14, "oldest_queued_age_seconds": 10800.0}
+
+
 def test_power_source_defaults_to_mains():
     assert parse_power_source(None) == "mains"
     assert parse_power_source("") == "mains"
@@ -102,10 +121,11 @@ class _FakeClient:
         self.calls = 0
 
     async def heartbeat(self, live_url=None, power_source=None, signal=None,
-                        trigger_age_seconds=None):
+                        trigger_age_seconds=None, **health):
         self.calls += 1
         self.last = {"power_source": power_source, "signal": signal,
                      "trigger_age_seconds": trigger_age_seconds}
+        self.health = health
         item = self._outcomes.pop(0) if self._outcomes else UploadOutcome.OK
         if isinstance(item, Exception):
             raise item
@@ -156,6 +176,80 @@ def test_loop_reports_power_source_and_signal_each_beat():
     asyncio.run(run())
     assert client.last == {"power_source": "mains", "signal": "good",
                            "trigger_age_seconds": 1.5}
+
+
+def test_loop_reports_the_backlog_and_vitals_each_beat():
+    client = _FakeClient([])
+    queue = {"queued_sightings": 2, "oldest_queued_age_seconds": 30.0, "dropped_since_boot": 0}
+
+    async def run():
+        task = asyncio.create_task(pi_main._heartbeat_loop(
+            client, 0, trigger_age=lambda: 0.5, backlog=lambda: queue,
+            vitals=lambda: {"disk_free_bytes": 5, "cpu_temp_c": 40.0}))
+        while client.calls < 2:
+            await asyncio.sleep(0)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(run())
+    # The trigger tick still goes out beside them. The feed check needs it.
+    assert client.last["trigger_age_seconds"] == 0.5
+    assert client.health == {**queue, "disk_free_bytes": 5, "cpu_temp_c": 40.0}
+
+
+def _boom():
+    raise PermissionError("queue.json")
+
+
+def test_a_failed_backlog_read_still_sends_the_heartbeat(caplog):
+    # The heartbeat is the proof of life. Losing it reads the feeder offline
+    # and stops the trigger tick, which turns its feed alerts off.
+    client = _FakeClient([])
+
+    async def run():
+        task = asyncio.create_task(pi_main._heartbeat_loop(
+            client, 0, trigger_age=lambda: 0.5, backlog=_boom,
+            vitals=lambda: {"disk_free_bytes": 5, "cpu_temp_c": 40.0}))
+        while client.calls < 3:
+            await asyncio.sleep(0)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    with caplog.at_level(logging.INFO, logger=pi_main.__name__):
+        asyncio.run(run())
+    assert client.last["trigger_age_seconds"] == 0.5
+    # Only the fields that failed are missing.
+    assert client.health == {"disk_free_bytes": 5, "cpu_temp_c": 40.0}
+    assert not any("Heartbeat error" in r.message for r in caplog.records)
+    failed = [r for r in caplog.records if "offline queue" in r.message]
+    assert len(failed) == 1, "a read that keeps failing logs once"
+
+
+def test_failed_vitals_or_a_bad_shape_still_send_the_heartbeat():
+    client = _FakeClient([])
+    queue = {"queued_sightings": 1, "oldest_queued_age_seconds": 5.0, "dropped_since_boot": 0}
+
+    async def run():
+        task = asyncio.create_task(pi_main._heartbeat_loop(
+            client, 0, trigger_age=lambda: 2.0, backlog=lambda: queue,
+            vitals=lambda: ["not", "a", "dict"]))
+        while client.calls < 2:
+            await asyncio.sleep(0)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(run())
+    assert client.last["trigger_age_seconds"] == 2.0
+    assert client.health == queue
 
 
 def test_interval_stays_under_the_backend_warn_cutoff():

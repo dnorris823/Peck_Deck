@@ -1,3 +1,7 @@
+from datetime import datetime, timedelta, timezone
+
+import pytest
+
 from backend.auth.jwt_utils import create_user_token
 from backend.tests.conftest import IDS
 
@@ -111,6 +115,71 @@ def test_unknown_power_source_is_refused(client):
     device = _new_device(client, "Solar Maybe")
     res = _beat(client, device["token"], {"power_source": "solar"})
     assert res.status_code == 400
+
+
+# --- Pi health. The offline queue and vitals, so a stuck Pi shows on its card. ---
+
+def test_heartbeat_stores_the_queue_and_vitals(client):
+    device = _new_device(client, "Backlog")
+    res = _beat(client, device["token"], {
+        "queued_sightings": 14, "oldest_queued_age_seconds": 3 * 3600,
+        "dropped_since_boot": 0, "disk_free_bytes": 20 * 1024**3, "cpu_temp_c": 52.5,
+    })
+    assert res.status_code == 200
+    health = res.json()["pi_health"]
+    assert health["queued_sightings"] == 14
+    assert health["dropped_since_boot"] == 0
+    assert health["disk_free_bytes"] == 20 * 1024**3
+    assert health["cpu_temp_c"] == 52.5
+    assert health["warnings"] == []
+    # An age goes in, an instant comes out, so the card's age keeps growing.
+    oldest = datetime.fromisoformat(health["oldest_queued_at"])
+    assert abs((datetime.now(timezone.utc) - oldest) - timedelta(hours=3)) < timedelta(minutes=1)
+
+
+def test_heartbeat_without_health_fields_is_still_valid(client):
+    # A Pi on older code sends none of them.
+    device = _new_device(client, "Older Pi")
+    res = _beat(client, device["token"], {"signal": "good"})
+    assert res.status_code == 200
+    assert res.json()["pi_health"] == {
+        "queued_sightings": None, "oldest_queued_at": None, "dropped_since_boot": None,
+        "disk_free_bytes": None, "cpu_temp_c": None, "warnings": [],
+    }
+
+
+def test_health_fields_clear_when_a_heartbeat_omits_them(client):
+    # A snapshot. A queue the Pi stopped reporting must not show forever.
+    device = _new_device(client, "Drained")
+    _beat(client, device["token"], {"queued_sightings": 3, "oldest_queued_age_seconds": 60})
+    health = _beat(client, device["token"], {}).json()["pi_health"]
+    assert health["queued_sightings"] is None
+    assert health["oldest_queued_at"] is None
+
+
+def test_health_warns_on_drops_low_disk_and_heat(client):
+    device = _new_device(client, "Struggling")
+    health = _beat(client, device["token"], {
+        "dropped_since_boot": 2, "disk_free_bytes": 200 * 1024**2, "cpu_temp_c": 82.0,
+    }).json()["pi_health"]
+    assert health["warnings"] == ["dropped", "disk", "temp"]
+
+
+def test_health_does_not_change_the_feeder_status(client):
+    # The card shows the backlog on its own line. Status stays about contact.
+    device = _new_device(client, "Queued But Online")
+    body = _beat(client, device["token"], {"queued_sightings": 50, "dropped_since_boot": 1}).json()
+    assert body["status"] == "online"
+
+
+@pytest.mark.parametrize("field", [
+    "queued_sightings", "oldest_queued_age_seconds", "dropped_since_boot", "disk_free_bytes",
+])
+def test_negative_health_counts_are_refused(client, field):
+    device = _new_device(client, f"Negative {field}")
+    res = _beat(client, device["token"], {field: -1})
+    assert res.status_code == 400
+    assert field in res.json()["detail"]
 
 
 def test_self_heartbeat_reports_for_the_token_device(client):

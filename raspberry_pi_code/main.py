@@ -22,6 +22,7 @@ from .live.address import LiveUrl
 from .live.demand import LiveDemandServer
 from .pipeline import Pipeline
 from .trigger.base import TriggerBase
+from .vitals import read_vitals
 from .wifi import read_signal
 
 
@@ -99,6 +100,34 @@ def _no_trigger_age() -> float | None:
     return None
 
 
+def _no_report() -> dict:
+    return {}
+
+
+async def _optional_fields(
+    name: str, read: Callable[[], dict], in_thread: bool, failing: set[str]
+) -> dict:
+    """Read extra heartbeat fields, or none if the read fails.
+
+    The heartbeat is the station's proof of life, and it carries the trigger
+    tick the feed check needs. A queue file the Pi cannot read must cost only
+    its own fields, never the beat. A read that keeps failing logs once, until
+    it works again.
+    """
+    logger = logging.getLogger(__name__)
+    try:
+        fields = dict(await asyncio.to_thread(read) if in_thread else read())
+    except Exception:
+        if name not in failing:
+            logger.exception("Could not read the %s for the heartbeat. Sending it without them", name)
+            failing.add(name)
+        return {}
+    if name in failing:
+        logger.info("Reading the %s for the heartbeat again", name)
+        failing.discard(name)
+    return fields
+
+
 async def _heartbeat_loop(
     client: BackendClient,
     interval: float,
@@ -106,6 +135,8 @@ async def _heartbeat_loop(
     power_source: str | None = None,
     signal: Callable[[], str | None] = _no_signal,
     trigger_age: Callable[[], float | None] = _no_trigger_age,
+    backlog: Callable[[], dict] = _no_report,
+    vitals: Callable[[], dict] = _no_report,
 ) -> None:
     """Report to the backend every `interval` seconds, starting now.
 
@@ -116,16 +147,26 @@ async def _heartbeat_loop(
     the route to the backend, which may resolve a host name. ``signal`` reads a
     file, so it runs there too. ``trigger_age`` is the camera trigger's
     seconds since its last analysis tick, for the backend's feed check.
+
+    ``backlog`` is ``Pipeline.backlog``, the offline queue and the losses. It
+    reads the queue file on the loop, where every queue write happens.
+    ``vitals`` reads disk and temperature files, so it runs in a worker thread.
+    A failure in either drops only its own fields. See ``_optional_fields``.
     """
     logger = logging.getLogger(__name__)
     last_ok: bool | None = None
+    failing: set[str] = set()
     while True:
         try:
             url = await asyncio.to_thread(live_url)
             wifi = await asyncio.to_thread(signal)
+            extras = {
+                **await _optional_fields("offline queue", backlog, False, failing),
+                **await _optional_fields("disk and temperature", vitals, True, failing),
+            }
             outcome = await client.heartbeat(
                 live_url=url, power_source=power_source, signal=wifi,
-                trigger_age_seconds=trigger_age(),
+                trigger_age_seconds=trigger_age(), **extras,
             )
         except Exception:
             logger.exception("Heartbeat error")
@@ -199,6 +240,8 @@ async def _run() -> None:
                     config.power_source,
                     read_signal,
                     trigger.tick_age,
+                    pipeline.backlog,
+                    lambda: read_vitals(config.cache_dir),
                 ),
                 name="heartbeat",
             ),

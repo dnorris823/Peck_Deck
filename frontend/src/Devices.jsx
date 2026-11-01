@@ -158,6 +158,45 @@ export function feedLine(feed, now = Date.now()) {
   return feed.lastRefillAt ? `Refilled ${since(feed.lastRefillAt)} ago.` : null;
 }
 
+/** "14 waiting to upload, oldest 3 h". Null for an empty queue or an older Pi. */
+export function backlogLine(health, now = Date.now()) {
+  if (!health?.queued) return null;
+  const line = `${health.queued} waiting to upload`;
+  return health.oldestQueuedAt
+    ? `${line}, oldest ${feedAgo(now - health.oldestQueuedAt.getTime())}`
+    : line;
+}
+
+function fmtBytes(n) {
+  const gb = n / 1024 ** 3;
+  return gb >= 1 ? `${gb.toFixed(1)} GB` : `${Math.round(n / 1024 ** 2)} MB`;
+}
+
+/** One short phrase per health warning from the backend, in its order. */
+export function healthWarnings(health) {
+  if (!health) return [];
+  const text = {
+    dropped: () => `${health.dropped} sighting${health.dropped === 1 ? "" : "s"} lost since start`,
+    disk: () => `Disk nearly full, ${fmtBytes(health.diskFreeBytes)} free`,
+    temp: () => `Running hot, ${Math.round(health.cpuTempC)} °C`,
+  };
+  return health.warnings.filter(w => text[w]).map(w => text[w]());
+}
+
+// The upload backlog and any Pi warning. A Pi online but unable to upload
+// otherwise looks healthy while its queue grows.
+function PiHealthRow({ health }) {
+  const backlog = backlogLine(health);
+  const warnings = healthWarnings(health);
+  if (!backlog && warnings.length === 0) return null;
+  return (
+    <div className="station-health">
+      {backlog && <span className="tnum">{backlog}</span>}
+      {warnings.map(w => <span key={w} className="station-tiers-warn">{w}</span>)}
+    </div>
+  );
+}
+
 // The feed line, and the Refilled button for whoever manages the feeder. It
 // sits outside the card's open button, since a button cannot hold a button.
 function FeedRow({ d, canRefill, onRefilled }) {
@@ -240,6 +279,7 @@ function DeviceListCard({ d, latest, onClick, canRefill, onRefilled }) {
             </div>
           </div>
           <TierMix mix={d.tierMix} />
+          <PiHealthRow health={d.piHealth} />
           <div className="station-seen">Last heard from {d.lastSeen}</div>
         </div>
       </button>

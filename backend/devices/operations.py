@@ -218,6 +218,34 @@ async def get_tier_mix(db: AsyncSession, device_id: int) -> dict:
     return summarize_tier_mix([tuple(r) for r in rows.all()])
 
 
+# The Pi card warns below this much free disk. The offline queue and the image
+# cache share the SD card, and a full card stops capture without a word.
+DISK_WARN_BYTES = 1024**3
+# The Pi 5 firmware starts to throttle the CPU at 80 °C.
+CPU_TEMP_WARN_C = 80.0
+
+
+def pi_health(device: Device) -> dict:
+    """The Pi's queue and vitals from its latest heartbeat, and what passed a limit."""
+    warnings = []
+    if device.dropped_since_boot:
+        warnings.append("dropped")
+    if device.disk_free_bytes is not None and device.disk_free_bytes < DISK_WARN_BYTES:
+        warnings.append("disk")
+    if device.cpu_temp_c is not None and device.cpu_temp_c >= CPU_TEMP_WARN_C:
+        warnings.append("temp")
+    return {
+        "queued_sightings": device.queued_sightings,
+        "oldest_queued_at": (
+            device.oldest_queued_at.isoformat() if device.oldest_queued_at else None
+        ),
+        "dropped_since_boot": device.dropped_since_boot,
+        "disk_free_bytes": device.disk_free_bytes,
+        "cpu_temp_c": device.cpu_temp_c,
+        "warnings": warnings,
+    }
+
+
 async def update_device_telemetry(
     db: AsyncSession,
     device: Device,
@@ -227,6 +255,11 @@ async def update_device_telemetry(
     live_url: str | None,
     power_source: str | None = None,
     trigger_age_seconds: float | None = None,
+    queued_sightings: int | None = None,
+    oldest_queued_age_seconds: float | None = None,
+    dropped_since_boot: int | None = None,
+    disk_free_bytes: int | None = None,
+    cpu_temp_c: float | None = None,
 ) -> Device:
     if power_source is not None:
         device.power_source = power_source
@@ -245,6 +278,15 @@ async def update_device_telemetry(
     device.trigger_tick_at = (
         None if trigger_age_seconds is None else now - timedelta(seconds=trigger_age_seconds)
     )
+    # The queue and vitals are a snapshot. A missing value clears, never stays.
+    device.queued_sightings = queued_sightings
+    device.oldest_queued_at = (
+        None if oldest_queued_age_seconds is None
+        else now - timedelta(seconds=oldest_queued_age_seconds)
+    )
+    device.dropped_since_boot = dropped_since_boot
+    device.disk_free_bytes = disk_free_bytes
+    device.cpu_temp_c = cpu_temp_c
     _record_contact(db, device, now)
     await db.flush()
     return device

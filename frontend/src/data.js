@@ -81,6 +81,21 @@ function mapDevice(d) {
     ownerId: d.owner_id,
     tierMix: d.tier_mix ? mapTierMix(d.tier_mix) : null,
     feedState: d.feed ? mapFeed(d.feed) : null,
+    piHealth: d.pi_health ? mapPiHealth(d.pi_health) : null,
+  };
+}
+
+// The Pi's offline queue and vitals, from its latest heartbeat. Each value is
+// null from a Pi that does not report it. `warnings` holds "dropped", "disk"
+// or "temp"; the backend sets the limits in backend/devices/operations.py.
+function mapPiHealth(h) {
+  return {
+    queued: h.queued_sightings,
+    oldestQueuedAt: h.oldest_queued_at ? new Date(h.oldest_queued_at) : null,
+    dropped: h.dropped_since_boot,
+    diskFreeBytes: h.disk_free_bytes,
+    cpuTempC: h.cpu_temp_c,
+    warnings: h.warnings || [],
   };
 }
 
