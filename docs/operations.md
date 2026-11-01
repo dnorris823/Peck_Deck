@@ -100,7 +100,9 @@ GPU once the server answers again. The code is in `backend/sightings/recheck.py`
 - A sighting a person corrected keeps their species.
 - `tier_trace` stays as the Pi wrote it, so the Tier 2 warning still sees the
   outage.
-- A re-check sends no push. Open tabs update over SSE.
+- A re-check sends no normal alert, because the upload sent one. It sends the
+  new species alert, which waits for the re-check. See *New species alerts*
+  in `docs/pwa-and-web-push.md`. Open tabs update over SSE.
 - The task assumes one API process. Two would re-check a row twice.
 
 Each pass that finds the server logs `tier2 recheck: server is up, re-checking

@@ -954,6 +954,18 @@
             "default": 1800,
             "type": "integer"
           },
+          "notify_first_at_feeder": {
+            "default": true,
+            "type": "boolean"
+          },
+          "notify_first_ever": {
+            "default": true,
+            "type": "boolean"
+          },
+          "notify_first_this_year": {
+            "default": true,
+            "type": "boolean"
+          },
           "notify_new_species_only": {
             "type": "boolean"
           },
@@ -2084,6 +2096,36 @@
             "oneOf": [
               {
                 "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notify_first_at_feeder": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notify_first_ever": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "notify_first_this_year": {
+            "oneOf": [
+              {
+                "type": "boolean"
               },
               {
                 "type": "null"

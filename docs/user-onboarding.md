@@ -91,7 +91,8 @@ Go to **More → Settings → Notifications**.
 | Browser push, this device | Sends an alert to this phone. Turn it on separately on each phone or computer. |
 | Email | Sends an alert to your email address. |
 | Quiet interval | The shortest time between two alerts from the same feeder. It stops a long visit from sending many alerts. |
-| Notify only for new species | Sends an alert only the first time a species appears. |
+| New species alerts | A separate alert when a bird is new to you: first ever, first at this feeder, or first this year. Each has its own switch, and all three start on. These alerts ignore the quiet interval. |
+| Only new species | Sends the new species alerts and no other bird alerts. |
 
 Turn on browser push from the home screen app, not from a browser tab. If the
 switch says the browser cannot receive push, you opened the app from a browser

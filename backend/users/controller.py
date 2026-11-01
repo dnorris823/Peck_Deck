@@ -49,6 +49,9 @@ def _prefs_response(prefs) -> PreferencesResponse:
     return PreferencesResponse(
         quiet_interval_seconds=prefs.quiet_interval_seconds,
         notify_new_species_only=prefs.notify_new_species_only,
+        notify_first_ever=prefs.notify_first_ever,
+        notify_first_at_feeder=prefs.notify_first_at_feeder,
+        notify_first_this_year=prefs.notify_first_this_year,
         animal_alerts=resolved_alerts(prefs.animal_alerts),
         animal_quiet_interval_seconds=prefs.animal_quiet_interval_seconds or 1800,
     )
@@ -194,6 +197,11 @@ class UserController(Controller):
             prefs,
             quiet_interval_seconds=data.quiet_interval_seconds,
             notify_new_species_only=data.notify_new_species_only,
+            new_species_alerts={
+                "notify_first_ever": data.notify_first_ever,
+                "notify_first_at_feeder": data.notify_first_at_feeder,
+                "notify_first_this_year": data.notify_first_this_year,
+            },
             animal_alerts=data.animal_alerts,
             animal_quiet_interval_seconds=data.animal_quiet_interval_seconds,
         )

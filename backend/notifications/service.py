@@ -19,6 +19,7 @@ from ..database.models import (
 )
 from ..animals.groups import alert_on, alert_title
 from ..species.operations import BIRD
+from . import new_species
 from .email_sender import send_email
 from .push import delete_endpoints, subscriptions_for_users, to_target
 from .push_sender import push_enabled, send_push
@@ -70,16 +71,24 @@ class NotificationService:
         last = self._last_animal.get(key)
         return last is None or time.monotonic() - last >= interval
 
-    async def dispatch(self, sighting_id: int, device_id: int) -> None:
-        """Fire-and-forget entry point — open our own session so the request session lifecycle is irrelevant."""
+    async def dispatch(
+        self, sighting_id: int, device_id: int, *, after_recheck: bool = False
+    ) -> None:
+        """Fire-and-forget entry point — open our own session so the request session lifecycle is irrelevant.
+
+        ``after_recheck`` is the Tier 2 re-check's call. It sends the new
+        species alert only, because the upload already sent the normal one.
+        """
         try:
             async with get_session_factory()() as db:
                 async with db.begin():
-                    await self._send(db, sighting_id, device_id)
+                    await self._send(db, sighting_id, device_id, after_recheck=after_recheck)
         except Exception:
             logger.exception("Notification dispatch failed for sighting %d", sighting_id)
 
-    async def _send(self, db: AsyncSession, sighting_id: int, device_id: int) -> None:
+    async def _send(
+        self, db: AsyncSession, sighting_id: int, device_id: int, *, after_recheck: bool = False
+    ) -> None:
         sighting = (
             await db.execute(select(Sighting).where(Sighting.id == sighting_id))
         ).scalar_one_or_none()
@@ -98,9 +107,11 @@ class NotificationService:
 
         # An animal visit sends no bird alert. It must not count as a "new
         # species" or start the bird throttle, so a squirrel never mutes the
-        # cardinal that lands after it. It gets its own per-group push.
+        # cardinal that lands after it. It gets its own per-group push. An
+        # animal the re-check found sends nothing.
         if species.kind != BIRD:
-            await self._send_animal(db, sighting, species, device)
+            if not after_recheck:
+                await self._send_animal(db, sighting, species, device)
             return
 
         sighting_count: int = (
@@ -138,17 +149,33 @@ class NotificationService:
 
         location = " — ".join(filter(None, [device.city, device.state])) or "Unknown location"
         delayed_note = " (delayed sync)" if sighting.delayed else ""
+        # A sighting waiting for the re-check decides "new" after it, in the
+        # re-check's own dispatch.
+        decide_new = after_recheck or not new_species.waits_for_recheck(sighting)
 
         tasks = []
         for user in users:
             prefs = prefs_by_user.get(user.id)
-            # notify_new_species_only: only alert the first time this species is
-            # seen at this device (sighting_count includes the current sighting).
-            if prefs is not None and prefs.notify_new_species_only and sighting_count > 1:
-                logger.debug(
-                    "Skipping user %d — new-species-only and count=%d",
-                    user.id, sighting_count,
+            kind = (
+                await new_species.new_kind(db, sighting, species, user.id)
+                if decide_new else None
+            )
+            if new_species.wanted(kind, prefs, sighting.confidence_score):
+                # The new species alert takes the place of the normal one. It
+                # skips the throttle and does not start it.
+                title = new_species.headline(kind, species.common_name, device.name)
+                tasks.extend(
+                    self._channels(
+                        user, subs_by_user, sighting, species, device, sighting_count,
+                        location, delayed_note, dead_endpoints, headline=title,
+                    )
                 )
+                continue
+            if after_recheck:
+                continue
+            # "Only new species" mutes the normal alerts.
+            if prefs is not None and prefs.notify_new_species_only:
+                logger.debug("Skipping user %d: only new species", user.id)
                 continue
 
             # Per-recipient throttle using this user's quiet interval.
@@ -157,20 +184,10 @@ class NotificationService:
                 logger.debug("Notification throttled for user %d on device %d", user.id, device_id)
                 continue
 
-            channels = []
-            if user.notify_email and user.email:
-                channels.append(
-                    self._email(user, sighting, species, device, sighting_count, location, delayed_note)
-                )
-            # Web push needs no per-user flag: a stored subscription *is* the
-            # opt-in, and unsubscribing in the browser deletes the row.
-            for sub in subs_by_user.get(user.id, []):
-                channels.append(
-                    self._push(
-                        sub, sighting, species, device, sighting_count,
-                        location, delayed_note, dead_endpoints,
-                    )
-                )
+            channels = self._channels(
+                user, subs_by_user, sighting, species, device, sighting_count,
+                location, delayed_note, dead_endpoints,
+            )
             if channels:
                 self._mark_notified(user.id, device_id)
                 tasks.extend(channels)
@@ -184,6 +201,31 @@ class NotificationService:
         if dead_endpoints:
             removed = await delete_endpoints(db, dead_endpoints)
             logger.info("Pruned %d dead push subscription(s)", removed)
+
+    def _channels(
+        self, user: User, subs_by_user: dict, sighting: Sighting, species: Species,
+        device: Device, count: int, location: str, delayed_note: str,
+        dead_endpoints: list[str], *, headline: str | None = None,
+    ) -> list:
+        """One coroutine per channel the user receives sighting alerts on."""
+        channels = []
+        if user.notify_email and user.email:
+            channels.append(
+                self._email(
+                    user, sighting, species, device, count, location, delayed_note,
+                    headline=headline,
+                )
+            )
+        # Web push needs no per-user flag: a stored subscription *is* the
+        # opt-in, and unsubscribing in the browser deletes the row.
+        for sub in subs_by_user.get(user.id, []):
+            channels.append(
+                self._push(
+                    sub, sighting, species, device, count,
+                    location, delayed_note, dead_endpoints, headline=headline,
+                )
+            )
+        return channels
 
     async def _send_animal(
         self, db: AsyncSession, sighting: Sighting, species: Species, device: Device
@@ -257,15 +299,16 @@ class NotificationService:
     async def _email(
         self, user: User, sighting: Sighting, species: Species,
         device: Device, count: int, location: str, delayed_note: str,
+        *, headline: str | None = None,
     ) -> None:
         wiki_url = species.wiki_url or ""
         wiki_link = f'<a href="{wiki_url}">Wikipedia</a>' if wiki_url else "Wikipedia (link pending)"
         sci_name = f"{species.genus} {species.species_name}".strip()
 
-        subject = f"Peck Deck: {species.common_name} spotted at {device.name}!"
+        subject = "Peck Deck: " + (headline or f"{species.common_name} spotted at {device.name}!")
         html = (
             f"<html><body>"
-            f"<h2>{species.common_name} spotted!</h2>"
+            f"<h2>{headline or species.common_name + ' spotted!'}</h2>"
             f"<p><strong>{species.common_name}</strong> (<em>{sci_name}</em>)</p>"
             f"<p>Device: <strong>{device.name}</strong> — {location}{delayed_note}</p>"
             f"<p>Confidence: {sighting.confidence_score:.0%} | Tier: {sighting.classification_tier_used}</p>"
@@ -289,7 +332,7 @@ class NotificationService:
     async def _push(
         self, sub: PushSubscription, sighting: Sighting, species: Species,
         device: Device, count: int, location: str, delayed_note: str,
-        dead_endpoints: list[str],
+        dead_endpoints: list[str], *, headline: str | None = None,
     ) -> None:
         """Send one web push and record the endpoint if it is permanently gone.
 
@@ -297,14 +340,19 @@ class NotificationService:
         text rather than ids to look up — the worker has no session and cannot
         call the API. ``tag`` lets a phone that missed several alerts collapse
         them into the latest one per feeder instead of stacking a wall of them.
+        A new species alert, with a ``headline``, has a tag of its own, so a
+        normal alert from the same feeder never replaces it.
         """
         payload = {
-            "title": f"{species.common_name} at {device.name}",
+            "title": headline or f"{species.common_name} at {device.name}",
             "body": (
                 f"{round(sighting.confidence_score * 100)}% confident · "
                 f"sighting #{count} · {location}{delayed_note}"
             ),
-            "tag": f"peckdeck-device-{device.id}",
+            "tag": (
+                f"peckdeck-new-species-{sighting.id}" if headline
+                else f"peckdeck-device-{device.id}"
+            ),
             "data": {
                 "sighting_id": sighting.id,
                 "species_id": species.id,

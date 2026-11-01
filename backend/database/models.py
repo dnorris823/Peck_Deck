@@ -61,8 +61,19 @@ class UserPreferences(Base):
     )
     # Minimum seconds between notifications per device (anti-spam).
     quiet_interval_seconds: Mapped[int] = mapped_column(Integer, default=60)
-    # Only alert the first time a species is seen.
+    # "Only new species": send the new species pushes and mute the normal
+    # alerts. See backend/notifications/new_species.py.
     notify_new_species_only: Mapped[bool] = mapped_column(Boolean, default=False)
+    # One switch per kind of new species alert. Each skips the bird throttle.
+    notify_first_ever: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=true()
+    )
+    notify_first_at_feeder: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=true()
+    )
+    notify_first_this_year: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=true()
+    )
     # Animal push alerts, a map from animal group ("squirrel") to on or off. A
     # group missing from the map, or a null map, takes the group's default from
     # backend/animals/groups.py. Push only, never email.

@@ -82,7 +82,16 @@ def published(monkeypatch):
 
     monkeypatch.setattr(recheck, "sighting_hub", _Hub())
     monkeypatch.setattr(sighting_aftercare, "enrich_species", _async_noop)
+    monkeypatch.setattr(recheck, "notification_service", _NoAlerts())
     return events
+
+
+class _NoAlerts:
+    """Stands in for the notification service. The new species alert after a
+    re-check has its own tests, in test_new_species_alerts.py."""
+
+    async def dispatch(self, *_a, **_k):
+        return None
 
 
 async def _async_noop(*_a, **_k):

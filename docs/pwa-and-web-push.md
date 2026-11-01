@@ -43,6 +43,34 @@ alert to a real phone before relying on it.
 | Push transport | `backend/notifications/push_sender.py` | RFC 8291 encryption + RFC 8292 VAPID on `cryptography` + `aiohttp`. Not `pywebpush`, which is synchronous and would need a thread per send. |
 | Push routes | `GET /push/config`, `POST`/`DELETE /push/subscriptions` | Config reports `enabled:false` when no keys are set, and the web app hides the opt-in. |
 
+## New species alerts
+
+A bird sighting can send a second kind of alert, on email and push, when the
+species is new to the user. The code is in `backend/notifications/new_species.py`.
+
+| Kind | Rule | Title |
+|---|---|---|
+| `first_ever` | No feeder the user can see has recorded it. | New for Peck Deck: Pileated Woodpecker at Backyard |
+| `first_at_feeder` | This feeder has not recorded it, another has. | New at Backyard: Pileated Woodpecker |
+| `first_this_year` | No feeder the user can see has recorded it since 1 January, UTC. | First this year: Pileated Woodpecker at Backyard |
+
+- Only the strongest kind that applies counts. If its switch is off, the
+  sighting gets the normal alert.
+- The new species alert replaces the normal alert for that sighting. It skips
+  the quiet interval and does not start it.
+- "Only new species" (`notify_new_species_only`) mutes the normal alerts. The
+  new species alerts still go.
+- Only bird sightings count, through `is_bird_sighting()`. "Unknown" and animals
+  are never new.
+- `first_ever` needs a confidence of 0.70 or more. Below it the sighting gets
+  the normal alert. At 0.70 Tier 2 accepts 2.1% of the test photos wrongly,
+  against 5.3% at 0.50 (`machine_learning/MODELS.md`).
+- A sighting waiting for the Tier 2 re-check decides after it. While the
+  re-check is on, a pending sighting does not count as a record.
+- A person's correction sends no alert.
+- The push tag is per sighting, so a normal alert never replaces it on the
+  phone.
+
 Notes that will bite otherwise:
 
 - **The VAPID public key is derived from the private key**, never read from
