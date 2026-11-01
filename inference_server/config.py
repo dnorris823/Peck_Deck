@@ -36,6 +36,15 @@ class Settings:
     IMAGE_SIZE: int = int(os.getenv("IMAGE_SIZE", "380"))
     # "cuda", "cuda:0", or "cpu"
     DEVICE: str = os.getenv("DEVICE", "cuda")
+    # Unload the model while a game runs. See inference_server/gaming.py.
+    GAME_PAUSE_ENABLED: bool = os.getenv("GAME_PAUSE_ENABLED", "true").lower() in ("1", "true", "yes")
+    # Pause when mean GPU use over GAME_PAUSE_AFTER_SECONDS reaches this percent.
+    GAME_PAUSE_PERCENT: float = float(os.getenv("GAME_PAUSE_PERCENT", "50"))
+    GAME_PAUSE_AFTER_SECONDS: float = float(os.getenv("GAME_PAUSE_AFTER_SECONDS", "30"))
+    # Resume when mean GPU use over GAME_RESUME_AFTER_SECONDS is at or below this.
+    GAME_RESUME_PERCENT: float = float(os.getenv("GAME_RESUME_PERCENT", "15"))
+    GAME_RESUME_AFTER_SECONDS: float = float(os.getenv("GAME_RESUME_AFTER_SECONDS", "300"))
+    GAME_SAMPLE_SECONDS: float = float(os.getenv("GAME_SAMPLE_SECONDS", "2"))
 
 
 settings = Settings()

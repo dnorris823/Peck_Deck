@@ -18,12 +18,15 @@ vi.mock("./data.js", async (importOriginal) => ({
   countSightingsBefore: vi.fn(),
   deleteSightingsBefore: vi.fn(),
   logRefill: vi.fn(),
+  fetchTier2: vi.fn(),
+  setTier2Paused: vi.fn(),
 }));
 
 import { DevicesPage, Power, backlogLine, feedLine, healthWarnings, tierMixText } from "./Devices.jsx";
 import {
   addFeederMember, countSightingsBefore, deleteDevice, deleteSightingsBefore, fetchDeviceToken,
-  fetchFeederAccess, logRefill, removeFeederMember, rotateDeviceToken, updateDevice,
+  fetchFeederAccess, fetchTier2, logRefill, removeFeederMember, rotateDeviceToken, setTier2Paused,
+  updateDevice,
 } from "./data.js";
 
 const mix = (counts, more = {}) => ({
@@ -88,6 +91,71 @@ describe("Feeders", () => {
     expect(warnings).toHaveLength(1);
     expect(warnings[0].closest(".station-card")).toHaveTextContent("Porch");
     expect(warnings[0]).toHaveAttribute("title", "10 of 10 captures got no answer from the GPU server.");
+  });
+});
+
+describe("Tier 2 switch", () => {
+  const devices = [
+    feeder(1, "Maple", mix({ gpu: 41, local: 3 })),
+    feeder(2, "Porch", mix({ local: 9 }, { tier2Asked: 10, tier2Missed: 10, tier2Down: true })),
+  ];
+
+  beforeEach(() => {
+    vi.mocked(fetchTier2).mockReset();
+    vi.mocked(setTier2Paused).mockReset();
+  });
+
+  it("says paused for gaming on every card instead of the GPU warning", async () => {
+    vi.mocked(fetchTier2).mockResolvedValue({ state: "paused_game", game_pause: true });
+    mockData = { SIGHTINGS: [], USERS: [], DEVICES: devices, ME: { id: 2, role: "viewer" } };
+    render(<DevicesPage />);
+    expect(await screen.findByText("Paused, a game is running")).toBeInTheDocument();
+    expect(screen.getAllByText("Tier 2 paused for gaming")).toHaveLength(2);
+    expect(screen.queryByText("GPU not answering")).toBeNull();
+  });
+
+  it("gives a viewer the state and no switch", async () => {
+    vi.mocked(fetchTier2).mockResolvedValue({ state: "ready", game_pause: true });
+    mockData = { SIGHTINGS: [], USERS: [], DEVICES: devices, ME: { id: 2, role: "viewer" } };
+    render(<DevicesPage />);
+    await screen.findByText("On. The gaming PC names every capture.");
+    expect(screen.queryByRole("button", { name: "Tier 2 on the gaming PC" })).toBeNull();
+    expect(screen.getByText("GPU not answering")).toBeInTheDocument();
+  });
+
+  it("lets the owner turn a game pause back on, which reloads the model", async () => {
+    vi.mocked(fetchTier2).mockResolvedValue({ state: "paused_game", game_pause: true });
+    vi.mocked(setTier2Paused).mockResolvedValue({ state: "loading", game_pause: true });
+    mockData = { SIGHTINGS: [], USERS: [], DEVICES: devices, ME: { id: 1, role: "owner" } };
+    render(<DevicesPage />);
+    await screen.findByText("Paused, a game is running");
+    const toggle = screen.getByRole("button", { name: "Tier 2 on the gaming PC" });
+    expect(toggle).toHaveAttribute("aria-pressed", "false");
+
+    vi.mocked(fetchTier2).mockResolvedValue({ state: "loading", game_pause: true });
+    fireEvent.click(toggle);
+    expect(await screen.findByText("Loading the model…")).toBeInTheDocument();
+    expect(setTier2Paused).toHaveBeenCalledWith(false);
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("lets the owner pause it, and shows a refusal", async () => {
+    vi.mocked(fetchTier2).mockResolvedValue({ state: "ready", game_pause: true });
+    vi.mocked(setTier2Paused).mockRejectedValue(new Error("The GPU server is not answering"));
+    mockData = { SIGHTINGS: [], USERS: [], DEVICES: devices, ME: { id: 1, role: "owner" } };
+    render(<DevicesPage />);
+    await screen.findByText("On. The gaming PC names every capture.");
+    fireEvent.click(screen.getByRole("button", { name: "Tier 2 on the gaming PC" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("The GPU server is not answering");
+    expect(setTier2Paused).toHaveBeenCalledWith(true);
+  });
+
+  it("has no switch to flip while the gaming PC is not answering", async () => {
+    vi.mocked(fetchTier2).mockResolvedValue({ state: "offline", game_pause: false });
+    mockData = { SIGHTINGS: [], USERS: [], DEVICES: devices, ME: { id: 1, role: "owner" } };
+    render(<DevicesPage />);
+    await screen.findByText("The gaming PC is not answering.");
+    expect(screen.getByRole("button", { name: "Tier 2 on the gaming PC" })).toBeDisabled();
   });
 });
 

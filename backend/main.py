@@ -14,6 +14,7 @@ from litestar.params import Body
 
 from .auth.guards import DEVICE_TOKEN, device_guard
 from .classification.claude import get_classifier
+from .classification.tier2 import Tier2Controller
 from .config import settings
 from .database.connection import dispose_db, init_db, provide_db
 from .animals.controller import MeasureController
@@ -192,6 +193,7 @@ app = Litestar(
         StatsController,
         PushController,
         EventController,
+        Tier2Controller,
     ],
     dependencies={"db": Provide(provide_db)},
     middleware=[RequestContextMiddleware],

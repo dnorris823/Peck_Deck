@@ -13,6 +13,8 @@ the pending captures to ``POST /classify`` one at a time, oldest first, so the
 Pi's live requests still get a turn.
 
 - A connection error, a timeout or a 5xx ends the pass. The rows stay pending.
+  A server paused for a game answers ``GET /health`` with its state and
+  ``POST /classify`` with 503, so its rows wait too.
 - A 4xx for one image marks that row done with no change, so one bad image
   cannot block the queue.
 - A sighting a person corrected is marked done and keeps their species.
@@ -208,23 +210,48 @@ def winning_animal(answer: Answer, threshold: float) -> AnimalAnswer | None:
 
 
 class InferenceClient:
-    """``GET /health`` and ``POST /classify`` on the inference server."""
+    """``GET /health``, ``POST /classify`` and the pause switch on the inference server."""
 
     def __init__(self, base_url: str):
         self._base = base_url.rstrip("/")
 
-    async def healthy(self) -> bool:
-        """True when the server answers and its model has loaded."""
+    async def status(self) -> dict | None:
+        """The server's ``GET /health`` body, or None when it does not answer."""
         try:
             timeout = aiohttp.ClientTimeout(total=HEALTH_TIMEOUT_SECONDS)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.get(f"{self._base}/health") as resp:
                     if resp.status != 200:
-                        return False
+                        return None
                     body = await resp.json()
-                    return bool(body.get("model_ready", True))
         except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+            return None
+        return body if isinstance(body, dict) else None
+
+    async def healthy(self) -> bool:
+        """True when the server answers and its model has loaded.
+
+        A paused server, for a game or by the owner, is not healthy, so the
+        pending rows wait for it. An older server sends no ``state``.
+        """
+        body = await self.status()
+        if body is None:
             return False
+        return bool(body.get("model_ready", True)) and body.get("state", "ready") == "ready"
+
+    async def set_paused(self, paused: bool) -> dict | None:
+        """``POST /pause`` or ``POST /resume``. The new status, or None if down."""
+        path = "/pause" if paused else "/resume"
+        try:
+            timeout = aiohttp.ClientTimeout(total=HEALTH_TIMEOUT_SECONDS)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(f"{self._base}{path}") as resp:
+                    if resp.status != 200:
+                        return None
+                    body = await resp.json()
+        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+            return None
+        return body if isinstance(body, dict) else None
 
     async def classify(self, image: bytes) -> Answer:
         form = aiohttp.FormData()
