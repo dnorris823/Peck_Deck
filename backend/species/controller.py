@@ -7,6 +7,7 @@ from litestar.params import FromPath
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import USER_JWT, user_guard
+from .ebird import ebird_code
 from .operations import create_species, get_species, list_species
 from .schemas import CreateSpecies, SpeciesResponse
 
@@ -24,6 +25,7 @@ def _to_response(s) -> SpeciesResponse:
         note=s.note,
         description=s.description,
         family=s.family,
+        ebird_code=ebird_code(s.common_name, s.genus, s.species_name),
     )
 
 

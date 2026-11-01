@@ -4,7 +4,7 @@ vi.mock("./api.js", () => ({ apiGet: vi.fn() }));
 
 import { apiGet } from "./api.js";
 import {
-  fetchHours, fmtClock, fmtHour, fmtSeen, fmtVisit, isUnknown, usualTime,
+  fetchHours, fmtClock, fmtHour, fmtSeen, fmtVisit, isUnknown, speciesLinks, usualTime,
 } from "./speciesData.js";
 
 // Fixed reference: Wed 2026-10-28 19:42 local time.
@@ -104,5 +104,22 @@ describe("isUnknown", () => {
     expect(isUnknown({ common: "Unknown" })).toBe(true);
     expect(isUnknown({ common: " unknown " })).toBe(true);
     expect(isUnknown({ common: "House Finch" })).toBe(false);
+  });
+});
+
+describe("speciesLinks", () => {
+  const labels = (s) => speciesLinks(s).map((l) => l.label);
+
+  it("skips eBird and All About Birds without an eBird code", () => {
+    expect(labels({ common: "Made Up Finch", wiki: null, ebird: null })).toEqual(["Xeno-canto"]);
+  });
+
+  it("gives an Unknown capture no links", () => {
+    expect(speciesLinks({ common: "Unknown", wiki: null, ebird: null })).toEqual([]);
+  });
+
+  it("escapes the common name in the Xeno-canto search", () => {
+    const [xc] = speciesLinks({ common: "Cooper's Hawk", wiki: null, ebird: null });
+    expect(xc.href).toBe("https://xeno-canto.org/explore?query=Cooper's%20Hawk");
   });
 });

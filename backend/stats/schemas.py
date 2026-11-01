@@ -18,6 +18,9 @@ class SpeciesCountResponse:
     # Field-guide enrichment (Phase 6); null until the background task runs.
     description: str | None = None
     family: str | None = None
+    # eBird's species code ("blujay"), for the eBird and All About Birds links.
+    # Null for a species outside the taxonomy.
+    ebird_code: str | None = None
     # Local hours (0-23) with the most visits over the last 30 days, busiest
     # first, at most two. Null unless the request sent `tz`.
     peak_hours: list[int] | None = None

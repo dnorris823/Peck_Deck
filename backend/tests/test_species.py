@@ -29,3 +29,24 @@ def test_create_species(client, owner_headers):
     body = res.json()
     assert body["palette"] == ["#111111", "#222222", "#333333"]
     assert body["silhouette"] == "finch"
+
+
+def test_ebird_code_lookup():
+    from backend.species.ebird import ebird_code
+
+    assert ebird_code("Blue Jay", "Cyanocitta", "cristata") == "blujay"
+    # eBird moved Cooper's Hawk to Astur. Both genera find it, the old one by
+    # scientific name and the new one by common name.
+    assert ebird_code("Cooper's Hawk", "Accipiter", "cooperii") == "coohaw"
+    assert ebird_code("Cooper's Hawk", "Astur", "cooperii") == "coohaw"
+    assert ebird_code("Unknown", "", "") is None
+
+
+def test_species_response_carries_ebird_code(client, owner_headers):
+    payload = {"common_name": "Blue Jay", "genus": "Cyanocitta", "species_name": "cristata"}
+    res = client.post("/species", json=payload, headers=owner_headers)
+    assert res.json()["ebird_code"] == "blujay"
+
+    # The fixture species have made-up names, so they have no code.
+    res = client.get(f"/species/{IDS['spA_id']}", headers=owner_headers)
+    assert res.json()["ebird_code"] is None

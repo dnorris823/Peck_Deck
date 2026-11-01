@@ -10,6 +10,26 @@ export function isUnknown(species) {
   return (species?.common || "").trim().toLowerCase() === "unknown";
 }
 
+/**
+ * Outside pages about one species, in display order. eBird and All About Birds
+ * key their pages on the eBird code, so a species outside the taxonomy gets
+ * neither. Xeno-canto searches by common name, because its scientific names
+ * match neither the taxonomy's nor eBird's for every bird.
+ */
+export function speciesLinks(species) {
+  if (isUnknown(species)) return [];
+  const links = [];
+  if (species.wiki) links.push({ label: "Wikipedia", hint: "Background", href: species.wiki });
+  if (species.ebird) {
+    const code = encodeURIComponent(species.ebird);
+    links.push({ label: "eBird", hint: "Range and recent sightings", href: `https://ebird.org/species/${code}` });
+    links.push({ label: "All About Birds", hint: "ID guide", href: `https://www.allaboutbirds.org/guide/${code}` });
+  }
+  const query = encodeURIComponent(species.common);
+  links.push({ label: "Xeno-canto", hint: "Songs and calls", href: `https://xeno-canto.org/explore?query=${query}` });
+  return links;
+}
+
 /** Visits per local hour for one species. `days` of 0 means all time. */
 export function fetchHours(speciesId, { days = 30, zone = browserZone() } = {}) {
   const params = new URLSearchParams({ species_id: String(speciesId), days: String(days), tz: zone });
