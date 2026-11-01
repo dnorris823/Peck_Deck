@@ -10,7 +10,9 @@ import {
   confidenceLevel, deleteSightings, downloadExport, fmtDateLabel, fmtDayHeading, fmtTime,
   mapSighting, tierInfo,
 } from "./data.js";
-import { applyHistoryEvent, fetchHistoryPage, matchesHistory, mergeRows } from "./history.js";
+import {
+  applyHistoryEvent, dayBounds, fetchHistoryPage, matchesHistory, mergeRows,
+} from "./history.js";
 
 // Inclusive lower bound (ms since epoch) for a named range, or 0 for "all time".
 export function rangeCutoff(range, now = Date.now()) {
@@ -25,12 +27,7 @@ export function rangeCutoff(range, now = Date.now()) {
   return 0; // all
 }
 
-// The local calendar day starting at `day`, as [start, next midnight) in ms.
-export function dayBounds(day) {
-  const start = new Date(day.getFullYear(), day.getMonth(), day.getDate());
-  const next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
-  return [start.getTime(), next.getTime()];
-}
+export { dayBounds };
 
 const RANGES = [
   ["today", "Today"],

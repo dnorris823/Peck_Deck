@@ -14,6 +14,7 @@ import {
   fmtDateLabel, fmtTime, startOfToday, tierInfo, confidenceLevel,
 } from "./data.js";
 import { useSpeciesAccent } from "./accent.js";
+import { fetchDayVisits } from "./history.js";
 import "./sighting-detail.css";
 
 // ── Pure helpers, exported for the tests ──────────────────────────────────
@@ -460,6 +461,36 @@ function Strip({ strip, current, onPick }) {
   );
 }
 
+const NO_VISITS = [];
+
+/**
+ * The list the strip is cut from. Home's list when it holds `s`. Otherwise `s`
+ * is older than Home's newest 100, such as a visit opened from History, so
+ * its feeder's visits that day come from the server. Until they land the strip
+ * holds `s` alone.
+ */
+function useDayVisits(s, sightings, data) {
+  const inHome = !!s && sightings.some(x => x.id === s.id);
+  const key = s && !inHome ? `${s.device.id}|${s.datetime.toDateString()}` : null;
+  const [fetched, setFetched] = useState(null);
+  const sRef = useRef(s);
+  sRef.current = s;
+  const dataRef = useRef(data);
+  dataRef.current = data;
+
+  useEffect(() => {
+    if (key == null || fetched?.key === key) return undefined;
+    let cancelled = false;
+    fetchDayVisits(sRef.current, dataRef.current)
+      .then(items => { if (!cancelled) setFetched({ key, items }); })
+      .catch(() => { /* The strip holds this visit alone. */ });
+    return () => { cancelled = true; };
+  }, [key, fetched]);
+
+  if (inHome) return sightings;
+  return fetched?.key === key ? fetched.items : NO_VISITS;
+}
+
 // ── The view ──────────────────────────────────────────────────────────────
 
 /**
@@ -494,7 +525,8 @@ export function SightingDetail({ s, onClose, onMove, onCorrected, backLabel = "B
   const accent = useSpeciesAccent(s?.species);
 
   const sightings = data.SIGHTINGS || [];
-  const strip = useMemo(() => (s ? dayStrip(sightings, s) : []), [sightings, s]);
+  const dayVisits = useDayVisits(s, sightings, data);
+  const strip = useMemo(() => (s ? dayStrip(dayVisits, s) : []), [dayVisits, s]);
   const at = s ? strip.findIndex(x => x.id === s.id) : -1;
   const step = useCallback((by) => {
     const next = strip[at + by];

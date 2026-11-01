@@ -30,7 +30,15 @@ vi.mock("./data.js", async (importOriginal) => ({
   createSpecies: vi.fn(),
 }));
 
+// The strip's own fetch, for a visit older than Home's list. Empty unless a
+// test says otherwise.
+vi.mock("./history.js", async (importOriginal) => ({
+  ...(await importOriginal()),
+  fetchDayVisits: vi.fn(async () => []),
+}));
+
 import { correctSighting, createSpecies, deleteSighting, fetchSpeciesHours } from "./data.js";
+import { fetchDayVisits } from "./history.js";
 import {
   SightingDetail, canDeleteSighting, dayStrip, visitOrdinal, ordinal, busyPhrase,
   contextLine, tierChips, thresholdFor, pickerOptions, correctedByName,
@@ -409,6 +417,29 @@ describe("the day's strip", () => {
     fireEvent.touchStart(photo, { touches: [{ clientX: 200, clientY: 100 }] });
     fireEvent.touchEnd(photo, { changedTouches: [{ clientX: 100, clientY: 110 }] });
     expect(onMove).toHaveBeenLastCalledWith(list[2]);
+  });
+
+  it("fetches the day for a visit older than Home's list, then moves along it", async () => {
+    sightings = [at(18)];
+    const day = [at(12), at(10), at(9)].map(x => ({ ...x, id: x.id + 1000 }));
+    vi.mocked(fetchDayVisits).mockResolvedValueOnce(day);
+    const onMove = vi.fn();
+    render(<SightingDetail s={day[1]} onClose={vi.fn()} onMove={onMove} />);
+
+    expect(fetchDayVisits).toHaveBeenLastCalledWith(day[1], expect.objectContaining({ SIGHTINGS: sightings }));
+    expect(await screen.findByRole("group", { name: "Visits from this feeder that day" })).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "ArrowLeft" });
+    expect(onMove).toHaveBeenLastCalledWith(day[0]);
+    fireEvent.keyDown(document, { key: "ArrowRight" });
+    expect(onMove).toHaveBeenLastCalledWith(day[2]);
+    expect(screen.getByRole("button", { name: "Older visit" })).toBeEnabled();
+  });
+
+  it("keeps Home's list for a visit inside it, with no fetch", () => {
+    vi.mocked(fetchDayVisits).mockClear();
+    sightings = [at(18), at(12)];
+    render(<SightingDetail s={sightings[1]} onClose={vi.fn()} onMove={vi.fn()} />);
+    expect(fetchDayVisits).not.toHaveBeenCalled();
   });
 
   it("stops at the ends", () => {

@@ -1,5 +1,11 @@
-import { describe, it, expect } from "vitest";
-import { HISTORY_PAGE, applyHistoryEvent, historyParams, matchesHistory, mergeRows } from "./history.js";
+import { describe, it, expect, vi } from "vitest";
+
+vi.mock("./api.js", async (importOriginal) => ({ ...(await importOriginal()), apiGet: vi.fn() }));
+
+import { apiGet } from "./api.js";
+import {
+  HISTORY_PAGE, applyHistoryEvent, fetchDayVisits, historyParams, matchesHistory, mergeRows,
+} from "./history.js";
 
 const ALL = { deviceId: null, speciesId: null, from: null, to: null };
 const row = (id, datetime, extra = {}) => ({ id, datetime, device_id: 1, species_id: 5, ...extra });
@@ -89,5 +95,27 @@ describe("applyHistoryEvent", () => {
     const fixed = { ...list.rows[1], species_id: 7 };
     expect(applyHistoryEvent(list, { type: "updated", sighting: fixed }, ALL).rows[1].species_id).toBe(7);
     expect(applyHistoryEvent(list, { type: "deleted", id: 99 }, ALL)).toBe(list);
+  });
+});
+
+describe("fetchDayVisits", () => {
+  it("asks for the feeder's visits on the local day of the sighting", async () => {
+    const species = { id: 5, common: "House Sparrow" };
+    const device = { id: 4, name: "Maple" };
+    const s = { id: 7, species, device, datetime: new Date(2026, 6, 1, 9, 30) };
+    vi.mocked(apiGet).mockResolvedValue([
+      { id: 8, species_id: 5, device_id: 4, datetime: new Date(2026, 6, 1, 11).toISOString() },
+      { id: 7, species_id: 5, device_id: 4, datetime: s.datetime.toISOString() },
+    ]);
+
+    const visits = await fetchDayVisits(s, { SPECIES: [species], DEVICES: [device] });
+
+    const q = new URL(vi.mocked(apiGet).mock.lastCall[0], "http://x").searchParams;
+    expect(q.get("device_id")).toBe("4");
+    expect(q.has("species_id")).toBe(false);
+    expect(q.get("from_date")).toBe(new Date(2026, 6, 1).toISOString());
+    expect(q.get("to_date")).toBe(new Date(new Date(2026, 6, 2).getTime() - 1).toISOString());
+    expect(visits.map((x) => x.id)).toEqual([8, 7]);
+    expect(visits[0].device).toBe(device);
   });
 });

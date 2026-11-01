@@ -2,7 +2,7 @@
 // (SIGHTING_WINDOW in data.js). History asks the server instead, one page at a
 // time, so "30 days" or a species filter reaches past those 100.
 import { apiGet } from "./api.js";
-import { removeSighting, replaceSighting } from "./data.js";
+import { mapSighting, removeSighting, replaceSighting } from "./data.js";
 
 export const HISTORY_PAGE = 100;
 
@@ -52,6 +52,28 @@ export function historyParams(filters, loaded = []) {
 export async function fetchHistoryPage(filters, loaded = []) {
   const rows = await apiGet(`/sightings?${historyParams(filters, loaded)}`);
   return { rows, done: rows.length < HISTORY_PAGE };
+}
+
+// The local calendar day starting at `day`, as [start, next midnight) in ms.
+export function dayBounds(day) {
+  const start = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+  const next = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
+  return [start.getTime(), next.getTime()];
+}
+
+/**
+ * The visits from the feeder of `s` on the local day of `s`, mapped against
+ * `data`. The detail view's strip asks for these when `s` is older than Home's
+ * list. One page, so a day with more than 100 visits shows its newest 100.
+ */
+export async function fetchDayVisits(s, data) {
+  const [from, to] = dayBounds(s.datetime);
+  const { rows } = await fetchHistoryPage({ deviceId: s.device.id, speciesId: null, from, to });
+  const speciesById = new Map(data.SPECIES.map((x) => [x.id, x]));
+  const devicesById = new Map(data.DEVICES.map((d) => [d.id, d]));
+  return rows
+    .map((r) => mapSighting(r, speciesById, devicesById))
+    .filter((x) => x.species && x.device);
 }
 
 /** Add rows the list does not hold yet, keeping it newest first. */
