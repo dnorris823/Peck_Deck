@@ -1035,3 +1035,9 @@ input[type="range"], input[type="checkbox"], input[type="radio"] { accent-color:
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* Tier 2's switch on the Feeders page */
+.tier2-switch { margin-bottom: 18px; }
+.tier2-switch .toggle-row { padding: 0; }
+.tier2-paused { color: var(--warn); font-weight: 700; }
+.tier2-error { color: var(--bad); }

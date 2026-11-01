@@ -639,3 +639,14 @@ export function fmtDayHeading(d, now = new Date()) {
   if (diff === 1) return "Yesterday";
   return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
 }
+
+// Tier 2's state from the inference server, as `{ state, game_pause }`. The
+// state is "offline" when the gaming PC does not answer.
+export async function fetchTier2() {
+  return apiGet("/tier2");
+}
+
+// Owner only. A viewer gets 403.
+export async function setTier2Paused(paused) {
+  return apiSend("/tier2", "PUT", { paused });
+}

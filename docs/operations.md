@@ -108,6 +108,68 @@ GPU once the server answers again. The code is in `backend/sightings/recheck.py`
 Each pass that finds the server logs `tier2 recheck: server is up, re-checking
 N sightings`, then one line per sighting.
 
+## Gaming pause
+
+The inference server unloads the Tier 2 model while a game runs, so the game
+gets the 5080's VRAM. The code is in `inference_server/gaming.py`.
+
+`GET /health` on the inference server reports one state:
+
+| State | Meaning |
+|---|---|
+| `ready` | The model is loaded. `POST /classify` answers. |
+| `loading` | The model is loading, about 4 s from the local cache. |
+| `paused_game` | The server saw a game and unloaded the model. |
+| `paused_manual` | The owner turned Tier 2 off. Only the owner turns it on. |
+| `failed` | The model did not load. A resume tries again. |
+
+While the state is not `ready`, `POST /classify` returns 503 with the reason.
+The Pi falls back to Tier 1, as it does when the server is off. The upload's
+trace shows Tier 2 `failed`, so the backend marks the sighting pending, and the
+re-check holds it until the state is `ready`. Then Tier 2 names it.
+
+**Automatic pause.** The server reads GPU use through NVML every
+`GAME_SAMPLE_SECONDS`. It goes by GPU use alone. On Windows, NVML lists the
+desktop compositor and every browser as holding a graphics context, so a
+graphics context cannot tell a game from the desktop. Readings taken within 2 s
+of the server's own classify call are skipped, so a re-check backlog never
+pauses Tier 2.
+
+| Env var | Default | Effect |
+|---|---|---|
+| `GAME_PAUSE_ENABLED` | `true` | `false` turns the automatic pause off. The owner's switch still works. |
+| `GAME_PAUSE_PERCENT` | `50` | Pause when mean GPU use over the pause period reaches this. |
+| `GAME_PAUSE_AFTER_SECONDS` | `30` | The pause period. |
+| `GAME_RESUME_PERCENT` | `15` | Resume when mean GPU use over the resume period is at or below this. Must be below `GAME_PAUSE_PERCENT`. |
+| `GAME_RESUME_AFTER_SECONDS` | `300` | The resume period. |
+| `GAME_SAMPLE_SECONDS` | `2` | How often the server reads GPU use. |
+
+The automatic pause needs `nvidia-ml-py`, in `inference_server/requirements.txt`.
+Without it the server logs `NVML not available` and never pauses itself.
+`game_pause` in `GET /health` says whether the watcher runs.
+
+**The owner's switch.** The Feeders page has a Tier 2 switch. The backend relays
+it through `PUT /tier2`, owner only, to `POST /pause` or `POST /resume` on the
+inference server. `GET /tier2` reads the state for any signed-in user, and says
+`offline` when the server does not answer.
+
+- Turning Tier 2 off sets `paused_manual`. The server stays paused after the
+  game, until the owner turns it on.
+- Turning Tier 2 on during a game loads the model, and the server does not pause
+  for that game again. The hold ends when GPU use falls below
+  `GAME_PAUSE_PERCENT`, so the next game pauses it.
+- A restart loads the model. A pause is not saved.
+
+**Motion captures are dropped while Tier 2 is paused.** A motion capture needs
+Tier 2 to name a bird or an animal, and Tier 1 is never asked. The Pi drops it,
+as it does when the server is off. A bird the camera detected is never dropped.
+
+Home and the feeder card say "Tier 2 paused for gaming" in place of the Tier 2
+down warning.
+
+The control endpoints have no auth, like `POST /classify`. Anyone on the LAN can
+pause Tier 2.
+
 ## Feed alerts
 
 The API process checks every feeder once at startup and then every hour. The

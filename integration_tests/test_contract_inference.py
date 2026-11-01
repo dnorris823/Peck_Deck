@@ -124,4 +124,6 @@ def test_gpu_server_health_reports_model_ready(monkeypatch):
             import json
 
             body = json.loads(resp.read())
-    assert body == {"status": "ok", "model_ready": True}
+    assert body["status"] == "ok"
+    assert body["model_ready"] is True
+    assert body["state"] == "ready"
