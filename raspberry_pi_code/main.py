@@ -104,6 +104,30 @@ def _no_report() -> dict:
     return {}
 
 
+async def _optional_fields(
+    name: str, read: Callable[[], dict], in_thread: bool, failing: set[str]
+) -> dict:
+    """Read extra heartbeat fields, or none if the read fails.
+
+    The heartbeat is the station's proof of life, and it carries the trigger
+    tick the feed check needs. A queue file the Pi cannot read must cost only
+    its own fields, never the beat. A read that keeps failing logs once, until
+    it works again.
+    """
+    logger = logging.getLogger(__name__)
+    try:
+        fields = dict(await asyncio.to_thread(read) if in_thread else read())
+    except Exception:
+        if name not in failing:
+            logger.exception("Could not read the %s for the heartbeat. Sending it without them", name)
+            failing.add(name)
+        return {}
+    if name in failing:
+        logger.info("Reading the %s for the heartbeat again", name)
+        failing.discard(name)
+    return fields
+
+
 async def _heartbeat_loop(
     client: BackendClient,
     interval: float,
@@ -127,17 +151,22 @@ async def _heartbeat_loop(
     ``backlog`` is ``Pipeline.backlog``, the offline queue and the losses. It
     reads the queue file on the loop, where every queue write happens.
     ``vitals`` reads disk and temperature files, so it runs in a worker thread.
+    A failure in either drops only its own fields. See ``_optional_fields``.
     """
     logger = logging.getLogger(__name__)
     last_ok: bool | None = None
+    failing: set[str] = set()
     while True:
         try:
             url = await asyncio.to_thread(live_url)
             wifi = await asyncio.to_thread(signal)
-            readings = await asyncio.to_thread(vitals)
+            extras = {
+                **await _optional_fields("offline queue", backlog, False, failing),
+                **await _optional_fields("disk and temperature", vitals, True, failing),
+            }
             outcome = await client.heartbeat(
                 live_url=url, power_source=power_source, signal=wifi,
-                trigger_age_seconds=trigger_age(), **backlog(), **readings,
+                trigger_age_seconds=trigger_age(), **extras,
             )
         except Exception:
             logger.exception("Heartbeat error")

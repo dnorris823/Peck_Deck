@@ -200,6 +200,58 @@ def test_loop_reports_the_backlog_and_vitals_each_beat():
     assert client.health == {**queue, "disk_free_bytes": 5, "cpu_temp_c": 40.0}
 
 
+def _boom():
+    raise PermissionError("queue.json")
+
+
+def test_a_failed_backlog_read_still_sends_the_heartbeat(caplog):
+    # The heartbeat is the proof of life. Losing it reads the feeder offline
+    # and stops the trigger tick, which turns its feed alerts off.
+    client = _FakeClient([])
+
+    async def run():
+        task = asyncio.create_task(pi_main._heartbeat_loop(
+            client, 0, trigger_age=lambda: 0.5, backlog=_boom,
+            vitals=lambda: {"disk_free_bytes": 5, "cpu_temp_c": 40.0}))
+        while client.calls < 3:
+            await asyncio.sleep(0)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    with caplog.at_level(logging.INFO, logger=pi_main.__name__):
+        asyncio.run(run())
+    assert client.last["trigger_age_seconds"] == 0.5
+    # Only the fields that failed are missing.
+    assert client.health == {"disk_free_bytes": 5, "cpu_temp_c": 40.0}
+    assert not any("Heartbeat error" in r.message for r in caplog.records)
+    failed = [r for r in caplog.records if "offline queue" in r.message]
+    assert len(failed) == 1, "a read that keeps failing logs once"
+
+
+def test_failed_vitals_or_a_bad_shape_still_send_the_heartbeat():
+    client = _FakeClient([])
+    queue = {"queued_sightings": 1, "oldest_queued_age_seconds": 5.0, "dropped_since_boot": 0}
+
+    async def run():
+        task = asyncio.create_task(pi_main._heartbeat_loop(
+            client, 0, trigger_age=lambda: 2.0, backlog=lambda: queue,
+            vitals=lambda: ["not", "a", "dict"]))
+        while client.calls < 2:
+            await asyncio.sleep(0)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(run())
+    assert client.last["trigger_age_seconds"] == 2.0
+    assert client.health == queue
+
+
 def test_interval_stays_under_the_backend_warn_cutoff():
     # The backend marks a station "warn" after 5 silent minutes.
     assert Config().heartbeat_interval_seconds < 5 * 60
