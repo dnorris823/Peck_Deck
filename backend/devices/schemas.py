@@ -31,6 +31,11 @@ class DeviceHeartbeat:
     # Where the Pi's MediaMTX answers WHEP offers. A private IP literal only,
     # see backend/live/address.py. Omitting it clears the stored address.
     live_url: str | None = None
+    # Seconds since the camera trigger last analysed a frame. An age, not a
+    # time, so a Pi clock that drifts cannot make a dead trigger look alive.
+    # Omitting it means the trigger is not running, and the feed check skips
+    # the feeder.
+    trigger_age_seconds: float | None = None
 
 
 @dataclass
@@ -80,6 +85,20 @@ class TierMix:
 
 
 @dataclass
+class FeedStatus:
+    """Whether the feeder probably has feed. See backend/feed/monitor.py.
+
+    ``state`` is ``ok``, ``low`` or ``out``. ``changed_at`` is when it last
+    changed, and null for a feeder that was never low, out or refilled.
+    """
+
+    state: str
+    changed_at: str | None
+    last_refill_at: str | None
+    last_visit_at: str | None
+
+
+@dataclass
 class DeviceResponse:
     id: int
     name: str
@@ -98,6 +117,7 @@ class DeviceResponse:
     tier_mix: TierMix
     # A live_url is stored and the device is not offline. The URL stays private.
     live_available: bool
+    feed: FeedStatus
 
 
 @dataclass

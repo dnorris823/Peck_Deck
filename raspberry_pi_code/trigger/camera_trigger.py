@@ -119,6 +119,18 @@ class CameraTrigger(TriggerBase):
         self._clock = clock
         self._queue: asyncio.Queue[TriggerEvent] = asyncio.Queue()
         self._task: asyncio.Task | None = None
+        self._last_tick: float | None = None
+
+    def tick_age(self) -> float | None:
+        """Seconds since the last tick that analysed a frame. None before one.
+
+        The heartbeat reports it. The heartbeat proves the process is alive, and
+        this proves the trigger still watches. Without it, a crashed trigger
+        reads on the backend as a feeder with no visits, which is empty feed.
+        """
+        if self._last_tick is None:
+            return None
+        return max(0.0, self._clock() - self._last_tick)
 
     async def __aenter__(self) -> "CameraTrigger":
         if await self._camera.grab_gray() is None:
@@ -158,6 +170,7 @@ class CameraTrigger(TriggerBase):
         gray = await self._camera.grab_gray()
         if gray is None:
             return False
+        self._last_tick = self._clock()
         moved = self._motion.update(crop(gray, self._roi))
 
         # While a visit is open, run the detector even without motion. A bird

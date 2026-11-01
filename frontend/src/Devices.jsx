@@ -7,7 +7,7 @@ import { Empty } from "./Empty.jsx";
 import { SightingImage } from "./SightingImage.jsx";
 import {
   AV_COLORS, countSightingsBefore, createDevice, deleteDevice, deleteSightingsBefore,
-  fetchDeviceToken, fmtRelative, initials, rotateDeviceToken, tierInfo, updateDevice,
+  fetchDeviceToken, fmtRelative, initials, logRefill, rotateDeviceToken, tierInfo, updateDevice,
 } from "./data.js";
 import { canManageFeeder, useFeederAccess } from "./feederAccess.js";
 
@@ -133,6 +133,64 @@ function TierMix({ mix }) {
   );
 }
 
+/** "40 min", "3 h", "2 days", the way the backend's feed alert words it. */
+export function feedAgo(ms) {
+  const minutes = Math.floor(ms / 60000);
+  if (minutes < 60) return `${Math.max(minutes, 1)} min`;
+  const hours = Math.floor(minutes / 60);
+  return hours < 48 ? `${hours} h` : `${Math.floor(hours / 24)} days`;
+}
+
+/** The card's one plain line about the feed. Null when there is nothing to say. */
+export function feedLine(feed, now = Date.now()) {
+  if (!feed) return null;
+  const since = (t) => feedAgo(now - t.getTime());
+  if (feed.state === "out") {
+    return feed.lastVisitAt
+      ? `Feed may be out. Visits stopped about ${since(feed.lastVisitAt)} ago.`
+      : "Feed may be out.";
+  }
+  if (feed.state === "low") {
+    return feed.lastRefillAt
+      ? `Feed may be low. Refilled ${since(feed.lastRefillAt)} ago.`
+      : "Feed may be low.";
+  }
+  return feed.lastRefillAt ? `Refilled ${since(feed.lastRefillAt)} ago.` : null;
+}
+
+// The feed line, and the Refilled button for whoever manages the feeder. It
+// sits outside the card's open button, since a button cannot hold a button.
+function FeedRow({ d, canRefill, onRefilled }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  const line = feedLine(d.feedState);
+  if (!line && !canRefill) return null;
+
+  async function refill() {
+    setBusy(true);
+    setError(null);
+    try {
+      await logRefill(d.id);
+      await onRefilled();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className={`station-feed feed-${d.feedState?.state || "ok"}`}>
+      <span>{error ? `Couldn't log the refill: ${error}` : line || "No refill logged yet."}</span>
+      {canRefill && (
+        <button type="button" className="btn sm" onClick={refill} disabled={busy}>
+          {busy ? "Logging…" : "Refilled"}
+        </button>
+      )}
+    </div>
+  );
+}
+
 // mapDevice shows an empty city or feed type as "—". The form wants "".
 const blank = v => (v === "—" ? "" : v);
 
@@ -141,49 +199,52 @@ function locationText(d) {
     .filter(Boolean).join(" · ") || "No location set";
 }
 
-function DeviceListCard({ d, latest, onClick }) {
+function DeviceListCard({ d, latest, onClick, canRefill, onRefilled }) {
   return (
-    <button type="button" className="station-card" onClick={() => onClick(d)}>
-      <div className="station-shot">
-        {latest ? (
-          <>
-            {/* large: the card is 300 px wide or more, past what a thumbnail covers. */}
-            <SightingImage sighting={latest} large />
-            <span className="tile-badge tile-badge-l">Last capture · {fmtRelative(latest.datetime)}</span>
-          </>
-        ) : (
-          <div className="station-shot-empty">No captures yet</div>
-        )}
-      </div>
-      <div className="card-pad">
-        <div className="between">
-          <div>
-            <div className="device-name">{d.name}</div>
-            <div className="device-loc">{locationText(d)}</div>
-          </div>
-          <div className="station-card-status">
-            <DeviceStatus d={d} />
-            <Power source={d.powerSource} battery={d.battery} />
-          </div>
+    <div className="station-card">
+      <button type="button" className="station-card-open" onClick={() => onClick(d)}>
+        <div className="station-shot">
+          {latest ? (
+            <>
+              {/* large: the card is 300 px wide or more, past what a thumbnail covers. */}
+              <SightingImage sighting={latest} large />
+              <span className="tile-badge tile-badge-l">Last capture · {fmtRelative(latest.datetime)}</span>
+            </>
+          ) : (
+            <div className="station-shot-empty">No captures yet</div>
+          )}
         </div>
-        <div className="device-stats">
-          <div>
-            <div className="device-stat-num tnum">{d.todaySightings}</div>
-            <div className="device-stat-lbl">Today</div>
+        <div className="card-pad">
+          <div className="between">
+            <div>
+              <div className="device-name">{d.name}</div>
+              <div className="device-loc">{locationText(d)}</div>
+            </div>
+            <div className="station-card-status">
+              <DeviceStatus d={d} />
+              <Power source={d.powerSource} battery={d.battery} />
+            </div>
           </div>
-          <div>
-            <div className="device-stat-num tnum">{d.weekSightings}</div>
-            <div className="device-stat-lbl">7 days</div>
+          <div className="device-stats">
+            <div>
+              <div className="device-stat-num tnum">{d.todaySightings}</div>
+              <div className="device-stat-lbl">Today</div>
+            </div>
+            <div>
+              <div className="device-stat-num tnum">{d.weekSightings}</div>
+              <div className="device-stat-lbl">7 days</div>
+            </div>
+            <div>
+              <div className="device-stat-num tnum">{d.allTime.toLocaleString()}</div>
+              <div className="device-stat-lbl">All time</div>
+            </div>
           </div>
-          <div>
-            <div className="device-stat-num tnum">{d.allTime.toLocaleString()}</div>
-            <div className="device-stat-lbl">All time</div>
-          </div>
+          <TierMix mix={d.tierMix} />
+          <div className="station-seen">Last heard from {d.lastSeen}</div>
         </div>
-        <TierMix mix={d.tierMix} />
-        <div className="station-seen">Last heard from {d.lastSeen}</div>
-      </div>
-    </button>
+      </button>
+      <FeedRow d={d} canRefill={canRefill} onRefilled={onRefilled} />
+    </div>
   );
 }
 
@@ -607,7 +668,7 @@ function DeviceDetail({ d, onClose }) {
 
 export function DevicesPage() {
   const { data, reload } = useData();
-  const { DEVICES, SIGHTINGS } = data;
+  const { DEVICES, SIGHTINGS, ME } = data;
   // Newest capture with a photo per feeder; SIGHTINGS is newest-first.
   const latestBy = new Map();
   for (const s of SIGHTINGS) {
@@ -632,7 +693,10 @@ export function DevicesPage() {
 
       {DEVICES.length > 0 ? (
         <div className="station-grid">
-          {DEVICES.map(d => <DeviceListCard key={d.id} d={d} latest={latestBy.get(d.id)} onClick={d => setOpenId(d.id)} />)}
+          {DEVICES.map(d => (
+            <DeviceListCard key={d.id} d={d} latest={latestBy.get(d.id)} onClick={d => setOpenId(d.id)}
+              canRefill={!!ME && canManageFeeder(d, ME)} onRefilled={reload} />
+          ))}
         </div>
       ) : (
         <Empty

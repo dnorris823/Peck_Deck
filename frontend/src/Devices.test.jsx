@@ -17,12 +17,13 @@ vi.mock("./data.js", async (importOriginal) => ({
   rotateDeviceToken: vi.fn(),
   countSightingsBefore: vi.fn(),
   deleteSightingsBefore: vi.fn(),
+  logRefill: vi.fn(),
 }));
 
-import { DevicesPage, Power, tierMixText } from "./Devices.jsx";
+import { DevicesPage, Power, feedLine, tierMixText } from "./Devices.jsx";
 import {
   addFeederMember, countSightingsBefore, deleteDevice, deleteSightingsBefore, fetchDeviceToken,
-  fetchFeederAccess, removeFeederMember, rotateDeviceToken, updateDevice,
+  fetchFeederAccess, logRefill, removeFeederMember, rotateDeviceToken, updateDevice,
 } from "./data.js";
 
 const mix = (counts, more = {}) => ({
@@ -87,6 +88,59 @@ describe("Feeders", () => {
     expect(warnings).toHaveLength(1);
     expect(warnings[0].closest(".station-card")).toHaveTextContent("Porch");
     expect(warnings[0]).toHaveAttribute("title", "10 of 10 captures got no answer from the GPU server.");
+  });
+});
+
+describe("feedLine", () => {
+  const now = Date.parse("2026-11-01T12:00:00Z");
+  const hoursAgo = (h) => new Date(now - h * 3600000);
+
+  it("says the feed may be out, and when the visits stopped", () => {
+    const feed = { state: "out", lastVisitAt: hoursAgo(3.2), lastRefillAt: null };
+    expect(feedLine(feed, now)).toBe("Feed may be out. Visits stopped about 3 h ago.");
+  });
+
+  it("says the feed may be low, with the last refill", () => {
+    const feed = { state: "low", lastVisitAt: hoursAgo(0.1), lastRefillAt: hoursAgo(24 * 6) };
+    expect(feedLine(feed, now)).toBe("Feed may be low. Refilled 6 days ago.");
+  });
+
+  it("says nothing for ok feed with no refill on record", () => {
+    expect(feedLine({ state: "ok", lastVisitAt: null, lastRefillAt: null }, now)).toBeNull();
+    expect(feedLine(null, now)).toBeNull();
+  });
+});
+
+describe("Refilled button", () => {
+  const out = { state: "out", lastVisitAt: new Date(Date.now() - 3 * 3600000), lastRefillAt: null };
+
+  function show(me) {
+    mockData = {
+      SIGHTINGS: [], USERS: [], ME: me,
+      DEVICES: [{ ...feeder(7, "Maple", null), ownerId: 1, feedState: out }],
+    };
+    render(<DevicesPage />);
+  }
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it("shows the feed line on the card, and logs a refill for the owner", async () => {
+    logRefill.mockResolvedValue({});
+    show({ id: 1, role: "viewer" });
+    const line = screen.getByText("Feed may be out. Visits stopped about 3 h ago.");
+    expect(line.closest(".station-feed")).toHaveClass("feed-out");
+
+    fireEvent.click(screen.getByRole("button", { name: "Refilled" }));
+
+    await waitFor(() => expect(logRefill).toHaveBeenCalledWith(7));
+    // Logging the refill does not open the feeder's settings.
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("is not there for a member who does not manage the feeder", () => {
+    show({ id: 2, role: "viewer" });
+    expect(screen.getByText(/Feed may be out/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Refilled" })).toBeNull();
   });
 });
 

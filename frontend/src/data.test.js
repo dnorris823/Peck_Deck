@@ -32,7 +32,9 @@ function routeApiGet(overrides = {}) {
     "/devices": [
       { id: 10, name: "Backyard", city: "Austin", state: "TX",
         feed_type: "Sunflower", status: "online", battery: null, power_source: "mains", signal: "strong",
-        last_seen: new Date().toISOString(), today_sightings: 3, week_sightings: 20, all_time_sightings: 1500 },
+        last_seen: new Date().toISOString(), today_sightings: 3, week_sightings: 20, all_time_sightings: 1500,
+        feed: { state: "low", changed_at: "2026-10-31T09:00:00Z", last_refill_at: "2026-10-25T08:00:00Z",
+          last_visit_at: null } },
     ],
     "/users": [
       { id: 100, name: "Dominic Norris", email: "dom@peck.deck", role: "owner",
@@ -79,6 +81,10 @@ describe("loadAll", () => {
 
     const device = data.DEVICES[0];
     expect(device).toMatchObject({ id: 10, name: "Backyard", feed: "Sunflower", powerSource: "mains", battery: null });
+    expect(device.feedState).toEqual({
+      state: "low", changedAt: new Date("2026-10-31T09:00:00Z"),
+      lastRefillAt: new Date("2026-10-25T08:00:00Z"), lastVisitAt: null,
+    });
     expect(data.USERS[0]).toMatchObject({ id: 100, name: "Dominic Norris", av: "DN" });
   });
 

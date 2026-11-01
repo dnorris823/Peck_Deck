@@ -4,8 +4,24 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database.models import Device, DeviceUser, Sighting, User
+from ..database.models import (
+    Device,
+    DeviceOutage,
+    DeviceUser,
+    FeederRefill,
+    FeedSpell,
+    Sighting,
+    User,
+)
 from ..species.operations import is_bird_sighting
+
+# The backend calls a device offline after this long without hearing from it.
+OFFLINE_AFTER = timedelta(minutes=30)
+
+
+def as_utc(value: datetime) -> datetime:
+    """SQLite hands back naive datetimes. They are UTC."""
+    return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
 
 
 async def get_device(db: AsyncSession, device_id: int) -> Device | None:
@@ -92,6 +108,8 @@ async def delete_device(db: AsyncSession, device_id: int, *, with_sightings: boo
         return count
     await db.execute(delete(Sighting).where(Sighting.device_id == device_id))
     await db.execute(delete(DeviceUser).where(DeviceUser.device_id == device_id))
+    for feed_table in (FeederRefill, FeedSpell, DeviceOutage):
+        await db.execute(delete(feed_table).where(feed_table.device_id == device_id))
     await db.execute(delete(Device).where(Device.id == device_id))
     return count
 
@@ -207,6 +225,7 @@ async def update_device_telemetry(
     signal: str | None,
     live_url: str | None,
     power_source: str | None = None,
+    trigger_age_seconds: float | None = None,
 ) -> Device:
     if power_source is not None:
         device.power_source = power_source
@@ -218,11 +237,23 @@ async def update_device_telemetry(
         device.battery = battery
     if signal is not None:
         device.signal = signal
+    now = datetime.now(timezone.utc)
     # Unlike battery and signal, a missing live_url means "not streaming now".
     device.live_url = live_url
-    device.last_seen = datetime.now(timezone.utc)
+    # The same for the trigger tick. A Pi whose trigger never started sends none.
+    device.trigger_tick_at = (
+        None if trigger_age_seconds is None else now - timedelta(seconds=trigger_age_seconds)
+    )
+    _record_contact(db, device, now)
     await db.flush()
     return device
+
+
+def _record_contact(db: AsyncSession, device: Device, now: datetime) -> None:
+    """Set ``last_seen``, and log an outage if the device was offline."""
+    if device.last_seen is not None and now - as_utc(device.last_seen) > OFFLINE_AFTER:
+        db.add(DeviceOutage(device_id=device.id, started_at=as_utc(device.last_seen), ended_at=now))
+    device.last_seen = now
 
 
 async def mark_device_seen(db: AsyncSession, device_id: int) -> None:
@@ -233,7 +264,7 @@ async def mark_device_seen(db: AsyncSession, device_id: int) -> None:
     """
     device = await get_device(db, device_id)
     if device is not None:
-        device.last_seen = datetime.now(timezone.utc)
+        _record_contact(db, device, datetime.now(timezone.utc))
         await db.flush()
 
 

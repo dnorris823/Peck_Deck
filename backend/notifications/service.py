@@ -2,6 +2,7 @@ import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
+from html import escape
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -253,6 +254,57 @@ class NotificationService:
         if result.gone:
             dead_endpoints.append(sub.endpoint)
 
+
+
+async def send_feed_alert(device_id: int, title: str, body: str) -> None:
+    """Tell the feeder's owner that its feed is low or out.
+
+    Owner only, on the same email and push channels as a sighting. Not
+    throttled, because the feed monitor sends one alert per spell. Opens its
+    own session like ``dispatch`` and never raises.
+    """
+    try:
+        async with get_session_factory()() as db:
+            async with db.begin():
+                await _send_feed_alert(db, device_id, title, body)
+    except Exception:
+        logger.exception("Feed alert failed for device %d", device_id)
+
+
+async def _send_feed_alert(db: AsyncSession, device_id: int, title: str, body: str) -> None:
+    device = (await db.execute(select(Device).where(Device.id == device_id))).scalar_one_or_none()
+    if device is None:
+        return
+    owner = (await db.execute(select(User).where(User.id == device.owner_id))).scalar_one_or_none()
+    if owner is None:
+        return
+    subs = (await subscriptions_for_users(db, {owner.id}) if push_enabled() else {}).get(owner.id, [])
+
+    tasks = []
+    if owner.notify_email and owner.email:
+        html = (
+            f"<html><body><h2>{escape(title)}</h2><p>{escape(body)}</p>"
+            "<p>Tap Refilled on the feeder's card once it is full again.</p></body></html>"
+        )
+        tasks.append(send_email(to_email=owner.email, subject=f"Peck Deck: {title}", html_body=html))
+    payload = {
+        "title": title,
+        "body": body,
+        # One feed alert per feeder on the lock screen, apart from sightings.
+        "tag": f"peckdeck-feed-{device.id}",
+        "data": {"device_id": device.id, "url": "/?screen=feeders"},
+    }
+    tasks.extend(send_push(to_target(sub), payload) for sub in subs)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+
+    dead = []
+    for sub, result in zip(subs, results[len(tasks) - len(subs):]):
+        if isinstance(result, Exception):
+            logger.warning("Feed alert push failed: %s", result)
+        elif result.gone:
+            dead.append(sub.endpoint)
+    if dead:
+        await delete_endpoints(db, dead)
 
 
 from ..config import settings as _settings

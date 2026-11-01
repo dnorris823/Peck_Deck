@@ -106,6 +106,40 @@ GPU once the server answers again. The code is in `backend/sightings/recheck.py`
 Each pass that finds the server logs `tier2 recheck: server is up, re-checking
 N sightings`, then one line per sighting.
 
+## Feed alerts
+
+The API process checks every feeder once at startup and then every hour. The
+check warns the feeder's owner by email and push when the feed is probably low
+or out. The code is in `backend/feed/`.
+
+| Env var | Default | Effect |
+|---|---|---|
+| `FEED_ALERTS_ENABLED` | `true` | `false` starts no task and sends no feed alerts. |
+
+Two rules can raise an alert:
+
+| State | Rule | Ends at |
+|---|---|---|
+| `out` | The last 3 hours have at most a quarter of the visits the same 3 hours averaged over the past 14 days. The rule needs an average of 6 or more, so night hours stay silent. | The next refill, or visits back to half the average. |
+| `low` | Visits since the last refill reach 85% of the median visits per fill. The median needs 3 measured fills of the same feed type. | The next refill, or an `out` alert. |
+
+The owner gets one alert when a state starts, and none while it lasts.
+`GET /devices` returns the state in `feed`.
+
+The `out` rule does not run in these cases:
+
+- The feeder is offline, or came back from an outage less than 3 hours ago.
+  The backend logs each outage in `device_outages` when the device reaches it
+  again.
+- The Pi's heartbeat has no camera trigger tick from the last 10 minutes.
+- The owner logged a refill, and no check since has seen normal visits. Birds
+  can take days to find a refilled feeder.
+
+The 14-day average leaves out past windows that overlap an outage or an `out`
+spell. A feeder needs 7 usable days of visits before the rule runs. The numbers
+are first guesses. Tune them in `backend/feed/rules.py` once the Pi is at the
+window.
+
 ## Database migrations
 
 Schema is versioned with Alembic (`backend/migrations/`). The API container runs

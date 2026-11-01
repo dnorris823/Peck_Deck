@@ -63,6 +63,11 @@ class Settings:
     # different answers. See machine_learning/MODELS.md for the measurement.
     TIER2_ANIMAL_THRESHOLD: float = float(os.getenv("TIER2_ANIMAL_THRESHOLD", "0.30"))
 
+    # ── Feed alerts ───────────────────────────────────────────────────────────
+    # The hourly check that tells a feeder's owner when its feed is low or out.
+    # "false" turns it off. See backend/feed/monitor.py.
+    FEED_ALERTS_ENABLED: bool = os.getenv("FEED_ALERTS_ENABLED", "true").lower() == "true"
+
     # ── Environment ───────────────────────────────────────────────────────────
     # "development" | "production". Production refuses to start on insecure
     # defaults (see backend/main.py).

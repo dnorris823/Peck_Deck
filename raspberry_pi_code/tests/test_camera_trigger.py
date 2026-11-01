@@ -486,6 +486,29 @@ def test_zero_analysis_fps_is_rejected():
                       quiet_gap_seconds=15, analysis_fps=0)
 
 
+# ── Tick age, for the backend's feed check ────────────────────────────────────
+
+
+def test_tick_age_counts_from_the_last_analysed_frame():
+    clock = FakeClock()
+    trigger = _trigger(FakeCamera([_frame()]), FakeDetector(None), clock)
+    assert trigger.tick_age() is None
+
+    asyncio.run(trigger.step())
+    clock.now += 42
+    assert trigger.tick_age() == 42
+
+
+def test_no_frame_is_no_tick():
+    # A camera that stopped streaming must not look like a live trigger.
+    clock = FakeClock()
+    trigger = _trigger(FakeCamera([]), FakeDetector(), clock)
+
+    asyncio.run(trigger.step())
+
+    assert trigger.tick_age() is None
+
+
 # ── _build_trigger and the pipeline's lack of a repeat rule ───────────────────
 
 

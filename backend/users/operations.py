@@ -5,6 +5,7 @@ from ..auth.jwt_utils import hash_password, verify_password
 from ..database.models import (
     Device,
     DeviceUser,
+    FeederRefill,
     PushSubscription,
     Sighting,
     User,
@@ -110,13 +111,17 @@ async def delete_user(db: AsyncSession, user: User) -> None:
 
     The caller refuses a user who owns a feeder. The feeder's sightings hold
     the only copy of each image, so they must not go with the user. A
-    correction the user made keeps its species and loses only its author.
+    correction the user made keeps its species and loses only its author. So
+    does a refill they logged.
     """
     await db.execute(delete(DeviceUser).where(DeviceUser.user_id == user.id))
     await db.execute(delete(UserPreferences).where(UserPreferences.user_id == user.id))
     await db.execute(delete(PushSubscription).where(PushSubscription.user_id == user.id))
     await db.execute(
         update(Sighting).where(Sighting.corrected_by == user.id).values(corrected_by=None)
+    )
+    await db.execute(
+        update(FeederRefill).where(FeederRefill.user_id == user.id).values(user_id=None)
     )
     await db.delete(user)
     await db.flush()
