@@ -156,11 +156,14 @@ class NotificationService:
         tasks = []
         for user in users:
             prefs = prefs_by_user.get(user.id)
-            kind = (
-                await new_species.new_kind(db, sighting, species, user.id)
-                if decide_new else None
+            kinds = (
+                await new_species.new_kinds(
+                    db, sighting, species, user.id, after_recheck=after_recheck
+                )
+                if decide_new else []
             )
-            if new_species.wanted(kind, prefs, sighting.confidence_score):
+            kind = new_species.pick(kinds, prefs, sighting.confidence_score)
+            if kind is not None:
                 # The new species alert takes the place of the normal one. It
                 # skips the throttle and does not start it.
                 title = new_species.headline(kind, species.common_name, device.name)

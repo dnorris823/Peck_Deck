@@ -1,7 +1,7 @@
 """New species alerts. See backend/notifications/new_species.py.
 
-A bird sighting is new in one of three ways, and only the strongest counts:
-first ever, first at this feeder, first this year. The alert skips the bird
+A bird sighting is new in one of three ways: first ever, first at this feeder,
+first this year. The user gets the strongest kind they want. The alert skips the bird
 throttle and never starts it. "Unknown" and animals are never new. A sighting
 waiting for the Tier 2 re-check decides after it, and a person's correction
 sends nothing.
@@ -154,17 +154,54 @@ def test_a_feeder_the_user_cannot_see_does_not_count(client, monkeypatch):
 # ── Switches and the confidence floor ─────────────────────────────────────────
 
 
-def test_a_kind_switched_off_gets_the_normal_alert(client, monkeypatch):
+def test_first_ever_switched_off_falls_through_to_the_next_kind(client, monkeypatch):
     pushes, _ = _capture(monkeypatch)
     station = asyncio.run(_station({"notify_first_ever": False}))
     sid = asyncio.run(_sighting(asyncio.run(_bird("Hairy Woodpecker")), station["device_id"]))
 
     _dispatch(NotificationService(), sid, station["device_id"])
 
-    assert [p["title"] for p in pushes] == ["Hairy Woodpecker at Back Porch"]
+    assert [p["title"] for p in pushes] == ["New at Back Porch: Hairy Woodpecker"]
 
 
-def test_first_ever_below_the_floor_gets_the_normal_alert(client, monkeypatch):
+def test_a_lifer_falls_through_to_first_this_year(client, monkeypatch):
+    pushes, _ = _capture(monkeypatch)
+    station = asyncio.run(_station({"notify_first_ever": False, "notify_first_at_feeder": False}))
+    sid = asyncio.run(_sighting(asyncio.run(_bird("Snow Bunting")), station["device_id"]))
+
+    _dispatch(NotificationService(), sid, station["device_id"])
+
+    assert [p["title"] for p in pushes] == ["First this year: Snow Bunting at Back Porch"]
+
+
+def test_every_kind_switched_off_gets_the_normal_alert(client, monkeypatch):
+    pushes, _ = _capture(monkeypatch)
+    station = asyncio.run(_station({
+        "notify_first_ever": False, "notify_first_at_feeder": False,
+        "notify_first_this_year": False,
+    }))
+    sid = asyncio.run(_sighting(asyncio.run(_bird("Common Redpoll")), station["device_id"]))
+
+    _dispatch(NotificationService(), sid, station["device_id"])
+
+    assert [p["title"] for p in pushes] == ["Common Redpoll at Back Porch"]
+
+
+def test_a_kind_that_does_not_apply_is_never_sent(client, monkeypatch):
+    """Seen at this feeder last year, so first this year only. With that off,
+    the switch for first at this feeder must not send a false one."""
+    pushes, _ = _capture(monkeypatch)
+    station = asyncio.run(_station({"notify_first_this_year": False}))
+    bird = asyncio.run(_bird("White-throated Sparrow"))
+    asyncio.run(_sighting(bird, station["device_id"], when=LAST_YEAR))
+    sid = asyncio.run(_sighting(bird, station["device_id"]))
+
+    _dispatch(NotificationService(), sid, station["device_id"])
+
+    assert [p["title"] for p in pushes] == ["White-throated Sparrow at Back Porch"]
+
+
+def test_first_ever_below_the_floor_falls_through(client, monkeypatch):
     pushes, _ = _capture(monkeypatch)
     station = asyncio.run(_station())
     sid = asyncio.run(_sighting(
@@ -173,7 +210,7 @@ def test_first_ever_below_the_floor_gets_the_normal_alert(client, monkeypatch):
 
     _dispatch(NotificationService(), sid, station["device_id"])
 
-    assert [p["title"] for p in pushes] == ["Cape May Warbler at Back Porch"]
+    assert [p["title"] for p in pushes] == ["New at Back Porch: Cape May Warbler"]
 
 
 def test_the_floor_is_for_first_ever_only(client, monkeypatch):
@@ -201,6 +238,47 @@ def test_only_new_species_mutes_the_normal_alert(client, monkeypatch):
 
     assert [p["title"] for p in pushes] == ["New for Peck Deck: Blue Jay at Back Porch"]
     assert len(emails) == 1
+
+
+# ── Close sightings ───────────────────────────────────────────────────────────
+
+
+def test_two_close_sightings_do_not_hide_each_other(client, monkeypatch):
+    """Both rows exist before either alert runs, as with fire and forget. The
+    earlier one is new. The later one is not."""
+    pushes, _ = _capture(monkeypatch)
+    station = asyncio.run(_station())
+    bird = asyncio.run(_bird("Bay-breasted Warbler"))
+    first = asyncio.run(_sighting(bird, station["device_id"]))
+    second = asyncio.run(_sighting(bird, station["device_id"]))
+    svc = NotificationService()
+
+    _dispatch(svc, second, station["device_id"])
+    _dispatch(svc, first, station["device_id"])
+
+    assert [p["title"] for p in pushes] == [
+        "Bay-breasted Warbler at Back Porch",
+        "New for Peck Deck: Bay-breasted Warbler at Back Porch",
+    ]
+
+
+def test_close_sightings_at_two_feeders(client, monkeypatch):
+    pushes, _ = _capture(monkeypatch)
+    station = asyncio.run(_station())
+    other = asyncio.run(_second_feeder(station["user_id"]))
+    bird = asyncio.run(_bird("Cerulean Warbler"))
+    first = asyncio.run(_sighting(bird, station["device_id"]))
+    second = asyncio.run(_sighting(bird, other))
+
+    svc = NotificationService()
+
+    _dispatch(svc, second, other)
+    _dispatch(svc, first, station["device_id"])
+
+    assert [p["title"] for p in pushes] == [
+        "New at Front Yard: Cerulean Warbler",
+        "New for Peck Deck: Cerulean Warbler at Back Porch",
+    ]
 
 
 # ── The bird throttle ─────────────────────────────────────────────────────────
@@ -373,6 +451,24 @@ def test_the_recheck_sends_nothing_for_a_known_species(client, monkeypatch, rech
     assert pushes == [] and emails == [], "the upload already sent the normal alert"
 
 
+def test_after_the_recheck_a_later_sighting_counts(client, monkeypatch, recheck_on):
+    """The later sighting sent the first ever alert while this one waited. The
+    re-check must not send a second one."""
+    pushes, _ = _capture(monkeypatch)
+    station = asyncio.run(_station())
+    bird = asyncio.run(_bird("Philadelphia Vireo"))
+    waited = asyncio.run(_sighting(bird, station["device_id"], tier="local", pending=True,
+                                   trace=GPU_DOWN))
+    later = asyncio.run(_sighting(bird, station["device_id"]))
+    svc = NotificationService()
+
+    _dispatch(svc, later, station["device_id"])
+    asyncio.run(recheck._apply(waited, None, outcome="rejected"))
+    _dispatch(svc, waited, station["device_id"], after_recheck=True)
+
+    assert [p["title"] for p in pushes] == ["New for Peck Deck: Philadelphia Vireo at Back Porch"]
+
+
 def test_the_recheck_sends_no_animal_push(client, monkeypatch, recheck_on):
     pushes, _ = _capture(monkeypatch)
     station = asyncio.run(_station())
@@ -426,8 +522,9 @@ def test_a_correction_never_sends_a_push(client, monkeypatch):
     assert sent == []
 
 
-def test_wanted_needs_the_switch_and_the_floor():
-    assert new_species.wanted(None, None, 0.99) is False
-    assert new_species.wanted(new_species.FIRST_EVER, None, 0.70) is True
-    assert new_species.wanted(new_species.FIRST_EVER, None, 0.69) is False
-    assert new_species.wanted(new_species.FIRST_THIS_YEAR, None, 0.10) is True
+def test_pick_takes_the_strongest_wanted_kind():
+    every = [new_species.FIRST_EVER, new_species.FIRST_AT_FEEDER, new_species.FIRST_THIS_YEAR]
+    assert new_species.pick([], None, 0.99) is None
+    assert new_species.pick(every, None, 0.70) == new_species.FIRST_EVER
+    assert new_species.pick(every, None, 0.69) == new_species.FIRST_AT_FEEDER
+    assert new_species.pick([new_species.FIRST_THIS_YEAR], None, 0.10) == new_species.FIRST_THIS_YEAR

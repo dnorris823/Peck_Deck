@@ -51,19 +51,24 @@ species is new to the user. The code is in `backend/notifications/new_species.py
 | Kind | Rule | Title |
 |---|---|---|
 | `first_ever` | No feeder the user can see has recorded it. | New for Peck Deck: Pileated Woodpecker at Backyard |
-| `first_at_feeder` | This feeder has not recorded it, another has. | New at Backyard: Pileated Woodpecker |
+| `first_at_feeder` | This feeder has not recorded it. | New at Backyard: Pileated Woodpecker |
 | `first_this_year` | No feeder the user can see has recorded it since 1 January, UTC. | First this year: Pileated Woodpecker at Backyard |
 
-- Only the strongest kind that applies counts. If its switch is off, the
-  sighting gets the normal alert.
+- A first ever sighting is also the other two kinds. The user gets one alert,
+  for the strongest kind that applies and that they want. With every kind that
+  applies switched off, the sighting gets the normal alert.
+- At upload, only earlier sightings count as records. Two close sightings of a
+  new species can both reach the database before either alert runs, and each
+  would otherwise hide the other. After the re-check, later sightings count
+  too, because one may already have sent the alert.
 - The new species alert replaces the normal alert for that sighting. It skips
   the quiet interval and does not start it.
 - "Only new species" (`notify_new_species_only`) mutes the normal alerts. The
   new species alerts still go.
 - Only bird sightings count, through `is_bird_sighting()`. "Unknown" and animals
   are never new.
-- `first_ever` needs a confidence of 0.70 or more. Below it the sighting gets
-  the normal alert. At 0.70 Tier 2 accepts 2.1% of the test photos wrongly,
+- `first_ever` needs a confidence of 0.70 or more. Below it the next kind that
+  applies is sent instead. At 0.70 Tier 2 accepts 2.1% of the test photos wrongly,
   against 5.3% at 0.50 (`machine_learning/MODELS.md`).
 - A sighting waiting for the Tier 2 re-check decides after it. While the
   re-check is on, a pending sighting does not count as a record.

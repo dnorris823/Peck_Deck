@@ -1,11 +1,15 @@
 """Decide whether a bird sighting is a new species for one user.
 
-A sighting is new in one of three ways. Only the strongest that applies counts.
+A sighting is new in one of three ways, strongest first.
 
 1. ``first_ever``: no feeder the user can see has recorded this species.
-2. ``first_at_feeder``: this feeder has not recorded it, but another has.
+2. ``first_at_feeder``: this feeder has not recorded it.
 3. ``first_this_year``: no feeder the user can see has recorded it since
    1 January, UTC.
+
+A first ever sighting is also the other two. The user gets one alert, for the
+strongest kind that applies and that they want. So a user with "first ever" off
+still hears about a lifer, as first at this feeder.
 
 The new species alert skips the bird throttle and never starts it. Each kind has
 its own switch in the user's preferences.
@@ -18,9 +22,15 @@ Rules that keep the push honest:
   Tier 2 may change its species. While the re-check is on, a pending row does
   not count as a record either. Otherwise a Tier 1 fallback and a later Tier 2
   answer of the same species would each hide the other, and no push would go.
+- At upload, only earlier sightings count as records. Notifications are fire
+  and forget, so two close sightings of a new species can both be in the
+  database before either alert runs. Counting the later one would let each
+  hide the other.
+- After the re-check, every other sighting counts. A later one may already
+  have sent the alert while this one waited.
 - ``first_ever`` needs ``FIRST_EVER_MIN_CONFIDENCE``. A first ever push is rare
   and loud, and a wrong Tier 2 answer just over its 0.60 bar would make a false
-  one. Below the floor the sighting gets the normal alert.
+  one. Below the floor the next kind that applies is sent instead.
 """
 from datetime import datetime, timezone
 
@@ -66,12 +76,13 @@ def _names_a_bird(sighting: Sighting, species: Species) -> bool:
     return species.common_name.strip().lower() != _UNKNOWN
 
 
-async def new_kind(
-    db: AsyncSession, sighting: Sighting, species: Species, user_id: int
-) -> str | None:
-    """The strongest way this sighting is new for ``user_id``, or None."""
+async def new_kinds(
+    db: AsyncSession, sighting: Sighting, species: Species, user_id: int,
+    *, after_recheck: bool = False,
+) -> list[str]:
+    """Every way this sighting is new for ``user_id``, strongest first."""
     if not _names_a_bird(sighting, species):
-        return None
+        return []
 
     feeders = union(
         select(Device.id).where(Device.owner_id == user_id),
@@ -79,7 +90,8 @@ async def new_kind(
     )
     records = select(Sighting.id).where(
         Sighting.species_id == sighting.species_id,
-        Sighting.id != sighting.id,
+        # See the module docstring for why the upload counts earlier rows only.
+        Sighting.id != sighting.id if after_recheck else Sighting.id < sighting.id,
         Sighting.device_id.in_(feeders),
         is_bird_sighting(),
     )
@@ -92,31 +104,35 @@ async def new_kind(
         return (await db.execute(query.limit(1))).first() is None
 
     if await none_in(records):
-        return FIRST_EVER
+        return [FIRST_EVER, FIRST_AT_FEEDER, FIRST_THIS_YEAR]
+    kinds = []
     if await none_in(records.where(Sighting.device_id == sighting.device_id)):
-        return FIRST_AT_FEEDER
+        kinds.append(FIRST_AT_FEEDER)
     when = sighting.datetime
     # SQLite hands back naive datetimes. They are UTC, as stored.
     year = (when.astimezone(timezone.utc) if when.tzinfo else when).year
     new_year = datetime(year, 1, 1, tzinfo=timezone.utc)
     if await none_in(records.where(Sighting.datetime >= new_year)):
-        return FIRST_THIS_YEAR
-    return None
+        kinds.append(FIRST_THIS_YEAR)
+    return kinds
 
 
-def wanted(kind: str | None, prefs: UserPreferences | None, confidence: float) -> bool:
+def wanted(kind: str, prefs: UserPreferences | None, confidence: float) -> bool:
     """Whether the user gets a new species alert for ``kind``.
 
     The kind's switch must be on. A user with no preferences row has all three
     on. ``first_ever`` also needs the confidence floor.
     """
-    if kind is None:
-        return False
     if kind == FIRST_EVER and confidence < FIRST_EVER_MIN_CONFIDENCE:
         return False
     if prefs is None:
         return True
     return bool(getattr(prefs, f"notify_{kind}"))
+
+
+def pick(kinds: list[str], prefs: UserPreferences | None, confidence: float) -> str | None:
+    """The strongest kind in ``kinds`` the user wants, or None."""
+    return next((k for k in kinds if wanted(k, prefs, confidence)), None)
 
 
 def headline(kind: str, species_name: str, feeder_name: str) -> str:
