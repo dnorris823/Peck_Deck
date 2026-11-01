@@ -116,6 +116,11 @@ or out. The code is in `backend/feed/`.
 |---|---|---|
 | `FEED_ALERTS_ENABLED` | `true` | `false` starts no task and sends no feed alerts. |
 
+Visits are bird sightings only, through `is_bird_sighting()`. "Unknown" captures
+count, because their species row is a bird. Animal visits do not. A squirrel that
+keeps checking an empty feeder would otherwise hold the count up and hide `out`,
+and a raccoon at night would raise the night baseline.
+
 Two rules can raise an alert:
 
 | State | Rule | Ends at |
@@ -131,7 +136,11 @@ The `out` rule does not run in these cases:
 - The feeder is offline, or came back from an outage less than 3 hours ago.
   The backend logs each outage in `device_outages` when the device reaches it
   again.
-- The Pi's heartbeat has no camera trigger tick from the last 10 minutes.
+- The Pi's heartbeat has no camera trigger tick from the last 10 minutes. The
+  Pi sends `trigger_age_seconds`, the seconds since the trigger analysed a
+  frame, from `CameraTrigger.tick_age()`. Every analysed frame counts, whatever
+  the detector found. A heartbeat without the field means the trigger is not
+  running.
 - The owner logged a refill, and no check since has seen normal visits. Birds
   can take days to find a refilled feeder.
 

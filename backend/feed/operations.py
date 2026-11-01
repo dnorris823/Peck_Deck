@@ -1,4 +1,10 @@
-"""Feed state reads and writes: refills, spells, and the counts the rules need."""
+"""Feed state reads and writes: refills, spells, and the counts the rules need.
+
+Every visit count here is birds only, through ``is_bird_sighting``. A squirrel
+that keeps checking an empty feeder would hold the count up and hide "out", and
+a raccoon at night would raise the night baseline. An "Unknown" capture still
+counts, because its species row is a bird.
+"""
 from datetime import datetime
 
 from sqlalchemy import func, or_, select
@@ -6,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.models import Device, DeviceOutage, FeederRefill, FeedSpell, Sighting
 from ..devices.operations import as_utc
+from ..species.operations import is_bird_sighting
 from .rules import FORECAST_MAX_FILLS, Span, visits_per_fill
 
 
@@ -56,8 +63,8 @@ async def get_refills(db: AsyncSession, device_id: int) -> list[FeederRefill]:
 async def count_visits(
     db: AsyncSession, device_id: int, start: datetime, end: datetime | None = None
 ) -> int:
-    """Sightings of any tier in ``[start, end)``. "Unknown" captures count too."""
-    conditions = [Sighting.device_id == device_id, Sighting.datetime >= start]
+    """Bird sightings of any tier in ``[start, end)``."""
+    conditions = [Sighting.device_id == device_id, Sighting.datetime >= start, is_bird_sighting()]
     if end is not None:
         conditions.append(Sighting.datetime < end)
     return (await db.execute(select(func.count()).select_from(Sighting).where(*conditions))).scalar_one()
@@ -66,7 +73,7 @@ async def count_visits(
 async def visit_times(db: AsyncSession, device_id: int, since: datetime) -> list[datetime]:
     result = await db.execute(
         select(Sighting.datetime)
-        .where(Sighting.device_id == device_id, Sighting.datetime >= since)
+        .where(Sighting.device_id == device_id, Sighting.datetime >= since, is_bird_sighting())
         .order_by(Sighting.datetime)
     )
     return [as_utc(t) for t in result.scalars()]
@@ -74,14 +81,18 @@ async def visit_times(db: AsyncSession, device_id: int, since: datetime) -> list
 
 async def first_visit(db: AsyncSession, device_id: int) -> datetime | None:
     value = (
-        await db.execute(select(func.min(Sighting.datetime)).where(Sighting.device_id == device_id))
+        await db.execute(
+            select(func.min(Sighting.datetime)).where(Sighting.device_id == device_id, is_bird_sighting())
+        )
     ).scalar_one()
     return None if value is None else as_utc(value)
 
 
 async def last_visit(db: AsyncSession, device_id: int) -> datetime | None:
     value = (
-        await db.execute(select(func.max(Sighting.datetime)).where(Sighting.device_id == device_id))
+        await db.execute(
+            select(func.max(Sighting.datetime)).where(Sighting.device_id == device_id, is_bird_sighting())
+        )
     ).scalar_one()
     return None if value is None else as_utc(value)
 

@@ -18,7 +18,7 @@ from backend.feed import monitor
 from backend.feed.operations import log_refill
 from backend.feed.rules import VisitCheck, ago, visit_check, visits_per_fill
 from backend.notifications import service
-from backend.species.operations import get_or_create_species
+from backend.species.operations import ANIMAL, get_or_create_species
 from backend.tests.test_devices import _fresh_owner
 
 NOW = datetime.now(timezone.utc)
@@ -91,12 +91,19 @@ async def _feeder(*, last_seen=NOW, trigger_tick=NOW, notify_email=False) -> int
             return device.id
 
 
-async def _visit(device_id: int, times: list[datetime]) -> None:
+# Species for _visit. "Unknown" is what the Pi sends when no tier named the bird.
+CHICKADEE = {"common_name": "Feed Chickadee", "genus": "Poecile", "species_name": "atricapillus"}
+UNKNOWN = {"common_name": "Unknown", "genus": "Unknown", "species_name": "sp."}
+SQUIRREL = {"common_name": "Feed Gray Squirrel", "genus": "Sciurus", "species_name": "carolinensis",
+            "kind": ANIMAL, "animal_group": "squirrel"}
+RACCOON = {"common_name": "Feed Raccoon", "genus": "Procyon", "species_name": "lotor",
+           "kind": ANIMAL, "animal_group": "raccoon"}
+
+
+async def _visit(device_id: int, times: list[datetime], species: dict = CHICKADEE) -> None:
     async with get_session_factory()() as db:
         async with db.begin():
-            species = await get_or_create_species(
-                db, common_name="Feed Chickadee", genus="Poecile", species_name="atricapillus"
-            )
+            species = await get_or_create_species(db, **species)
             for t in times:
                 db.add(Sighting(
                     species_id=species.id, device_id=device_id, datetime=t,
@@ -168,6 +175,41 @@ def test_normal_morning_does_not_fire(client):
 
     assert asyncio.run(_check(device_id)) is None
     assert _feed(client, device_id)["state"] == "ok"
+
+
+def test_squirrels_at_an_empty_feeder_do_not_hide_out(client):
+    # The birds stopped. A squirrel keeps checking the empty feeder.
+    device_id = asyncio.run(_feeder())
+    asyncio.run(_visit(device_id, _busy_mornings(today=0)))
+    asyncio.run(_visit(device_id, [NOW - timedelta(minutes=14 * i + 5) for i in range(12)], SQUIRREL))
+
+    alert = asyncio.run(_check(device_id))
+
+    assert alert.state == "out"
+    # The last bird, not the last squirrel.
+    assert alert.line == "Feed may be out. Visits stopped about 24 h ago."
+    last = datetime.fromisoformat(_feed(client, device_id)["last_visit_at"])
+    assert NOW - last > timedelta(hours=24)
+
+
+def test_raccoons_at_night_do_not_raise_the_night_baseline(client):
+    # Busy birds 12 hours ago. Raccoons every night at this hour, but not tonight.
+    device_id = asyncio.run(_feeder())
+    asyncio.run(_visit(device_id, [t - timedelta(hours=12) for t in _busy_mornings()]))
+    nights = [t for t in _busy_mornings() if t < NOW - timedelta(hours=3)]
+    asyncio.run(_visit(device_id, nights, RACCOON))
+
+    assert asyncio.run(_check(device_id)) is None
+    assert asyncio.run(_spells(device_id)) == []
+
+
+def test_unknown_captures_count_as_bird_visits(client):
+    # No tier named today's birds. The camera still saw birds, so the feed is fine.
+    device_id = asyncio.run(_feeder())
+    asyncio.run(_visit(device_id, _busy_mornings(today=0)))
+    asyncio.run(_visit(device_id, [NOW - timedelta(minutes=14 * i + 5) for i in range(11)], UNKNOWN))
+
+    assert asyncio.run(_check(device_id)) is None
 
 
 def test_quiet_night_does_not_fire(client):
@@ -275,6 +317,28 @@ def test_forecast_warns_low_once_per_fill(client):
     assert alert.line == "Feed may be low. 9 visits since the last refill, and a fill usually lasts about 10."
     assert asyncio.run(_check(device_id, NOW + timedelta(hours=1))) is None
     assert _feed(client, device_id)["state"] == "low"
+
+
+def test_forecast_counts_birds_only(client):
+    device_id = asyncio.run(_feeder(trigger_tick=None))
+
+    async def fills():
+        async with get_session_factory()() as db:
+            async with db.begin():
+                device = await db.get(Device, device_id)
+                for days_back in (40, 30, 20, 10):
+                    await log_refill(db, device, device.owner_id, NOW - timedelta(days=days_back))
+        times = []
+        for start in (40, 30, 20):
+            times += [NOW - timedelta(days=start - 1, minutes=i) for i in range(10)]
+        await _visit(device_id, times)
+        # Squirrels since the last refill, and only 2 birds. Far from low.
+        await _visit(device_id, [NOW - timedelta(days=9, minutes=i) for i in range(30)], SQUIRREL)
+        await _visit(device_id, [NOW - timedelta(days=8, minutes=i) for i in range(2)])
+
+    asyncio.run(fills())
+
+    assert asyncio.run(_check(device_id)) is None
 
 
 def test_forecast_skips_fills_of_another_feed(client):

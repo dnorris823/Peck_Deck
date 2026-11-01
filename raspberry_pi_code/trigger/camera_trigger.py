@@ -15,6 +15,14 @@ lores and the main stream. The detector's box comes back in fractions of the
 crop, so the trigger maps it to the full frame before it hands it on.
 
 The visit rule is the only repeat rule. The pipeline applies none of its own.
+
+Each tick that gets a frame also sets the tick age, ``tick_age()``. The Pi sends
+it in every heartbeat as ``trigger_age_seconds``, and the backend's feed check
+skips a feeder whose tick is over 10 minutes old. See backend/feed/monitor.py.
+A tick means "a frame was analysed", whatever the detector found. That keeps
+the age true on a quiet feeder, and it must stay true if the trigger fires on
+more classes than birds. A trigger that stops ticking turns off the feeder's
+"out" alert, so a crashed trigger never reads as empty feed.
 """
 
 import asyncio
@@ -170,6 +178,8 @@ class CameraTrigger(TriggerBase):
         gray = await self._camera.grab_gray()
         if gray is None:
             return False
+        # Before the motion check and the detector, so every analysed frame
+        # counts, with or without motion or a detection of any class.
         self._last_tick = self._clock()
         moved = self._motion.update(crop(gray, self._roi))
 

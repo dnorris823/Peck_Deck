@@ -490,6 +490,8 @@ def test_zero_analysis_fps_is_rejected():
 
 
 def test_tick_age_counts_from_the_last_analysed_frame():
+    # A tick is any analysed frame, with no motion and no detection. The
+    # backend's feed check reads a stale age as a dead trigger.
     clock = FakeClock()
     trigger = _trigger(FakeCamera([_frame()]), FakeDetector(None), clock)
     assert trigger.tick_age() is None
