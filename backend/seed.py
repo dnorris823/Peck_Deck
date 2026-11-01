@@ -21,6 +21,7 @@ import secrets
 import sys
 from datetime import datetime, timedelta, timezone
 
+from .animals.groups import ensure_feeder_animals
 from .auth.jwt_utils import hash_password
 from .config import settings
 from .database.connection import create_tables, get_session_factory, init_db
@@ -226,6 +227,8 @@ async def seed() -> None:
                 print("Owner account already exists — skipping seed (use --force).")
                 return
             total = await seed_demo_data(db)
+            # The migration seeds these in production. create_tables does not.
+            await ensure_feeder_animals(db)
 
     print(f"Seeded {len(USERS)} users, {len(SPECIES)} species, "
           f"{len(DEVICES)} devices, {total} sightings.")

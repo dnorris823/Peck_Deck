@@ -12,6 +12,7 @@ export const NAV = [
   { id: "species", label: "Species", icon: "book" },
   { id: "history", label: "History", icon: "feather" },
   { id: "feeders", label: "Feeders", icon: "device" },
+  { id: "animals", label: "Animals", icon: "paw", more: true },
   { id: "users", label: "Users", icon: "users", more: true, owner: true },
   { id: "settings", label: "Settings", icon: "gear", more: true },
 ];

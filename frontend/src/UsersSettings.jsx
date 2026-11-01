@@ -15,6 +15,12 @@ import {
 import {
   checkRequired, checkEmail, checkPassword,
 } from "./validate.js";
+import { GROUPS } from "./animals.js";
+
+// How often one feeder may push about one animal group.
+export const ANIMAL_INTERVALS = [
+  [900, "15 minutes"], [1800, "30 minutes"], [3600, "1 hour"], [7200, "2 hours"], [21600, "6 hours"],
+];
 
 const SETTINGS_SECTIONS = [
   { id: "account", label: "Account" },
@@ -357,6 +363,25 @@ export function SettingsPage() {
                 help="When on, you'll only be alerted the first time a species shows up.">
                 <Toggle on={prefs.notify_new_species_only}
                   onChange={v => savePrefs({ notify_new_species_only: v })} />
+              </Field>
+
+              <Field label="Animal alerts"
+                help="A push when Tier 2 names an animal at your feeder. Push only, never email. Separate from bird alerts, so a squirrel never mutes a bird.">
+                <div className="animal-alerts" role="group" aria-label="Animal alerts">
+                  {GROUPS.map(g => (
+                    <div className="toggle-row" key={g.id}>
+                      <Toggle on={!!prefs.animal_alerts?.[g.id]}
+                        onChange={v => savePrefs({ animal_alerts: { [g.id]: v } })} />
+                      <div className="toggle-row-text"><div className="toggle-row-title">{g.label}</div></div>
+                    </div>
+                  ))}
+                </div>
+              </Field>
+
+              <Field label="Animal alert interval" help="At most one push per animal group per feeder this often.">
+                <SelectInput label="Interval" value={String(prefs.animal_quiet_interval_seconds ?? 1800)}
+                  onChange={v => savePrefs({ animal_quiet_interval_seconds: Number(v) })}
+                  options={ANIMAL_INTERVALS.map(([s, l]) => [String(s), l])} />
               </Field>
             </div>
           )}

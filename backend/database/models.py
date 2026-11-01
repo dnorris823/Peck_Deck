@@ -62,6 +62,15 @@ class UserPreferences(Base):
     quiet_interval_seconds: Mapped[int] = mapped_column(Integer, default=60)
     # Only alert the first time a species is seen.
     notify_new_species_only: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Animal push alerts, a map from animal group ("squirrel") to on or off. A
+    # group missing from the map, or a null map, takes the group's default from
+    # backend/animals/groups.py. Push only, never email.
+    animal_alerts: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Minimum seconds between animal pushes per (feeder, group). Kept apart from
+    # quiet_interval_seconds, so a squirrel never mutes a bird alert.
+    animal_quiet_interval_seconds: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=1800, server_default="1800"
+    )
 
     user: Mapped["User"] = relationship("User")
 
@@ -213,6 +222,25 @@ class DeviceOutage(Base):
     ended_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
+class FeederMeasure(Base):
+    """Something the owner did to keep animals off a feeder, such as a baffle.
+
+    ``ended_at`` is null while the measure lasts. The Animals view compares
+    animal visits in the 14 days before ``started_at`` with the days after.
+    """
+
+    __tablename__ = "feeder_measures"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    device_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("devices.id"), nullable=False, index=True
+    )
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    note: Mapped[str | None] = mapped_column(String, nullable=True)
+
+
 class Species(Base):
     __tablename__ = "species"
     __table_args__ = (UniqueConstraint("common_name", "genus", "species_name"),)
@@ -314,6 +342,9 @@ class Sighting(Base):
     crop_box: Mapped[list | None] = mapped_column(
         JSON().with_variant(JSONB(), "postgresql"), nullable=True
     )
+    # What made the Pi capture: "detector" for a detector hit, "motion" for the
+    # motion fallback. Null from a Pi build before the motion fallback.
+    trigger: Mapped[str | None] = mapped_column(String, nullable=True)
 
     species: Mapped["Species"] = relationship(
         "Species", back_populates="sightings", foreign_keys=[species_id]

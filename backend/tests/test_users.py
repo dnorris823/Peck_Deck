@@ -53,6 +53,11 @@ def test_preferences_defaults_then_update(client, viewer_headers):
     assert res.json() == {
         "quiet_interval_seconds": 60,
         "notify_new_species_only": False,
+        "animal_alerts": {
+            "squirrel": True, "raccoon": True, "bear": True, "cat": True,
+            "chipmunk": False, "rat": False, "rabbit": False, "opossum": False, "deer": False,
+        },
+        "animal_quiet_interval_seconds": 1800,
     }
 
     upd = client.put(

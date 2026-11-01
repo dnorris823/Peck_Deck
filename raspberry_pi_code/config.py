@@ -61,6 +61,24 @@ def _env_bool(name: str, default: bool) -> bool:
 
 FULL_FRAME: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0)
 
+# COCO classes the camera trigger fires on: bird, cat, dog and bear. COCO has no
+# squirrel, raccoon or opossum. They score as one of these about a third of the
+# time, see machine_learning/MODELS.md, *Feeder animals*.
+DEFAULT_ANIMAL_CLASS_IDS = (15, 16, 17, 22)
+
+
+def parse_class_ids(raw: str | None) -> tuple[int, ...]:
+    """Parse ANIMAL_CLASS_IDS: comma-separated COCO class numbers."""
+    if raw is None or not raw.strip():
+        return DEFAULT_ANIMAL_CLASS_IDS
+    try:
+        ids = tuple(int(part) for part in raw.split(",") if part.strip())
+    except ValueError:
+        raise ValueError(f"ANIMAL_CLASS_IDS must be COCO class numbers like 15,16, got {raw!r}") from None
+    if not ids or any(i < 0 for i in ids):
+        raise ValueError(f"ANIMAL_CLASS_IDS must be COCO class numbers like 15,16, got {raw!r}")
+    return ids
+
 
 def parse_roi(raw: str | None) -> tuple[float, float, float, float]:
     """Parse CAMERA_ROI: "x,y,width,height" as fractions of the frame.
@@ -162,6 +180,19 @@ class Config:
     )
     # TFLite interpreter threads for the bird detector. The Pi 5 has four cores.
     detector_threads: int = int(os.getenv("DETECTOR_THREADS", "4"))
+    # COCO classes that fire the trigger. Bird keeps its own visit, and every
+    # other class shares one, so a squirrel that camps never hides a bird.
+    animal_class_ids: tuple[int, ...] = field(
+        default_factory=lambda: parse_class_ids(os.getenv("ANIMAL_CLASS_IDS"))
+    )
+    # The motion fallback. Off by default. When motion in CAMERA_ROI lasts this
+    # long with no detection and no open visit, the trigger captures one frame
+    # marked trigger=motion. Tier 2 then names it or the Pi drops it. Wind,
+    # shadows and a swinging feeder move pixels too, so tune it on real footage.
+    camera_motion_capture: bool = _env_bool("CAMERA_MOTION_CAPTURE", False)
+    camera_motion_capture_seconds: float = float(
+        os.getenv("CAMERA_MOTION_CAPTURE_SECONDS", "3")
+    )
 
     # Camera
     image_width: int = int(os.getenv("IMAGE_WIDTH", "1920"))

@@ -262,3 +262,18 @@ def test_an_animal_sends_no_alert_and_never_mutes_the_next_bird(client, monkeypa
 
     asyncio.run(svc.dispatch(asyncio.run(_sighting(cardinal, station["device_id"])), station["device_id"]))
     assert emails == [station["email"]], "the squirrel must not start the bird throttle"
+
+
+def test_the_upload_keeps_what_made_the_pi_capture(client, monkeypatch):
+    _silence(monkeypatch)
+    station = asyncio.run(_station())
+
+    motion = _squirrel(client, station).json()
+    tagged = _upload(client, station, common=f"Jay {secrets.token_hex(3)}", sci="Cyanocitta cristata",
+                     trigger="motion").json()
+    odd = _upload(client, station, common=f"Jay {secrets.token_hex(3)}", sci="Cyanocitta cristata",
+                  trigger="pir").json()
+
+    assert motion["trigger"] is None  # an older Pi build sends none
+    assert tagged["trigger"] == "motion"
+    assert odd["trigger"] is None

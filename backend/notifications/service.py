@@ -17,12 +17,16 @@ from ..database.models import (
     User,
     UserPreferences,
 )
+from ..animals.groups import alert_on, alert_title
 from ..species.operations import BIRD
 from .email_sender import send_email
 from .push import delete_endpoints, subscriptions_for_users, to_target
 from .push_sender import push_enabled, send_push
 
 logger = logging.getLogger(__name__)
+
+# animal_quiet_interval_seconds for a user with no preferences row.
+DEFAULT_ANIMAL_INTERVAL = 1800
 
 
 @dataclass
@@ -42,6 +46,10 @@ class NotificationService:
     # Keyed by (user_id, device_id) — throttle each recipient independently
     # rather than muting an entire feeder after one recipient is notified.
     _last_notified: dict[tuple[int, int], float] = field(default_factory=dict)
+    # The animal throttle, keyed by (user_id, device_id, group). Separate from
+    # the bird one, so a squirrel that comes back every few minutes sends one
+    # push per animal_quiet_interval_seconds and never mutes a bird alert.
+    _last_animal: dict[tuple[int, int, str], float] = field(default_factory=dict)
 
     def _can_notify(self, user_id: int, device_id: int, interval: int) -> bool:
         last = self._last_notified.get((user_id, device_id))
@@ -57,6 +65,10 @@ class NotificationService:
 
     def _mark_notified(self, user_id: int, device_id: int) -> None:
         self._last_notified[(user_id, device_id)] = time.monotonic()
+
+    def _can_notify_animal(self, key: tuple[int, int, str], interval: int) -> bool:
+        last = self._last_animal.get(key)
+        return last is None or time.monotonic() - last >= interval
 
     async def dispatch(self, sighting_id: int, device_id: int) -> None:
         """Fire-and-forget entry point — open our own session so the request session lifecycle is irrelevant."""
@@ -86,9 +98,9 @@ class NotificationService:
 
         # An animal visit sends no bird alert. It must not count as a "new
         # species" or start the bird throttle, so a squirrel never mutes the
-        # cardinal that lands after it. Per-group animal alerts are not built yet.
+        # cardinal that lands after it. It gets its own per-group push.
         if species.kind != BIRD:
-            logger.debug("No alert for animal sighting %d (%s)", sighting_id, species.animal_group)
+            await self._send_animal(db, sighting, species, device)
             return
 
         sighting_count: int = (
@@ -100,28 +112,10 @@ class NotificationService:
             )
         ).scalar_one()
 
-        # Collect all recipients: device owner + added members (deduped)
-        owner = (
-            await db.execute(select(User).where(User.id == device.owner_id))
-        ).scalar_one_or_none()
-
-        member_rows = (
-            await db.execute(
-                select(User)
-                .join(DeviceUser, User.id == DeviceUser.user_id)
-                .where(DeviceUser.device_id == device_id)
-            )
-        ).scalars().all()
-
-        seen_ids: set[int] = set()
-        users: list[User] = []
-        for u in ([owner] if owner else []) + list(member_rows):
-            if u.id not in seen_ids:
-                seen_ids.add(u.id)
-                users.append(u)
-
+        users = await _recipients(db, device)
         if not users:
             return
+        seen_ids = {u.id for u in users}
 
         # Load each recipient's preferences in one query (missing rows → defaults).
         prefs_rows = (
@@ -191,6 +185,75 @@ class NotificationService:
             removed = await delete_endpoints(db, dead_endpoints)
             logger.info("Pruned %d dead push subscription(s)", removed)
 
+    async def _send_animal(
+        self, db: AsyncSession, sighting: Sighting, species: Species, device: Device
+    ) -> None:
+        """Push an animal visit to each recipient who has its group switched on.
+
+        Push only, never email. Throttled per (user, feeder, group) by
+        animal_quiet_interval_seconds. The tag is per feeder and group, so a
+        repeat replaces the last alert on the phone instead of stacking.
+        """
+        group = species.animal_group
+        if group is None or not push_enabled():
+            return
+        users = await _recipients(db, device)
+        if not users:
+            return
+        ids = {u.id for u in users}
+        prefs_by_user = {
+            p.user_id: p
+            for p in (
+                await db.execute(select(UserPreferences).where(UserPreferences.user_id.in_(ids)))
+            ).scalars()
+        }
+        subs_by_user = await subscriptions_for_users(db, ids)
+
+        location = " — ".join(filter(None, [device.city, device.state])) or "Unknown location"
+        delayed_note = " (delayed sync)" if sighting.delayed else ""
+        payload = {
+            "title": alert_title(group, device.name),
+            "body": (
+                f"{species.common_name} · {round(sighting.confidence_score * 100)}% confident"
+                f" · {location}{delayed_note}"
+            ),
+            "tag": f"peckdeck-device-{device.id}-animal-{group}",
+            "data": {
+                "sighting_id": sighting.id,
+                "species_id": species.id,
+                "device_id": device.id,
+                "url": f"/?sighting={sighting.id}",
+            },
+        }
+
+        sends = []
+        for user in users:
+            prefs = prefs_by_user.get(user.id)
+            if not alert_on(prefs.animal_alerts if prefs else None, group):
+                continue
+            subs = subs_by_user.get(user.id, [])
+            if not subs:
+                continue
+            key = (user.id, device.id, group)
+            interval = prefs.animal_quiet_interval_seconds if prefs else DEFAULT_ANIMAL_INTERVAL
+            if not self._can_notify_animal(key, interval):
+                logger.debug("Animal push throttled for user %d, device %d, %s", *key)
+                continue
+            self._last_animal[key] = time.monotonic()
+            sends.extend((sub, send_push(to_target(sub), payload)) for sub in subs)
+
+        if not sends:
+            return
+        results = await asyncio.gather(*(c for _, c in sends), return_exceptions=True)
+        dead = []
+        for (sub, _), result in zip(sends, results):
+            if isinstance(result, Exception):
+                logger.warning("Animal push failed: %s", result)
+            elif result.gone:
+                dead.append(sub.endpoint)
+        if dead:
+            await delete_endpoints(db, dead)
+
     async def _email(
         self, user: User, sighting: Sighting, species: Species,
         device: Device, count: int, location: str, delayed_note: str,
@@ -254,6 +317,27 @@ class NotificationService:
         if result.gone:
             dead_endpoints.append(sub.endpoint)
 
+
+
+async def _recipients(db: AsyncSession, device: Device) -> list[User]:
+    """The feeder's owner and members, owner first, each once."""
+    owner = (
+        await db.execute(select(User).where(User.id == device.owner_id))
+    ).scalar_one_or_none()
+    members = (
+        await db.execute(
+            select(User)
+            .join(DeviceUser, User.id == DeviceUser.user_id)
+            .where(DeviceUser.device_id == device.id)
+        )
+    ).scalars().all()
+    seen: set[int] = set()
+    users: list[User] = []
+    for u in ([owner] if owner else []) + list(members):
+        if u.id not in seen:
+            seen.add(u.id)
+            users.append(u)
+    return users
 
 
 async def send_feed_alert(device_id: int, title: str, body: str) -> None:

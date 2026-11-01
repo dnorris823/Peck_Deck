@@ -42,12 +42,20 @@ class UserResponse:
 class PreferencesResponse:
     quiet_interval_seconds: int
     notify_new_species_only: bool
+    # Every animal group with its push switch, the default where the user set
+    # none. Push only, no email.
+    animal_alerts: dict[str, bool] = field(default_factory=dict)
+    # Minimum seconds between animal pushes per feeder and group.
+    animal_quiet_interval_seconds: int = 1800
 
 
 @dataclass
 class UpdatePreferences:
     quiet_interval_seconds: int | None = None
     notify_new_species_only: bool | None = None
+    # Groups to switch. A group left out keeps its setting.
+    animal_alerts: dict[str, bool] | None = None
+    animal_quiet_interval_seconds: int | None = None
 
 
 @dataclass

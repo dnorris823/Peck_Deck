@@ -458,6 +458,27 @@ export async function rotateDeviceToken(deviceId) {
   return apiSend(`/devices/${deviceId}/token`, "POST", {});
 }
 
+// ── Animals ───────────────────────────────────────────────────────────────
+// Daily animal visits per group on one feeder, with its measures and their
+// effect. The last 60 days by default, in the viewer's time zone.
+export async function fetchAnimalStats(deviceId, zone = browserZone()) {
+  const params = new URLSearchParams({ device_id: String(deviceId), tz: zone });
+  return apiGet(`/stats/animals?${params}`);
+}
+
+// The measure routes are feeder owner or owner role only.
+export async function createMeasure(deviceId, body) {
+  return apiSend(`/devices/${deviceId}/measures`, "POST", body);
+}
+
+export async function updateMeasure(deviceId, measureId, patch) {
+  return apiSend(`/devices/${deviceId}/measures/${measureId}`, "PATCH", patch);
+}
+
+export async function deleteMeasure(deviceId, measureId) {
+  return apiDelete(`/devices/${deviceId}/measures/${measureId}`);
+}
+
 // Feeder owner or owner role only. Ends any low or out alert. Returns the feeder.
 export async function logRefill(deviceId) {
   return apiSend(`/devices/${deviceId}/refills`, "POST", {});

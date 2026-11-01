@@ -127,6 +127,7 @@ async def create_sighting(
     crop_box: list[int] | None = None,
     kind: str = BIRD,
     animal_group: str | None = None,
+    trigger: str | None = None,
 ) -> Sighting:
     species = await species_for_names(
         db, common_name, scientific_name, kind=kind, animal_group=animal_group
@@ -148,6 +149,7 @@ async def create_sighting(
         tier_trace=tier_trace,
         tier2_recheck=tier2_recheck,
         crop_box=crop_box,
+        trigger=trigger,
     )
     db.add(sighting)
     await db.flush()

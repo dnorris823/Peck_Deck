@@ -175,8 +175,23 @@ has species "Unknown" and tier `none`.
 Tier 2 also names the feeder mammals in `machine_learning/feeder_animals.csv`. When
 its best animal meets `TIER2_ANIMAL_THRESHOLD` (default 0.30) and beats its best
 bird, the Pi uploads an animal sighting and runs no other tier. The backend keeps
-animal sightings out of every bird count, and sends no alert for them yet. The
-threshold comes from the measurement in `machine_learning/MODELS.md`.
+animal sightings out of every bird count, and pushes per animal group (see
+*Animal visits* in `docs/operations.md`). The threshold comes from the
+measurement in `machine_learning/MODELS.md`.
+
+The camera trigger fires on the COCO classes in `ANIMAL_CLASS_IDS`, by default
+bird, cat, dog and bear. COCO has no squirrel class. A squirrel scores as one of
+those about a third of the time. Birds keep their own visit, and the other
+classes share one, so a squirrel that camps on the feeder never hides a bird.
+
+`CAMERA_MOTION_CAPTURE=true` turns on the motion fallback for the animals the
+detector misses. Motion in `CAMERA_ROI` that lasts `CAMERA_MOTION_CAPTURE_SECONDS`
+(default 3) with no detection and no open visit captures one frame, marked
+`trigger=motion`. Only Tier 2 classifies it. The Pi uploads it when Tier 2 names
+an animal, or a bird at its own threshold. Otherwise, and when Tier 2 is down, it
+drops the frame. This is the only capture the Pi drops. Wind, shadows and a
+swinging feeder move pixels too, so leave it off until footage from the window
+tunes it.
 
 ### Turn Tier 3 on
 

@@ -81,6 +81,10 @@ class FakeDetector:
         self.calls += 1
         return None if self.score is None else Detection(self.score, self.box)
 
+    def detections(self, rgb):
+        found = self.detect(rgb)
+        return [] if found is None else [found]
+
 
 class FakeInterpreter:
     """Minimal TFLite interpreter with detection post-process outputs."""
@@ -533,13 +537,18 @@ def test_camera_trigger_gets_the_configured_settings():
         camera_visit_gap_seconds=42,
         camera_analysis_fps=2,
         camera_detection_threshold=0.66,
+        animal_class_ids=(15, 16),
+        camera_motion_capture=True,
+        camera_motion_capture_seconds=7,
     )
 
     trigger = _build_trigger(cfg, FakeCamera())
 
-    assert trigger._visits._gap == 42
+    assert {g: v._gap for g, v in trigger._visits.items()} == {"bird": 42, "animal": 42}
     assert trigger._interval == pytest.approx(0.5)
     assert trigger._detector._threshold == 0.66
+    assert trigger._detector._class_ids == {15, 16}
+    assert (trigger._motion_capture, trigger._motion_capture_seconds) == (True, 7)
 
 
 @pytest.mark.parametrize("bad", ["", "Camera", "pir", "ir_beam", "motion"])

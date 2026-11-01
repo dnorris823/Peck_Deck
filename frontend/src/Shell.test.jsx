@@ -47,14 +47,14 @@ describe("navigation", () => {
     expect(screen.getByRole("button", { name: "Refresh data" })).toBeInTheDocument();
   });
 
-  it("keeps Users, Settings and sign out under More", () => {
+  it("keeps Animals, Users, Settings and sign out under More", () => {
     const setRoute = vi.fn();
     const onLogout = vi.fn();
     const onClose = vi.fn();
     render(<MoreMenu route="latest" setRoute={setRoute} onLogout={onLogout} onClose={onClose} />);
     const menu = screen.getByRole("menu", { name: "More" });
     expect(within(menu).getAllByRole("menuitem").map(b => b.textContent))
-      .toEqual(["Users", "Settings", "Sign out"]);
+      .toEqual(["Animals", "Users", "Settings", "Sign out"]);
 
     fireEvent.click(within(menu).getByRole("menuitem", { name: "Settings" }));
     expect(setRoute).toHaveBeenCalledWith("settings");
@@ -140,8 +140,8 @@ describe("initialRoute", () => {
 
 describe("owner-only screens", () => {
   it("leaves Users out of a viewer's More menu", () => {
-    expect(moreFor({ role: "viewer" }).map(n => n.id)).toEqual(["settings"]);
-    expect(moreFor({ role: "owner" }).map(n => n.id)).toEqual(["users", "settings"]);
+    expect(moreFor({ role: "viewer" }).map(n => n.id)).toEqual(["animals", "settings"]);
+    expect(moreFor({ role: "owner" }).map(n => n.id)).toEqual(["animals", "users", "settings"]);
   });
 
   it("sends a viewer who asks for Users to Latest", () => {

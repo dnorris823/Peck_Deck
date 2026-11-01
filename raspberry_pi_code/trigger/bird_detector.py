@@ -1,8 +1,12 @@
-"""COCO object detector, used only to answer "is there a bird in this frame".
+"""COCO object detector: is there a bird, or an animal, in this frame.
 
 The model is EfficientDet-Lite0 from `scripts/fetch_models.py`. It runs on the
 same TFLite runtime as Tier 1. It does not name the species. Tier 2 does that
 after the capture.
+
+COCO has no squirrel class. A squirrel scores as bird, cat, dog or bear about a
+third of the time (machine_learning/MODELS.md, *Feeder animals*), so the
+detector watches the classes in ``ANIMAL_CLASS_IDS``, not only bird.
 """
 
 import logging
@@ -19,10 +23,13 @@ logger = logging.getLogger(__name__)
 # COCO "bird", as the model numbers it. The model's labelmap.txt starts at
 # person = 0, so bird is line 16 and class 15. Check this if the model changes.
 BIRD_CLASS_ID = 15
+CAT_CLASS_ID = 16
+DOG_CLASS_ID = 17
+BEAR_CLASS_ID = 22
 
 
 class Detection(NamedTuple):
-    """The best bird in a frame.
+    """The best detection of one class in a frame.
 
     ``box`` is in fractions of the frame the detector was given. It is None
     when the model returned an empty box.
@@ -30,6 +37,7 @@ class Detection(NamedTuple):
 
     score: float
     box: Box | None
+    class_id: int = BIRD_CLASS_ID
 
 
 def _to_box(raw: np.ndarray) -> Box | None:
@@ -48,11 +56,20 @@ class BirdDetector:
     COCO models follow it.
     """
 
-    def __init__(self, model_path: str, score_threshold: float, num_threads: int = 4):
+    def __init__(
+        self,
+        model_path: str,
+        score_threshold: float,
+        num_threads: int = 4,
+        class_ids: tuple[int, ...] = (BIRD_CLASS_ID,),
+    ):
         if num_threads < 1:
             raise ValueError(f"DETECTOR_THREADS must be 1 or more, got {num_threads}")
+        if not class_ids:
+            raise ValueError("ANIMAL_CLASS_IDS must name at least one class")
         self._model_path = model_path
         self._threshold = score_threshold
+        self._class_ids = frozenset(class_ids)
         self._num_threads = num_threads
         self._interp = None
         self._input: dict | None = None
@@ -109,23 +126,35 @@ class BirdDetector:
         return self._interp is not None
 
     def detect(self, rgb: np.ndarray) -> Detection | None:
-        """Return the best bird at or above the threshold, else None.
+        """Return the best detection of a watched class at or above the threshold.
 
-        ``rgb`` is an (h, w, 3) uint8 frame of any size. Blocking: call it
-        through ``asyncio.to_thread``.
+        None when there is none. ``rgb`` is an (h, w, 3) uint8 frame of any
+        size. Blocking: call it through ``asyncio.to_thread``.
+        """
+        found = self.detections(rgb)
+        return found[0] if found else None
+
+    def detections(self, rgb: np.ndarray) -> list[Detection]:
+        """The best detection of each watched class at or above the threshold.
+
+        Best score first. The camera trigger keeps a visit per group, so it
+        needs the bird even when a squirrel scored higher. Blocking, like
+        ``detect``.
         """
         if self._interp is None:
-            return None
+            return []
 
         classes, scores = self._run(rgb)
-        birds = np.flatnonzero(classes == BIRD_CLASS_ID)
-        if birds.size == 0:
-            return None
-        best = int(birds[np.argmax(scores[birds])])
-        if float(scores[best]) < self._threshold:
-            return None
+        best: dict[int, int] = {}
+        for i, cls in enumerate(classes.tolist()):
+            if cls in self._class_ids and scores[i] >= self._threshold:
+                if cls not in best or scores[i] > scores[best[cls]]:
+                    best[cls] = i
+        if not best:
+            return []
         boxes = np.asarray(self._interp.get_tensor(self._boxes["index"])).reshape(-1, 4)
-        return Detection(float(scores[best]), _to_box(boxes[best]))
+        found = [Detection(float(scores[i]), _to_box(boxes[i]), cls) for cls, i in best.items()]
+        return sorted(found, key=lambda d: -d.score)
 
     def scores_by_class(self, rgb: np.ndarray) -> dict[int, float]:
         """The best score for every COCO class the model reported, any score.

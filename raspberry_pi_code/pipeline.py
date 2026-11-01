@@ -39,6 +39,9 @@ class Capture:
     # The trigger's bird box, in fractions of the frame. The classifiers see a
     # crop around it. The sighting keeps the full frame.
     box: Box | None = None
+    # "detector", or "motion" for the motion fallback. A motion capture is the
+    # only one the Pi may drop, because the camera never said "bird".
+    trigger: str = "detector"
 
 
 class Pipeline:
@@ -107,10 +110,11 @@ class Pipeline:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    async def handle_trigger(self, box: Box | None = None) -> None:
+    async def handle_trigger(self, box: Box | None = None, trigger: str = "detector") -> None:
         """Take the photo for one visit and hand it to ``run_classifier``.
 
         ``box`` is where the trigger saw the bird, from ``TriggerEvent.box``.
+        ``trigger`` is ``TriggerEvent.trigger``.
 
         A trigger that fires during another capture waits for the camera. It
         used to be skipped, and the old lock covered classify and upload too, so
@@ -118,7 +122,7 @@ class Pipeline:
         """
         async with self._capture_lock:
             capture = await self._capture()
-        self._submit(replace(capture, box=box))
+        self._submit(replace(capture, box=box, trigger=trigger))
 
     async def run_classifier(self) -> None:
         """Classify and upload captures one at a time, in visit order. Runs forever.
@@ -164,6 +168,7 @@ class Pipeline:
                 crop_box=sighting.crop_box,
                 delayed=True,
                 animal_group=sighting.animal_group,
+                trigger=sighting.trigger,
             )
             if outcome is UploadOutcome.OK:
                 self._cache.remove(sighting.id)
@@ -213,6 +218,13 @@ class Pipeline:
         except asyncio.QueueFull:
             pass
 
+        if capture.trigger == "motion":
+            # Only Tier 2 may keep a motion capture. Queued unclassified, it
+            # would upload as "Unknown", which the camera never vouched for.
+            logger.warning("Classify queue is full. Dropping motion capture %s", capture.event_id)
+            self._drop(capture)
+            return
+
         # The worker is far behind, most likely on Tier 2 timeouts. Put the
         # photo in the offline queue unclassified rather than lose the visit.
         # The sync loop uploads it as "Unknown".
@@ -230,12 +242,19 @@ class Pipeline:
         event_id = capture.event_id
         image_path = capture.image_path
 
-        crop_path, crop_box = await self._crop_for_classifiers(capture)
-        try:
-            result, trace = await self._classify(crop_path or image_path)
-        finally:
-            if crop_path is not None:
-                crop_path.unlink(missing_ok=True)
+        if capture.trigger == "motion":
+            crop_box = None
+            result, trace = await self._classify_motion(image_path)
+            if result is None:
+                self._drop(capture)
+                return
+        else:
+            crop_path, crop_box = await self._crop_for_classifiers(capture)
+            try:
+                result, trace = await self._classify(crop_path or image_path)
+            finally:
+                if crop_path is not None:
+                    crop_path.unlink(missing_ok=True)
         if result is None:
             # The trigger already decided this is a visit, so keep it. A tier
             # outage must not lose sightings. It uploads, or queues, as "Unknown".
@@ -263,6 +282,7 @@ class Pipeline:
             crop_box=crop_box,
             delayed=False,
             animal_group=result.animal_group,
+            trigger=capture.trigger,
         )
 
         if outcome is UploadOutcome.REJECTED:
@@ -329,8 +349,49 @@ class Pipeline:
                 tier_trace=_trace_json(trace),
                 crop_box=crop_box,
                 animal_group=result.animal_group,
+                trigger=capture.trigger,
             )
         )
+
+    def _drop(self, capture: Capture) -> None:
+        """Delete a motion capture nobody named. It never reaches the backend."""
+        capture.image_path.unlink(missing_ok=True)
+        self._in_flight.discard(capture.image_path)
+
+    async def _classify_motion(
+        self, image_path: Path
+    ) -> tuple[ClassificationResult | None, list[TierAttempt]]:
+        """Tier 2 alone, for a motion capture. None means drop it.
+
+        It keeps a capture Tier 2 names as an animal, by the same rule as the
+        chain, or as a bird at Tier 2's own bar. Anything else is wind or a
+        shadow. Tier 1 knows birds only and would name a bird in a swinging
+        feeder, so a motion capture with Tier 2 down is dropped too.
+        """
+        threshold = self._cfg.threshold_for("gpu")
+        result = await self._tier2.classify(image_path)
+        if result is None:
+            logger.info("Tier 2 did not answer for a motion capture. Dropping it")
+            return None, [TierAttempt("gpu", "failed", None, threshold)]
+        animal = self._winning_animal(result)
+        if animal is not None:
+            logger.info("Motion capture is an animal: %s (%s, %.2f)",
+                        animal.common_name, animal.animal_group, animal.confidence)
+            return animal, [TierAttempt("gpu", "accepted", animal.confidence,
+                                        self._cfg.tier2_animal_threshold)]
+        if result.confidence >= threshold:
+            logger.info("Motion capture is a bird the detector missed: %s (%.2f)",
+                        result.common_name, result.confidence)
+            return replace(result, animal=None), [
+                TierAttempt("gpu", "accepted", result.confidence, threshold)
+            ]
+        logger.info(
+            "Motion capture named neither an animal nor a bird (bird %.2f, animal %s). "
+            "Dropping it",
+            result.confidence,
+            "none" if result.animal is None else f"{result.animal.confidence:.2f}",
+        )
+        return None, [TierAttempt("gpu", "below_threshold", result.confidence, threshold)]
 
     def _classifiers_for_preference(self) -> list[ClassifierBase]:
         pref = self._cfg.tier_preference
