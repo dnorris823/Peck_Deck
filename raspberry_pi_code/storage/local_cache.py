@@ -3,6 +3,7 @@ import logging
 import uuid
 from collections.abc import Iterable
 from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -43,6 +44,9 @@ class LocalCache:
         self._queue_file = self._root / "queue.json"
         self._max = max_images
         self._max_queued = max_queued
+        # Sightings lost since this process started, for the heartbeat. A full
+        # queue pushing one out counts, and so does ``discard``.
+        self.dropped = 0
 
     def setup(self) -> None:
         self._images.mkdir(parents=True, exist_ok=True)
@@ -107,11 +111,34 @@ class LocalCache:
                 self._max_queued, dropped["id"], dropped["timestamp"],
             )
             Path(dropped["image_path"]).unlink(missing_ok=True)
+            self.dropped += 1
 
         self._write(queue)
 
     def get_pending(self) -> list[QueuedSighting]:
         return [QueuedSighting(**item) for item in self._read()]
+
+    def backlog(self, now: datetime | None = None) -> tuple[int, float | None]:
+        """The queue length, and the age in seconds of the oldest queued capture.
+
+        The age is None for an empty queue, or a timestamp that will not parse.
+        """
+        queue = self._read()
+        if not queue:
+            return 0, None
+        now = now or datetime.now(timezone.utc)
+        try:
+            oldest = min(datetime.fromisoformat(r["timestamp"]) for r in queue)
+        except (KeyError, TypeError, ValueError):
+            return len(queue), None
+        if oldest.tzinfo is None:
+            oldest = oldest.replace(tzinfo=timezone.utc)
+        return len(queue), max((now - oldest).total_seconds(), 0.0)
+
+    def discard(self, sighting_id: str) -> None:
+        """Remove a queued sighting that will never upload, and count the loss."""
+        self.remove(sighting_id)
+        self.dropped += 1
 
     def remove(self, sighting_id: str) -> None:
         self._write([r for r in self._read() if r["id"] != sighting_id])

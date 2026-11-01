@@ -140,6 +140,19 @@ class Pipeline:
                 self._in_flight.discard(capture.image_path)
                 self._work.task_done()
 
+    def backlog(self) -> dict:
+        """The offline queue and the losses since start, as heartbeat fields.
+
+        Reads the queue file on the event loop, like every other queue access,
+        so it never sees a half-written file.
+        """
+        queued, oldest_age = self._cache.backlog()
+        return {
+            "queued_sightings": queued,
+            "oldest_queued_age_seconds": oldest_age,
+            "dropped_since_boot": self._cache.dropped,
+        }
+
     async def sync_offline_queue(self) -> None:
         """Flush queued sightings to the backend when connectivity is restored."""
         pending = self._cache.get_pending()
@@ -154,7 +167,7 @@ class Pipeline:
             img = Path(sighting.image_path)
             if not img.exists():
                 logger.warning("Queued image missing (%s) — dropping", img.name)
-                self._cache.remove(sighting.id)
+                self._cache.discard(sighting.id)
                 continue
 
             outcome = await self._client.post_sighting(
@@ -178,7 +191,7 @@ class Pipeline:
                     "rather than retrying forever",
                     sighting.id,
                 )
-                self._cache.remove(sighting.id)
+                self._cache.discard(sighting.id)
             elif outcome is UploadOutcome.UNAUTHORIZED:
                 # Every remaining item carries the same token, so the rest of
                 # this pass would just be 401s. Stop and keep the backlog.
@@ -290,6 +303,7 @@ class Pipeline:
                 "Backend rejected sighting %s outright — discarding (retrying cannot help)",
                 event_id,
             )
+            self._cache.dropped += 1
             return
 
         if outcome is not UploadOutcome.OK:

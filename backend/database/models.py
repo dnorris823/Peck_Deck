@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     Float,
@@ -139,6 +140,17 @@ class Device(Base):
     trigger_tick_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    # The Pi's offline queue and vitals, from the latest heartbeat. Each is null
+    # when the last heartbeat sent none, as from a Pi on older code.
+    queued_sightings: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # When the oldest queued sighting was captured, from the age the Pi sent.
+    oldest_queued_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # Sightings the Pi lost since it started. See LocalCache.dropped on the Pi.
+    dropped_since_boot: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    disk_free_bytes: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    cpu_temp_c: Mapped[float | None] = mapped_column(Float, nullable=True)
     # False from a refill until a feed check sees normal visits again. Birds
     # can take days to find a refilled feeder, and the visit-drop rule must not
     # call that empty feed. See backend/feed/monitor.py.

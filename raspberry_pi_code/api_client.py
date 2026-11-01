@@ -154,6 +154,11 @@ class BackendClient:
         power_source: str | None = None,
         signal: str | None = None,
         trigger_age_seconds: float | None = None,
+        queued_sightings: int | None = None,
+        oldest_queued_age_seconds: float | None = None,
+        dropped_since_boot: int | None = None,
+        disk_free_bytes: int | None = None,
+        cpu_temp_c: float | None = None,
     ) -> UploadOutcome:
         """Tell the backend this station is up, and where its live video is.
 
@@ -170,12 +175,27 @@ class BackendClient:
         ``trigger_age_seconds`` is how long ago the camera trigger analysed a
         frame. None leaves it out, and the backend then treats the trigger as
         stopped and skips the feeder's feed check.
+
+        The offline queue and the vitals are left out when None, and the backend
+        then clears them. The feeder card shows the queue, and warns on drops,
+        low disk and heat.
         """
         fields = {"live_url": live_url, "power_source": power_source, "signal": signal}
         body = {k: v for k, v in fields.items() if v}
         if trigger_age_seconds is not None:
             # Not in the filter above. An age of 0.0 is falsy and still valid.
             body["trigger_age_seconds"] = round(trigger_age_seconds, 1)
+        # Zero is a real reading for each of these, so the test is None.
+        numbers = {
+            "queued_sightings": queued_sightings,
+            "oldest_queued_age_seconds": (
+                None if oldest_queued_age_seconds is None else round(oldest_queued_age_seconds, 1)
+            ),
+            "dropped_since_boot": dropped_since_boot,
+            "disk_free_bytes": disk_free_bytes,
+            "cpu_temp_c": cpu_temp_c,
+        }
+        body.update({k: v for k, v in numbers.items() if v is not None})
         try:
             async with aiohttp.ClientSession(timeout=self._short_timeout) as session:
                 async with session.post(

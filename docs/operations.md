@@ -201,6 +201,30 @@ The backend keeps its own copy of the list in `backend/animals/groups.py`, for
 the dev seed and the tests, because the image holds only `backend/`. A test keeps
 it equal to the CSV.
 
+## Pi backlog and vitals
+
+Each heartbeat carries the Pi's offline queue and two vitals. The Feeders card
+shows them. All five fields are optional, so an older Pi still sends a valid
+heartbeat.
+
+| Field | What it is |
+|---|---|
+| `queued_sightings` | Sightings in the offline queue, waiting to upload |
+| `oldest_queued_age_seconds` | Age of the oldest. The backend stores an instant |
+| `dropped_since_boot` | Sightings lost since the Pi started |
+| `disk_free_bytes` | Free space on the file system under `CACHE_DIR` |
+| `cpu_temp_c` | From `/sys/class/thermal/thermal_zone0/temp` |
+
+A drop is a real loss: a sighting the backend refused for good, a queued
+sighting whose image is gone, or the oldest one pushed out of a full queue. A
+motion capture that Tier 2 could not name is not a drop.
+
+Each heartbeat replaces all five values. A missing one clears, so the card never
+shows a stale queue. The card says "14 waiting to upload, oldest 3 h" while the
+queue is not empty. It warns on any drop, under 1 GB free, or 80 °C and over.
+The limits are `DISK_WARN_BYTES` and `CPU_TEMP_WARN_C` in
+`backend/devices/operations.py`. None of this changes the feeder's status.
+
 ## Database migrations
 
 Schema is versioned with Alembic (`backend/migrations/`). The API container runs
