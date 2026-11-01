@@ -11,7 +11,7 @@ import {
   loadAll, saveMe, savePreferences, fetchSighting,
   fmtRelative, fmtTime, fmtDateFull,
   confidenceLevel, countToday, toLocalGrid, fmtDayHeading,
-  speciesCountsPath,
+  speciesCountsPath, isBirdSighting,
 } from "./data.js";
 
 // Route each apiGet(path) call to a fixture keyed by path.
@@ -91,6 +91,29 @@ describe("loadAll", () => {
     expect(sparse.silhouette).toBe("songbird");
     expect(sparse.wiki).toBeNull();
     expect(sparse.ebird).toBeNull();
+    // A backend from before animals sends no kind. Every row it has is a bird.
+    expect(sparse).toMatchObject({ kind: "bird", animalGroup: null });
+  });
+
+  it("maps an animal species and tells its sightings from birds", async () => {
+    routeApiGet({
+      "/species": [
+        { id: 1, common_name: "Northern Cardinal", genus: "Cardinalis", species_name: "cardinalis",
+          kind: "bird", animal_group: null },
+        { id: 5, common_name: "Eastern Gray Squirrel", genus: "Sciurus", species_name: "carolinensis",
+          kind: "animal", animal_group: "squirrel" },
+      ],
+      "/sightings?limit=100": [
+        { id: 2001, species_id: 5, device_id: 10, datetime: "2026-07-19T12:10:00Z",
+          confidence_score: 0.81, classification_tier_used: "gpu", has_image: true },
+        { id: 2000, species_id: 1, device_id: 10, datetime: "2026-07-19T12:00:00Z",
+          confidence_score: 0.95, classification_tier_used: "gpu", has_image: true },
+      ],
+    });
+    const data = await loadAll();
+
+    expect(data.SPECIES.find((s) => s.id === 5)).toMatchObject({ kind: "animal", animalGroup: "squirrel" });
+    expect(data.SIGHTINGS.map(isBirdSighting)).toEqual([false, true]);
   });
 
   it("drops sightings whose species or device can't be resolved", async () => {

@@ -27,6 +27,11 @@ class Settings:
     TAXONOMY_PATH: str = os.getenv(
         "TAXONOMY_PATH", str(_ROOT / "machine_learning" / "taxonomy.csv")
     )
+    # Feeder mammals Tier 2 may name, each with its animal group. Hand-kept, and
+    # separate from taxonomy.csv, whose row order is Tier 1's index contract.
+    ANIMALS_PATH: str = os.getenv(
+        "ANIMALS_PATH", str(_ROOT / "machine_learning" / "feeder_animals.csv")
+    )
     # input image size expected by the model (square)
     IMAGE_SIZE: int = int(os.getenv("IMAGE_SIZE", "380"))
     # "cuda", "cuda:0", or "cpu"

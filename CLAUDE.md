@@ -105,6 +105,13 @@ scientific name, and 869 of them map. That is what makes the two answers
 comparable. Row order **is** the index contract. Regenerate the file, never
 hand-edit it.
 
+**Tier 2 also names feeder animals**, from `machine_learning/feeder_animals.csv`.
+The animal wins when it meets `TIER2_ANIMAL_THRESHOLD` and beats the best bird.
+The Pi then uploads `kind=animal` with the group, and runs neither Tier 1 nor
+Tier 3. The backend stores it as a sighting whose species has `kind = 'animal'`.
+**Every bird count filters on `is_bird_sighting()`** in `backend/species/operations.py`.
+A new bird stat that forgets it counts squirrels as birds, silently.
+
 Accuracy claims belong in `machine_learning/MODELS.md` under *Measured accuracy*.
 Measure one tier with `scripts/validate_tiers.py` and the whole chain with
 `scripts/simulate_tier_chain.py`. A misaligned taxonomy scores near zero there.

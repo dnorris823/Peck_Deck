@@ -100,8 +100,9 @@ class Pipeline:
         # answers reach the user unchallenged, and until now nothing said out
         # loud what they were.
         logger.info(
-            "Escalation thresholds: local=%.2f gpu=%.2f cloud=%.2f",
+            "Escalation thresholds: local=%.2f gpu=%.2f cloud=%.2f, Tier 2 animal=%.2f",
             *(self._cfg.threshold_for(t) for t in ("local", "gpu", "cloud")),
+            self._cfg.tier2_animal_threshold,
         )
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -162,6 +163,7 @@ class Pipeline:
                 tier_trace=sighting.tier_trace,
                 crop_box=sighting.crop_box,
                 delayed=True,
+                animal_group=sighting.animal_group,
             )
             if outcome is UploadOutcome.OK:
                 self._cache.remove(sighting.id)
@@ -260,6 +262,7 @@ class Pipeline:
             tier_trace=_trace_json(trace),
             crop_box=crop_box,
             delayed=False,
+            animal_group=result.animal_group,
         )
 
         if outcome is UploadOutcome.REJECTED:
@@ -325,6 +328,7 @@ class Pipeline:
                 tier_used=result.tier_used,
                 tier_trace=_trace_json(trace),
                 crop_box=crop_box,
+                animal_group=result.animal_group,
             )
         )
 
@@ -374,6 +378,23 @@ class Pipeline:
                 trace.append(TierAttempt(clf.tier_name, "failed", None, threshold))
                 continue
 
+            # A squirrel ends the chain here. Tier 1 knows birds only and would
+            # name a bird, and Tier 3 costs money.
+            animal = self._winning_animal(result)
+            if animal is not None:
+                logger.info(
+                    "Tier '%s' named an animal: %s (%s, %.2f, bird answer %.2f)",
+                    clf.tier_name, animal.common_name, animal.animal_group,
+                    animal.confidence, result.confidence,
+                )
+                trace.append(
+                    TierAttempt(
+                        clf.tier_name, "accepted", animal.confidence,
+                        self._cfg.tier2_animal_threshold,
+                    )
+                )
+                return animal, trace + self._not_run(chain[i + 1:])
+
             if result.confidence >= threshold:
                 trace.append(
                     TierAttempt(clf.tier_name, "accepted", result.confidence, threshold)
@@ -409,6 +430,26 @@ class Pipeline:
                 best.tier_used,
             )
         return best, trace
+
+    def _winning_animal(self, result: ClassificationResult) -> ClassificationResult | None:
+        """The tier's animal as a result, if it meets its bar and beats the bird.
+
+        Only Tier 2 sends an animal. ``TIER2_ANIMAL_THRESHOLD`` sets the bar.
+        """
+        candidate = result.animal
+        if (
+            candidate is None
+            or candidate.confidence < self._cfg.tier2_animal_threshold
+            or candidate.confidence <= result.confidence
+        ):
+            return None
+        return ClassificationResult(
+            common_name=candidate.common_name,
+            scientific_name=candidate.scientific_name,
+            confidence=candidate.confidence,
+            tier_used=result.tier_used,
+            animal_group=candidate.group,
+        )
 
 
 def _trace_json(trace: list[TierAttempt]) -> list[dict]:

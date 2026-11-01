@@ -1,5 +1,6 @@
 import logging
 from contextlib import asynccontextmanager
+from dataclasses import asdict
 from typing import Annotated
 
 import uvicorn
@@ -24,6 +25,7 @@ async def lifespan(app: FastAPI):
         image_size=settings.IMAGE_SIZE,
         weights_path=settings.MODEL_PATH,
         device=settings.DEVICE,
+        animals_path=settings.ANIMALS_PATH,
     )
     ok = clf.load()
     if ok:
@@ -49,7 +51,11 @@ def health() -> dict:
 
 @app.post("/classify")
 async def classify(image: Annotated[UploadFile, File(description="JPEG image of the bird")]) -> dict:
-    """Accept a JPEG image and return the top-1 species prediction."""
+    """Accept a JPEG image. Return the top-1 bird and the best feeder animal.
+
+    ``animal`` is the best row of ``feeder_animals.csv`` from the same softmax,
+    or null. The Pi decides whether it beats the bird.
+    """
     if _classifier is None:
         raise HTTPException(status_code=503, detail="Classifier not loaded")
 
@@ -65,6 +71,7 @@ async def classify(image: Annotated[UploadFile, File(description="JPEG image of 
         "common_name": result.common_name,
         "scientific_name": result.scientific_name,
         "confidence": result.confidence,
+        "animal": asdict(result.animal) if result.animal is not None else None,
     }
 
 

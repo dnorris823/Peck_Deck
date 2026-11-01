@@ -170,6 +170,14 @@ Any other value refuses to start.
 If every tier fails, the Pi still uploads the capture, or queues it. The sighting
 has species "Unknown" and tier `none`.
 
+### Animals
+
+Tier 2 also names the feeder mammals in `machine_learning/feeder_animals.csv`. When
+its best animal meets `TIER2_ANIMAL_THRESHOLD` (default 0.30) and beats its best
+bird, the Pi uploads an animal sighting and runs no other tier. The backend keeps
+animal sightings out of every bird count, and sends no alert for them yet. The
+threshold comes from the measurement in `machine_learning/MODELS.md`.
+
 ### Turn Tier 3 on
 
 Tier 3 is off by default. To turn it on:

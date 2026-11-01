@@ -19,6 +19,8 @@ const NOW = new Date(2026, 9, 29, 19, 42);
 const FINCH = { id: 1, common: "House Finch", sci: "Haemorhous mexicanus", palette: ["#bf6952"], silhouette: "finch" };
 const JAY = { id: 2, common: "Blue Jay", sci: "Cyanocitta cristata", palette: ["#3f6e89"], silhouette: "jay" };
 const UNKNOWN = { id: 3, common: "Unknown", sci: "", palette: [], silhouette: "songbird" };
+const SQUIRREL = { id: 4, common: "Eastern Gray Squirrel", sci: "Sciurus carolinensis", palette: [],
+  silhouette: "songbird", kind: "animal", animalGroup: "squirrel" };
 const MAPLE = { id: 1, name: "Backyard Maple", status: "online", lastSeen: "9s ago" };
 
 // hasImage false keeps SightingImage on its plate, with no fetch.
@@ -162,6 +164,19 @@ describe("Home", () => {
     expect(screen.getByRole("region", { name: "Latest visitor" })).toHaveTextContent("Yesterday, 5:24 pm");
     expect(screen.getByText("No visits yet today.")).toBeInTheDocument();
     expect(screen.queryByText("Earlier today")).not.toBeInTheDocument();
+  });
+
+  it("never puts a squirrel in the hero, the strip, or today's count", () => {
+    const squirrels = [
+      visit(16, SQUIRREL, new Date(2026, 9, 29, 19, 40)),
+      visit(15, SQUIRREL, new Date(2026, 9, 29, 19, 35)),
+    ];
+    renderHome([...squirrels, ...today]);
+    const hero = screen.getByRole("region", { name: "Latest visitor" });
+    expect(within(hero).getByRole("heading", { level: 1 })).toHaveTextContent("House Finch");
+    expect(screen.getByText("Quiet for 11 minutes.").parentElement)
+      .toHaveTextContent("3 visits today, mostly House Finch.");
+    expect(screen.queryByText(/Squirrel/)).toBeNull();
   });
 
   it("points to Feeders with no sightings at all", () => {

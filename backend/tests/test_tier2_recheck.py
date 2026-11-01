@@ -21,7 +21,13 @@ from backend.database.connection import get_session_factory
 from backend.database.models import Device, Sighting, Species
 from backend.events.hub import SightingUpdated
 from backend.sightings import recheck
-from backend.sightings.recheck import Answer, ImageRejected, InferenceClient, ServerDown
+from backend.sightings.recheck import (
+    AnimalAnswer,
+    Answer,
+    ImageRejected,
+    InferenceClient,
+    ServerDown,
+)
 from backend.species.operations import get_or_create_species
 from backend.tests.test_sightings_upload import _fresh_device_token, _silence_side_effects
 
@@ -513,3 +519,136 @@ def test_client_health_needs_the_model_loaded():
 
     assert asyncio.run(_with_server(loading, lambda c: c.healthy())) is False
     assert asyncio.run(_with_server(ready, lambda c: c.healthy())) is True
+
+
+# ── Feeder animals ────────────────────────────────────────────────────────────
+# The Pi's rule: the animal wins when it meets TIER2_ANIMAL_THRESHOLD and beats
+# Tier 2's bird. A squirrel caught while the 5080 was off has a Tier 1 bird.
+
+SQUIRREL = AnimalAnswer("Eastern Gray Squirrel", "Sciurus carolinensis", "squirrel", 0.81)
+
+
+async def _species(species_id: int) -> Species:
+    async with get_session_factory()() as db:
+        return await db.get(Species, species_id)
+
+
+def test_a_tier1_bird_becomes_a_squirrel(client, published):
+    # Tier 1 at 0.95 clears its bar. It still loses, because it knows birds only.
+    sid = asyncio.run(_add(common_name="Pi Sparrow", confidence=0.95))
+    server = FakeServer(Answer("Blue Jay", "Cyanocitta cristata", 0.03, animal=SQUIRREL))
+
+    assert asyncio.run(recheck.recheck_one(sid, server)) == "replaced"
+
+    s, name = asyncio.run(_row(sid))
+    assert name == "Eastern Gray Squirrel"
+    species = asyncio.run(_species(s.species_id))
+    assert (species.kind, species.animal_group) == ("animal", "squirrel")
+    assert asyncio.run(_species_name(s.provisional_species_id)) == "Pi Sparrow"
+    assert s.classification_tier_used == "gpu"
+    assert s.confidence_score == pytest.approx(0.81)
+    assert s.tier2_recheck == "done"
+    assert s.tier_trace == GPU_DOWN
+    [event] = published
+    assert event.payload["species_id"] == s.species_id
+
+
+def test_an_unknown_becomes_a_squirrel(client, published):
+    trace = _trace(("gpu", "not_run", None), ("local", "not_run", None))
+    sid = asyncio.run(_add(common_name="Unknown", tier="none", confidence=0.0, trace=trace))
+    server = FakeServer(Answer("Blue Jay", "Cyanocitta cristata", 0.03, animal=SQUIRREL))
+
+    assert asyncio.run(recheck.recheck_one(sid, server)) == "replaced"
+    assert asyncio.run(_row(sid))[1] == "Eastern Gray Squirrel"
+
+
+def test_a_bird_stays_a_bird_when_the_animal_score_is_low(client, published):
+    weak = AnimalAnswer("Eastern Gray Squirrel", "Sciurus carolinensis", "squirrel", 0.04)
+    sid = asyncio.run(_add(common_name="Pi Sparrow", confidence=0.9))
+    server = FakeServer(Answer("House Finch", "Haemorhous mexicanus", 0.82, animal=weak))
+
+    assert asyncio.run(recheck.recheck_one(sid, server)) == "replaced"
+
+    s, name = asyncio.run(_row(sid))
+    assert name == "House Finch"
+    assert asyncio.run(_species(s.species_id)).kind == "bird"
+    assert s.confidence_score == pytest.approx(0.82)
+
+
+def test_an_animal_below_the_bar_leaves_the_bird_rule_to_decide(client, published):
+    # The animal beats Tier 2's bird but misses 0.30. Tier 1 at 0.95 then stands.
+    weak = AnimalAnswer("Eastern Gray Squirrel", "Sciurus carolinensis", "squirrel", 0.25)
+    sid = asyncio.run(_add(common_name="Pi Sparrow", confidence=0.95))
+    server = FakeServer(Answer("House Finch", "Haemorhous mexicanus", 0.05, animal=weak))
+
+    assert asyncio.run(recheck.recheck_one(sid, server)) == "kept"
+    assert asyncio.run(_row(sid))[1] == "Pi Sparrow"
+
+
+def test_an_animal_that_does_not_beat_the_bird_loses(client, published):
+    close = AnimalAnswer("Eastern Gray Squirrel", "Sciurus carolinensis", "squirrel", 0.70)
+    sid = asyncio.run(_add(common_name="Pi Sparrow", confidence=0.9))
+    server = FakeServer(Answer("House Finch", "Haemorhous mexicanus", 0.75, animal=close))
+
+    assert asyncio.run(recheck.recheck_one(sid, server)) == "replaced"
+    assert asyncio.run(_row(sid))[1] == "House Finch"
+
+
+def test_the_animal_bar_comes_from_the_setting(client, published, monkeypatch):
+    monkeypatch.setattr(recheck.settings, "TIER2_ANIMAL_THRESHOLD", 0.9)
+    sid = asyncio.run(_add(common_name="Pi Sparrow", confidence=0.95))
+    server = FakeServer(Answer("Blue Jay", "Cyanocitta cristata", 0.03, animal=SQUIRREL))
+
+    assert asyncio.run(recheck.recheck_one(sid, server)) == "kept"
+    assert asyncio.run(_row(sid))[1] == "Pi Sparrow"
+
+
+def test_the_default_animal_bar_matches_the_pi():
+    from raspberry_pi_code.config import DEFAULT_TIER2_ANIMAL_THRESHOLD
+
+    assert recheck.settings.TIER2_ANIMAL_THRESHOLD == DEFAULT_TIER2_ANIMAL_THRESHOLD
+
+
+def test_a_correction_during_the_call_beats_a_squirrel(client, published):
+    sid = asyncio.run(_add(common_name="Pi Sparrow", confidence=0.95))
+
+    class CorrectedMidCall(FakeServer):
+        async def classify(self, image):
+            async with get_session_factory()() as db:
+                async with db.begin():
+                    await db.execute(
+                        update(Sighting).where(Sighting.id == sid).values(corrected_at=NOW)
+                    )
+            return await super().classify(image)
+
+    server = CorrectedMidCall(Answer("Blue Jay", "Cyanocitta cristata", 0.03, animal=SQUIRREL))
+
+    assert asyncio.run(recheck.recheck_one(sid, server)) == "corrected"
+    s, name = asyncio.run(_row(sid))
+    assert name == "Pi Sparrow"
+    assert s.provisional_species_id is None
+
+
+def test_client_reads_the_animal_field():
+    routes = [web.post("/classify", _status_route(200, {
+        "common_name": "Blue Jay", "scientific_name": "Cyanocitta cristata", "confidence": 0.03,
+        "animal": {"common_name": "Eastern Gray Squirrel", "scientific_name": "Sciurus carolinensis",
+                   "group": "squirrel", "confidence": 0.81},
+    }))]
+
+    answer = asyncio.run(_with_server(routes, lambda c: c.classify(b"jpeg")))
+
+    assert answer.confidence == 0.03
+    assert answer.animal == SQUIRREL
+
+
+@pytest.mark.parametrize("animal", [None, {"group": "squirrel"}, "squirrel"])
+def test_client_keeps_the_bird_without_a_readable_animal(animal):
+    routes = [web.post("/classify", _status_route(200, {
+        "common_name": "House Finch", "scientific_name": "Haemorhous mexicanus",
+        "confidence": 0.7, "animal": animal,
+    }))]
+
+    answer = asyncio.run(_with_server(routes, lambda c: c.classify(b"jpeg")))
+
+    assert answer == Answer("House Finch", "Haemorhous mexicanus", 0.7)

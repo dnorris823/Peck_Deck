@@ -32,6 +32,8 @@ COLUMNS = [
     "weather_conditions",
     "has_image",
     "image_url",
+    # "bird" or "animal". Last, so the columns before it keep their place.
+    "kind",
 ]
 
 MAX_ROWS = 50_000
@@ -87,6 +89,7 @@ async def collect_rows(
                 "weather_conditions": sighting.weather_conditions or "",
                 "has_image": has_image,
                 "image_url": f"/sightings/{sighting.id}/image" if has_image else "",
+                "kind": species.kind,
             }
         )
     return rows

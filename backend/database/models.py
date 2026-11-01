@@ -155,6 +155,14 @@ class Species(Base):
     species_name: Mapped[str] = mapped_column(String, nullable=False)
     order_name: Mapped[str | None] = mapped_column(String, nullable=True)
     wiki_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    # "bird" or "animal". An animal row is a squirrel, raccoon or other feeder
+    # mammal that Tier 2 named. Every bird count filters on kind = 'bird'.
+    kind: Mapped[str] = mapped_column(
+        String, nullable=False, default="bird", server_default="bird"
+    )
+    # The animal's group from machine_learning/feeder_animals.csv, such as
+    # "squirrel". Null for a bird.
+    animal_group: Mapped[str | None] = mapped_column(String, nullable=True)
 
     # Field-guide enrichment (FLEDGE Phase 6), cached on first sighting of a
     # species so the Species Library reads like a field guide rather than a

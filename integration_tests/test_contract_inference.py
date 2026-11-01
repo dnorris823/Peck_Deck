@@ -10,7 +10,7 @@ scientific_name, confidence}`` JSON out, mapped into a ``ClassificationResult``.
 import asyncio
 
 import inference_server.main as inf_main
-from inference_server.classifier import Prediction
+from inference_server.classifier import AnimalPrediction, Prediction
 from raspberry_pi_code.classification.tier2_gpu import GPUServerClassifier
 
 from integration_tests._live import run_server
@@ -75,6 +75,44 @@ def test_gpu_classifier_returns_none_when_model_unavailable(monkeypatch, tmp_pat
         result = asyncio.run(clf.classify(image))
 
     assert result is None
+
+
+class _SquirrelClassifier(_FakeClassifier):
+    def classify(self, image_bytes: bytes) -> Prediction:
+        return Prediction(
+            common_name="Blue Jay",
+            scientific_name="Cyanocitta cristata",
+            confidence=0.03,
+            animal=AnimalPrediction(
+                common_name="Eastern Gray Squirrel",
+                scientific_name="Sciurus carolinensis",
+                group="squirrel",
+                confidence=0.88,
+            ),
+        )
+
+
+def test_gpu_classifier_reads_the_animal_field(monkeypatch, tmp_path):
+    monkeypatch.setattr(inf_main, "BirdClassifier", _SquirrelClassifier)
+    image = _write_jpeg(tmp_path)
+
+    with run_server(inf_main.app) as base_url:
+        result = asyncio.run(GPUServerClassifier(base_url).classify(image))
+
+    # The bird fields are unchanged, so an old Pi build reads them as before.
+    assert (result.common_name, result.confidence) == ("Blue Jay", 0.03)
+    assert result.animal.group == "squirrel"
+    assert result.animal.confidence == 0.88
+
+
+def test_gpu_classifier_sees_no_animal_when_the_server_names_none(monkeypatch, tmp_path):
+    monkeypatch.setattr(inf_main, "BirdClassifier", _FakeClassifier)
+    image = _write_jpeg(tmp_path)
+
+    with run_server(inf_main.app) as base_url:
+        result = asyncio.run(GPUServerClassifier(base_url).classify(image))
+
+    assert result.animal is None
 
 
 def test_gpu_server_health_reports_model_ready(monkeypatch):
