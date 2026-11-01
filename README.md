@@ -24,7 +24,13 @@ when Tier 2 fails. `SETUP.md` §7 has the tier orders and how to turn Tier 3 on.
 - Web app (React), installable as a PWA, with live updates and web push.
 - GPU inference server (FastAPI) for Tier 2.
 - Pi code: capture, the tier chain, an offline queue and unattended device-token
-  provisioning.
+  provisioning. The classifiers get a square crop around the detector's bird box,
+  and the sighting keeps the full frame.
+- Tier 2 re-check. When an upload fell back to Tier 1 because Tier 2 gave no
+  answer, the backend sends it to Tier 2 once the GPU server is back. Tier 2's
+  answer replaces the species when it wins.
+- Live video. The Live tab plays a feeder's camera over WebRTC from the Pi, and
+  falls back to HLS through the backend when the browser cannot reach the Pi.
 - Animal visits. Tier 2 names a squirrel, raccoon or other feeder mammal, and the
   sighting records as an animal, outside every bird count. The trigger fires on
   bird, cat, dog and bear, with a visit per group. An Animals view charts the
@@ -44,11 +50,11 @@ sighting reached the app. No real bird has been photographed at a real feeder ye
 
 The [Windowsill milestone](https://github.com/dnorris823/Peck_Deck/milestone/1) tracks what is left:
 
-1. [Classify the detector's crop, not the whole frame](https://github.com/dnorris823/Peck_Deck/issues/77)
-2. [Put the Pi at the window](https://github.com/dnorris823/Peck_Deck/issues/63)
-3. [Tune the detector and camera focus from real captures](https://github.com/dnorris823/Peck_Deck/issues/64)
+1. [Put the Pi at the window](https://github.com/dnorris823/Peck_Deck/issues/63)
+2. [Tune the detector and camera focus from real captures](https://github.com/dnorris823/Peck_Deck/issues/64)
 
-The first is code. The other two need the Pi mounted and a feeder outside.
+The code work is done. Both open items need the Pi mounted and a feeder outside.
+`docs/windowsill-test.md` has the setup and test plan.
 Smaller cleanups without a milestone are in the
 [open issues](https://github.com/dnorris823/Peck_Deck/issues).
 
@@ -64,5 +70,7 @@ Smaller cleanups without a milestone are in the
 | Models and measured accuracy | `machine_learning/MODELS.md` |
 | Backups, migrations, health checks, tests | `docs/operations.md` |
 | Live updates, PWA and push | `docs/` |
+| Live video | `docs/live-video.md` |
+| The windowsill test | `docs/windowsill-test.md` |
 | Camera focus and exposure notes | `docs/research/picamera2-focus-and-exposure.md` |
 | Old plans, the outdoor build, agent config | `docs/archive/` |
