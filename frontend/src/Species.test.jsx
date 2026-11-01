@@ -6,8 +6,9 @@ import userEvent from "@testing-library/user-event";
 vi.mock("./api.js", () => ({ apiGet: vi.fn(), apiObjectUrl: vi.fn() }));
 
 let mockData;
+let mockFeeder = null;
 vi.mock("./DataContext.jsx", () => ({
-  useData: () => ({ data: mockData, reload: vi.fn() }),
+  useData: () => ({ data: mockData, reload: vi.fn(), feeder: mockFeeder }),
 }));
 
 import { apiGet } from "./api.js";
@@ -64,6 +65,7 @@ function setWide(wide) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockFeeder = null;
   window.scrollTo = vi.fn();
   routeApi();
   setWide(false);
@@ -175,5 +177,26 @@ describe("species page", () => {
       "https://xeno-canto.org/explore?query=Blue%20Jay",
     ]);
     await screen.findByText("5:20 am · 7:58 pm");
+  });
+});
+
+describe("species scoped to one feeder", () => {
+  const PORCH = { id: 11, name: "Dad's Porch" };
+
+  it("names the feeder and asks for its photos, visits and hours only", async () => {
+    setWide(true);
+    setData([CARDINAL]);
+    mockData.DEVICES = [DEVICE, PORCH];
+    mockFeeder = 11;
+    render(<SpeciesPage go={vi.fn()} openSighting={vi.fn()} />);
+    expect(screen.getByText("1 at Dad's Porch", { exact: false })).toBeInTheDocument();
+
+    await waitFor(() => {
+      const paths = apiGet.mock.calls.map(([p]) => p);
+      expect(paths.some((p) => p.startsWith("/stats/hours"))).toBe(true);
+      expect(paths.filter((p) => p.startsWith("/sightings")).length).toBeGreaterThan(0);
+    });
+    const paths = apiGet.mock.calls.map(([p]) => p);
+    expect(paths.every((p) => p.includes("device_id=11"))).toBe(true);
   });
 });

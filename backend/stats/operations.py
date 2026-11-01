@@ -38,6 +38,19 @@ def parse_zone(tz: str) -> str:
     return tz
 
 
+async def _scoped_device_ids(
+    db: AsyncSession, user_id: int, device_id: int | None
+) -> list[int]:
+    """The user's devices, or only ``device_id`` when given.
+
+    A ``device_id`` the user cannot see scopes to nothing, as on ``GET /sightings``.
+    """
+    accessible = await _accessible_device_ids(db, user_id)
+    if device_id is None:
+        return accessible
+    return [d for d in accessible if d == device_id]
+
+
 # How many days of history feed the species list's ``peak_hours``.
 PEAK_WINDOW_DAYS = 30
 
@@ -126,12 +139,14 @@ async def hours(
     tz: str,
     days: int | None,
     species_id: int | None = None,
+    device_id: int | None = None,
 ) -> dict:
     """Visit counts per local hour in ``tz``, for the species dial.
 
     ``days`` of None means all time. ``species_id`` of None covers every species.
+    ``device_id`` of None covers every feeder the user can see.
     """
-    accessible = await _accessible_device_ids(db, user_id)
+    accessible = await _scoped_device_ids(db, user_id, device_id)
     since = datetime.now(timezone.utc) - timedelta(days=days) if days else None
     rows = await _local_hour_rows(db, accessible, tz, since=since, species_id=species_id)
 
@@ -167,6 +182,7 @@ async def species_counts(
     *,
     from_date: datetime | None = None,
     to_date: datetime | None = None,
+    device_id: int | None = None,
 ) -> list[dict]:
     """Per-species totals with first and last seen, most frequent first.
 
@@ -178,9 +194,11 @@ async def species_counts(
     and a species with no visit in it is left out. ``peak_hours`` keeps its
     30-day window.
 
+    With ``device_id``, everything covers that one feeder.
+
     Birds only. Animal visits are not species in this sense.
     """
-    accessible = await _accessible_device_ids(db, user_id)
+    accessible = await _scoped_device_ids(db, user_id, device_id)
     if not accessible:
         return []
     filters = [Sighting.device_id.in_(accessible), Species.kind == BIRD]
@@ -242,9 +260,11 @@ async def _recent_sightings(
     return list(rows.scalars().all())
 
 
-async def heatmap(db: AsyncSession, user_id: int) -> list[list[int]]:
+async def heatmap(
+    db: AsyncSession, user_id: int, device_id: int | None = None
+) -> list[list[int]]:
     """7×24 grid of bird sighting counts, rows Mon→Sun, over the last 7 days."""
-    accessible = await _accessible_device_ids(db, user_id)
+    accessible = await _scoped_device_ids(db, user_id, device_id)
     now = datetime.now(timezone.utc)
     since = now - timedelta(days=7)
     grid = [[0] * 24 for _ in range(7)]
@@ -254,8 +274,8 @@ async def heatmap(db: AsyncSession, user_id: int) -> list[list[int]]:
     return grid
 
 
-async def dashboard(db: AsyncSession, user_id: int) -> dict:
-    accessible = await _accessible_device_ids(db, user_id)
+async def dashboard(db: AsyncSession, user_id: int, device_id: int | None = None) -> dict:
+    accessible = await _scoped_device_ids(db, user_id, device_id)
     now = datetime.now(timezone.utc)
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_start = now - timedelta(days=7)
@@ -294,7 +314,7 @@ async def dashboard(db: AsyncSession, user_id: int) -> dict:
         seen |= day
         spark_species.append(len(seen))
 
-    counts = await species_counts(db, user_id)
+    counts = await species_counts(db, user_id, device_id=device_id)
     most_frequent = counts[0]["species"].common_name if counts else None
     most_frequent_count = counts[0]["count"] if counts else 0
 

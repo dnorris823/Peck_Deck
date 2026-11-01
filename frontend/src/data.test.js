@@ -11,7 +11,7 @@ import {
   loadAll, saveMe, savePreferences, fetchSighting,
   fmtRelative, fmtTime, fmtDateFull,
   confidenceLevel, countToday, toLocalGrid, fmtDayHeading,
-  speciesCountsPath, isBirdSighting,
+  speciesCountsPath, isBirdSighting, fetchRaw, fetchAggregates, fetchSpeciesCountsBetween,
 } from "./data.js";
 
 // Route each apiGet(path) call to a fixture keyed by path.
@@ -299,5 +299,42 @@ describe("loadAll for a viewer", () => {
   it("still fails on any other GET /users error", async () => {
     refuseUsers(500);
     await expect(loadAll()).rejects.toThrow("failed (500)");
+  });
+});
+
+describe("feeder scope", () => {
+  it("scopes the aggregates to one feeder, and leaves the sightings list whole", async () => {
+    routeApiGet({
+      [speciesCountsPath(undefined, 10)]: [],
+      "/stats/heatmap?device_id=10": [[0]],
+      "/stats/dashboard?device_id=10": { today_sightings: 1 },
+    });
+    const raw = await fetchRaw({ deviceId: 10 });
+    expect(raw.dashboard).toEqual({ today_sightings: 1 });
+    const paths = apiGet.mock.calls.map(([p]) => p);
+    expect(paths).toContain("/sightings?limit=100");
+    expect(paths.filter((p) => p.startsWith("/stats/")).every((p) => p.includes("device_id=10"))).toBe(true);
+  });
+
+  it("scopes the refetch after a streamed sighting", async () => {
+    routeApiGet({
+      [speciesCountsPath(undefined, 10)]: [],
+      "/stats/heatmap?device_id=10": [[0]],
+      "/stats/dashboard?device_id=10": { today_sightings: 1 },
+    });
+    const patch = await fetchAggregates({ deviceId: 10 });
+    expect(patch.dashboard).toEqual({ today_sightings: 1 });
+  });
+
+  it("sends no device_id for all feeders", async () => {
+    routeApiGet();
+    await fetchAggregates();
+    expect(apiGet.mock.calls.some(([p]) => p.includes("device_id"))).toBe(false);
+  });
+
+  it("scopes Home's yesterday counts", async () => {
+    apiGet.mockResolvedValue([{ id: 1, common_name: "Northern Cardinal", count: 2 }]);
+    await fetchSpeciesCountsBetween(new Date(0), new Date(1000), 10);
+    expect(apiGet.mock.calls[0][0]).toMatch(/^\/stats\/species-counts\?from_date=.*&device_id=10$/);
   });
 });

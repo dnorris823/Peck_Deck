@@ -38,9 +38,13 @@ function spanText(h) {
 }
 
 function WhenItVisits({ species }) {
+  const { feeder } = useData();
   const [days, setDays] = useState(30);
   // The count is in the key, so a streamed visit redraws the dial.
-  const hours = useLoad(() => fetchHours(species.id, { days }), `${species.id}:${days}:${species.count}`);
+  const hours = useLoad(
+    () => fetchHours(species.id, { days, deviceId: feeder }),
+    `${species.id}:${days}:${species.count}:${feeder}`,
+  );
   const h = hours.value;
   const empty = h && h.total === 0;
 
@@ -141,11 +145,11 @@ function LearnMore({ species }) {
 }
 
 export function SpeciesView({ species, onBack, go, openSighting }) {
-  const { data } = useData();
+  const { data, feeder } = useData();
   const accent = useSpeciesAccent(species);
   const visits = useLoad(
-    () => fetchSpeciesSightings(species.id, data),
-    `${species.id}:${species.count}`,
+    () => fetchSpeciesSightings(species.id, data, { deviceId: feeder }),
+    `${species.id}:${species.count}:${feeder}`,
   );
   const hero = visits.value?.find((s) => s.hasImage);
   const onAll = () => go("history", { species: species.id });

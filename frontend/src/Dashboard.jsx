@@ -27,7 +27,7 @@ function useNow(every = 30000) {
 // Yesterday's counts come from the backend, because the loaded window can stop
 // partway through a busy yesterday. Asked again at midnight, and when a loaded
 // visit from yesterday arrives late, changes species or is deleted.
-function useYesterday(sightings, now) {
+function useYesterday(sightings, now, feeder) {
   const { start, end } = yesterdayBounds(now);
   const from = start.getTime();
   const to = end.getTime();
@@ -38,12 +38,12 @@ function useYesterday(sightings, now) {
   const [rows, setRows] = useState(null);
   useEffect(() => {
     let live = true;
-    fetchSpeciesCountsBetween(new Date(from), new Date(to))
+    fetchSpeciesCountsBetween(new Date(from), new Date(to), feeder)
       .then(r => { if (live) setRows(r); })
       // Home still works without the line, so a failed count just leaves it out.
       .catch(() => { if (live) setRows(null); });
     return () => { live = false; };
-  }, [from, to, loaded]);
+  }, [from, to, loaded, feeder]);
   return rows;
 }
 
@@ -150,21 +150,23 @@ function HomeEmpty({ hasFeeders, go }) {
 // `selectedId` is the visit open in the detail view, if any. Home outlines it in
 // the strip so the two sides of the desktop layout agree.
 export function Dashboard({ openSighting, go, selectedId = null }) {
-  const { data } = useData();
+  const { data, feeder } = useData();
   const { SIGHTINGS, DEVICES } = data;
   const now = useNow();
   // Home is about birds. A squirrel visit stays in History but never takes the
-  // hero, the strip, or today's count.
-  const birds = SIGHTINGS.filter(isBirdSighting);
+  // hero, the strip, or today's count. With the picker on one feeder, Home
+  // shows only that feeder's birds.
+  const birds = SIGHTINGS.filter(s => isBirdSighting(s) && (feeder == null || s.device.id === feeder));
   // The stream inserts by capture time, so the first row is the newest bird.
   const hero = birds[0];
   const accent = useSpeciesAccent(hero?.species);
-  const yesterday = useYesterday(birds, now);
+  const yesterday = useYesterday(birds, now, feeder);
 
   if (!hero) return <HomeEmpty hasFeeders={DEVICES.length > 0} go={go} />;
 
   // Counted in local time from the loaded window. When every loaded row is from
-  // today, the window has cut the day short, so the count says "100+".
+  // today, the window has cut the day short, so the count says "100+". The
+  // window covers every feeder, so one feeder's day may be cut short too.
   const today = birds.filter(s => isToday(s.datetime, now));
   const capped = SIGHTINGS.length >= SIGHTING_WINDOW
     && SIGHTINGS.every(s => isToday(s.datetime, now));
@@ -173,7 +175,7 @@ export function Dashboard({ openSighting, go, selectedId = null }) {
   const recent = today.length < RECENT_BELOW;
   const strip = recent ? birds.slice(1, 1 + RECENT_COUNT) : today.slice(1);
   const yday = yesterday && yesterdayLine(yesterday);
-  const tier2Down = DEVICES.some(d => d.tierMix?.tier2Down);
+  const tier2Down = DEVICES.some(d => (feeder == null || d.id === feeder) && d.tierMix?.tier2Down);
   const { quiet, count, warning } = statusLine(hero, today, { now, capped, tier2Down });
 
   return (

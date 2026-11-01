@@ -4,6 +4,7 @@
 // `loadAll()` fetches everything in parallel; DataContext calls it after login.
 
 import { apiDelete, apiDownload, apiGet, apiSend } from "./api.js";
+import { withScope } from "./feederScope.js";
 
 // ── Fallbacks for presentation-only fields ────────────────────────────────
 // The backend carries palette/silhouette/note (see seed.py), but a species
@@ -176,17 +177,18 @@ export function browserZone() {
 }
 
 // Sent with the viewer's zone, so each row's peak_hours are local hours.
-export function speciesCountsPath(zone = browserZone()) {
-  return `/stats/species-counts?tz=${encodeURIComponent(zone)}`;
+// `deviceId` scopes the counts to one feeder. Null covers them all.
+export function speciesCountsPath(zone = browserZone(), deviceId = null) {
+  return withScope(`/stats/species-counts?tz=${encodeURIComponent(zone)}`, deviceId);
 }
 
 /**
  * Visits per species between two times, inclusive, as `[{ common, count }]`.
  * Counted by the backend, so a busy day past the loaded window still adds up.
  */
-export async function fetchSpeciesCountsBetween(start, end) {
+export async function fetchSpeciesCountsBetween(start, end, deviceId = null) {
   const params = new URLSearchParams({ from_date: start.toISOString(), to_date: end.toISOString() });
-  const rows = await apiGet(`/stats/species-counts?${params}`);
+  const rows = await apiGet(withScope(`/stats/species-counts?${params}`, deviceId));
   return rows.map(r => ({ id: r.id, common: r.common_name, count: r.count }));
 }
 
@@ -194,11 +196,14 @@ export async function fetchSpeciesCountsBetween(start, end) {
 // Fetch and mapping are separate so a streamed sighting can patch the *raw*
 // payloads and re-map them through this same function. Mapping is not
 // reversible (it produces Date objects), so the raw set has to be kept.
-export async function fetchRaw() {
+//
+// `deviceId` is the feeder scope (feederScope.js). It scopes the aggregates
+// only. The sightings list covers every feeder, and pages filter it.
+export async function fetchRaw({ deviceId = null } = {}) {
   const [species, counts, devices, users, sightings, heatmap, dashboard, me, prefs] =
     await Promise.all([
       apiGet("/species"),
-      apiGet(speciesCountsPath()),
+      apiGet(speciesCountsPath(browserZone(), deviceId)),
       apiGet("/devices"),
       // Owner only. A viewer gets 403 and an empty list, and never sees Users.
       apiGet("/users").catch((e) => {
@@ -206,8 +211,8 @@ export async function fetchRaw() {
         throw e;
       }),
       apiGet("/sightings?limit=100"),
-      apiGet("/stats/heatmap"),
-      apiGet("/stats/dashboard"),
+      apiGet(withScope("/stats/heatmap", deviceId)),
+      apiGet(withScope("/stats/dashboard", deviceId)),
       apiGet("/users/me"),
       apiGet("/users/me/preferences"),
     ]);
@@ -224,11 +229,11 @@ export async function fetchRaw() {
 // `species` is only pulled when the streamed sighting names one the client has
 // never seen: mapAll drops any sighting it can't join to a species, so a
 // first-ever visit would otherwise arrive and silently vanish.
-export async function fetchAggregates({ withSpecies = false } = {}) {
+export async function fetchAggregates({ withSpecies = false, deviceId = null } = {}) {
   const [counts, heatmap, dashboard, devices, species] = await Promise.all([
-    apiGet(speciesCountsPath()),
-    apiGet("/stats/heatmap"),
-    apiGet("/stats/dashboard"),
+    apiGet(speciesCountsPath(browserZone(), deviceId)),
+    apiGet(withScope("/stats/heatmap", deviceId)),
+    apiGet(withScope("/stats/dashboard", deviceId)),
     apiGet("/devices"),
     withSpecies ? apiGet("/species") : Promise.resolve(null),
   ]);

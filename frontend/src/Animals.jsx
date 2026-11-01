@@ -142,20 +142,28 @@ function AddMeasure({ deviceId, onAdded }) {
 }
 
 export function AnimalsPage() {
-  const { data } = useData();
+  const { data, feeder } = useData();
   const devices = data.DEVICES;
   const zone = browserZone();
-  const [deviceId, setDeviceId] = useState(devices[0]?.id ?? null);
+  // The stats cover one feeder. The shell's picker chooses it. On "All
+  // feeders" the page keeps its own choice, first feeder by default.
+  const [picked, setPicked] = useState(devices[0]?.id ?? null);
+  const deviceId = feeder ?? picked;
   const [stats, setStats] = useState(null);
   const [error, setError] = useState(null);
   const [showTable, setShowTable] = useState(false);
   const [busy, setBusy] = useState(false);
   const device = devices.find(d => d.id === deviceId);
 
+  // Returns a cancel, so the effect drops a reply for a feeder no longer shown.
   const load = useCallback(() => {
-    if (deviceId == null) return;
+    if (deviceId == null) return undefined;
+    let current = true;
     setError(null);
-    fetchAnimalStats(deviceId, zone).then(setStats).catch(e => setError(e.message));
+    fetchAnimalStats(deviceId, zone)
+      .then(s => { if (current) setStats(s); })
+      .catch(e => { if (current) setError(e.message); });
+    return () => { current = false; };
   }, [deviceId, zone]);
   useEffect(load, [load]);
 
@@ -176,9 +184,9 @@ export function AnimalsPage() {
           <div className="label">Squirrels, raccoons and the rest</div>
           <h1 className="page-title"><em>Animals</em></h1>
         </div>
-        {devices.length > 1 && (
+        {feeder == null && devices.length > 1 && (
           <SelectInput label="Feeder" value={String(deviceId)}
-            onChange={v => setDeviceId(Number(v))}
+            onChange={v => setPicked(Number(v))}
             options={devices.map(d => [String(d.id), d.name])} />
         )}
       </div>

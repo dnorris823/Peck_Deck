@@ -13,6 +13,7 @@ import {
   replaceSighting,
 } from "./data.js";
 import { openSightingStream } from "./events.js";
+import { readScope, saveScope, validScope } from "./feederScope.js";
 
 const Ctx = createContext(null);
 
@@ -51,6 +52,31 @@ export function DataProvider({ children, onAuthError }) {
     return () => { listenersRef.current.delete(listener); };
   }, []);
 
+  // The feeder scope, null for all feeders. The ref is what fetches read, so a
+  // fetch in flight can tell the picker moved while it waited.
+  const [feeder, setFeederState] = useState(readScope);
+  const feederRef = useRef(feeder);
+
+  const setScope = useCallback((id) => {
+    feederRef.current = id;
+    setFeederState(id);
+    saveScope(id);
+  }, []);
+
+  // The aggregates for the current scope. If the scope changed while they
+  // loaded, the scoped fields are dropped, and the picker's own fetch brings
+  // the new ones.
+  const fetchScoped = useCallback(async (opts = {}) => {
+    const deviceId = feederRef.current;
+    const patch = await fetchAggregates({ ...opts, deviceId });
+    if (feederRef.current === deviceId) return patch;
+    const rest = { ...patch };
+    delete rest.counts;
+    delete rest.heatmap;
+    delete rest.dashboard;
+    return rest;
+  }, []);
+
   const commit = useCallback((raw) => {
     rawRef.current = raw;
     setData({ ...mapAll(raw), ...overridesRef.current });
@@ -61,7 +87,13 @@ export function DataProvider({ children, onAuthError }) {
     setLoading(true);
     setError(null);
     try {
-      const raw = await fetchRaw();
+      const asked = feederRef.current;
+      let raw = await fetchRaw({ deviceId: asked });
+      // A saved feeder that is gone, or no longer shared, falls back to all.
+      // The picker may also have moved while this loaded.
+      const scope = validScope(feederRef.current, raw.devices);
+      if (scope !== feederRef.current) setScope(scope);
+      if (scope !== asked) raw = { ...raw, ...(await fetchAggregates({ deviceId: scope })) };
       // A full load is fresh server truth, and every patched field was written
       // to the server before it was patched here — so the overrides are now at
       // best redundant and at worst masking someone else's change.
@@ -79,7 +111,7 @@ export function DataProvider({ children, onAuthError }) {
     } finally {
       setLoading(false);
     }
-  }, [commit, onAuthError]);
+  }, [commit, onAuthError, setScope]);
 
   useEffect(() => { reload(); }, [reload]);
 
@@ -102,13 +134,13 @@ export function DataProvider({ children, onAuthError }) {
 
     try {
       const known = raw.species.some((s) => s.id === sighting.species_id);
-      const patch = await fetchAggregates({ withSpecies: !known });
+      const patch = await fetchScoped({ withSpecies: !known });
       commit({ ...rawRef.current, ...patch });
     } catch {
       // The feed is already correct; the aggregates are merely a few visits
       // behind and the next event or manual refresh fixes them.
     }
-  }, [commit, notify]);
+  }, [commit, notify, fetchScoped]);
 
   // Drop a deleted sighting. The tab that deleted it calls this itself, so it
   // updates with the stream down. Every other tab gets it from the stream.
@@ -123,11 +155,11 @@ export function DataProvider({ children, onAuthError }) {
     commit({ ...raw, sightings });
 
     try {
-      commit({ ...rawRef.current, ...(await fetchAggregates()) });
+      commit({ ...rawRef.current, ...(await fetchScoped()) });
     } catch {
       // As for a new sighting: the feed is right, the counts catch up later.
     }
-  }, [commit, notify]);
+  }, [commit, notify, fetchScoped]);
 
   // Swap in an updated sighting, such as a corrected species. Applied whether
   // or not the row is in the loaded window, because the counts move either way.
@@ -154,11 +186,11 @@ export function DataProvider({ children, onAuthError }) {
     try {
       if (known) {
         commit({ ...raw, sightings: replaceSighting(raw.sightings, sighting) });
-        commit({ ...rawRef.current, ...(await fetchAggregates()) });
+        commit({ ...rawRef.current, ...(await fetchScoped()) });
       } else {
         // mapAll drops a sighting it can't join to a species, which would also
         // close it in the detail view. So the species list comes first.
-        const patch = await fetchAggregates({ withSpecies: true });
+        const patch = await fetchScoped({ withSpecies: true });
         const now = rawRef.current;
         commit({ ...now, ...patch, sightings: replaceSighting(now.sightings, sighting) });
       }
@@ -167,7 +199,7 @@ export function DataProvider({ children, onAuthError }) {
       // it can show yet, so it loads everything.
       if (!known) reload();
     }
-  }, [commit, notify, reload]);
+  }, [commit, notify, reload, fetchScoped]);
 
   useEffect(() => {
     const stop = openSightingStream({
@@ -186,6 +218,21 @@ export function DataProvider({ children, onAuthError }) {
     return stop;
   }, [applyStreamed, applyDeleted, applyUpdated, reload, onAuthError]);
 
+  // Pick the feeder scope, null for all. The sightings list covers every
+  // feeder already, so only the aggregates are fetched again.
+  const setFeeder = useCallback(async (id) => {
+    if (id === feederRef.current) return;
+    setScope(id);
+    if (!rawRef.current) return;
+    try {
+      commit({ ...rawRef.current, ...(await fetchScoped()) });
+    } catch {
+      // The counts would say the old feeder under the new name. A full load
+      // either fixes them or shows the error.
+      reload();
+    }
+  }, [commit, fetchScoped, reload, setScope]);
+
   // Shallow-merge fields into the loaded dataset (e.g. after Settings saves the
   // current user), so dependent UI like the sidebar updates without a refetch.
   const patch = useCallback((partial) => {
@@ -194,7 +241,10 @@ export function DataProvider({ children, onAuthError }) {
   }, []);
 
   return (
-    <Ctx.Provider value={{ data, loading, error, live, reload, patch, applyDeleted, applyUpdated, subscribe }}>
+    <Ctx.Provider value={{
+      data, loading, error, live, reload, patch, applyDeleted, applyUpdated, subscribe,
+      feeder, setFeeder,
+    }}>
       {children}
     </Ctx.Provider>
   );

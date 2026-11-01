@@ -217,6 +217,11 @@ h1, h2, h3 { font-weight: 800; margin: 0; }
 .tabs button:hover { color: var(--fg); background: var(--hover); }
 .tabs button.active { background: var(--acc); color: var(--on-acc); }
 .top-actions { margin-left: auto; display: flex; align-items: center; gap: 6px; min-width: 0; }
+.feeder-picker {
+  width: auto; min-width: 0; max-width: 200px;
+  padding: 6px 10px; border-radius: var(--r-pill);
+  text-overflow: ellipsis;
+}
 
 .icon-btn {
   width: 34px; height: 34px;
@@ -897,6 +902,7 @@ input[type="range"], input[type="checkbox"], input[type="radio"] { accent-color:
   :root { --topbar: 52px; }
   .topbar { padding: 0 16px; gap: 12px; }
   .tabs, .topbar .more-btn { display: none; }
+  .feeder-picker { max-width: 46vw; }
   .live-pill .live-text { display: inline; }
 
   .tabbar {
