@@ -80,6 +80,18 @@ function mapDevice(d) {
     allTime: d.all_time_sightings,
     ownerId: d.owner_id,
     tierMix: d.tier_mix ? mapTierMix(d.tier_mix) : null,
+    feedState: d.feed ? mapFeed(d.feed) : null,
+  };
+}
+
+// ok, low or out, from the backend's hourly feed check. See backend/feed/monitor.py.
+function mapFeed(f) {
+  const at = (v) => (v ? new Date(v) : null);
+  return {
+    state: f.state,
+    changedAt: at(f.changed_at),
+    lastRefillAt: at(f.last_refill_at),
+    lastVisitAt: at(f.last_visit_at),
   };
 }
 
@@ -444,6 +456,11 @@ export async function fetchDeviceToken(deviceId) {
 // until it has the new one.
 export async function rotateDeviceToken(deviceId) {
   return apiSend(`/devices/${deviceId}/token`, "POST", {});
+}
+
+// Feeder owner or owner role only. Ends any low or out alert. Returns the feeder.
+export async function logRefill(deviceId) {
+  return apiSend(`/devices/${deviceId}/refills`, "POST", {});
 }
 
 // Without `withSightings` the server refuses a feeder that has sightings (409).

@@ -29,6 +29,8 @@ os.environ["WEATHER_ENABLED"] = "false"
 # No background Tier 2 re-check, which would call the inference server. The
 # re-check tests drive single passes with a fake server.
 os.environ["TIER2_RECHECK_INTERVAL_SECONDS"] = "0"
+# No hourly feed check racing the suite. The feed tests call run_once themselves.
+os.environ["FEED_ALERTS_ENABLED"] = "false"
 
 import asyncio  # noqa: E402
 

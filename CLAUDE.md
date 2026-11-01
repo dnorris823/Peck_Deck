@@ -163,6 +163,14 @@ Full detail is in the linked docs. These are the ones that cause silent damage.
   subscriptions.
 - The service worker only registers in a production build, so `npm run build`
   comes before any PWA or push testing.
+- **The camera trigger's tick age is the feed check's proof of life.**
+  `CameraTrigger.tick_age()` goes out in each heartbeat as `trigger_age_seconds`.
+  Every frame the trigger analyses sets it, before the motion check and whatever
+  the detector finds. A change to which classes fire must leave it there. If the
+  tick stops or the field drops out, that feeder's "out" alert turns off,
+  silently. Detail in `docs/operations.md` under *Feed alerts*.
+- **Feed alerts count bird visits only**, through `is_bird_sighting()`. A
+  squirrel at an empty feeder would otherwise hide "out".
 
 ## Health endpoints
 

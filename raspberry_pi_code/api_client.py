@@ -148,6 +148,7 @@ class BackendClient:
         live_url: str | None = None,
         power_source: str | None = None,
         signal: str | None = None,
+        trigger_age_seconds: float | None = None,
     ) -> UploadOutcome:
         """Tell the backend this station is up, and where its live video is.
 
@@ -160,9 +161,16 @@ class BackendClient:
 
         ``power_source`` and ``signal`` are left out when None, and the backend
         then keeps what it last stored.
+
+        ``trigger_age_seconds`` is how long ago the camera trigger analysed a
+        frame. None leaves it out, and the backend then treats the trigger as
+        stopped and skips the feeder's feed check.
         """
         fields = {"live_url": live_url, "power_source": power_source, "signal": signal}
         body = {k: v for k, v in fields.items() if v}
+        if trigger_age_seconds is not None:
+            # Not in the filter above. An age of 0.0 is falsy and still valid.
+            body["trigger_age_seconds"] = round(trigger_age_seconds, 1)
         try:
             async with aiohttp.ClientSession(timeout=self._short_timeout) as session:
                 async with session.post(

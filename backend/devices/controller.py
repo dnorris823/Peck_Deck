@@ -11,10 +11,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import DEVICE_TOKEN, USER_JWT, device_guard, user_guard
 from ..events.hub import SightingsDeleted, sighting_hub
+from ..feed.operations import get_feed_status, log_refill
 from ..live.address import check_live_url
 from ..sightings.operations import count_sightings_before, delete_sightings_before
 from ..users.operations import get_user_by_email, get_user_by_id
 from .operations import (
+    OFFLINE_AFTER,
     add_device_user,
     create_device,
     delete_device,
@@ -36,6 +38,7 @@ from .schemas import (
     DeviceMember,
     DeviceResponse,
     DeviceTokenResponse,
+    FeedStatus,
     RegisterDevice,
     RegisteredDeviceResponse,
     SightingCount,
@@ -54,7 +57,7 @@ def _derive_status(device) -> str:
     if last_seen.tzinfo is None:
         last_seen = last_seen.replace(tzinfo=timezone.utc)
     age = datetime.now(timezone.utc) - last_seen
-    if age > timedelta(minutes=30):
+    if age > OFFLINE_AFTER:
         return "offline"
     low_battery = (
         device.power_source != "mains"
@@ -91,6 +94,7 @@ async def _to_response(db: AsyncSession, device) -> DeviceResponse:
         all_time_sightings=counts["all_time"],
         tier_mix=TierMix(**await get_tier_mix(db, device.id)),
         live_available=live_available(device),
+        feed=FeedStatus(**await get_feed_status(db, device.id)),
     )
 
 
@@ -107,9 +111,11 @@ async def _record_heartbeat(db: AsyncSession, device, data: DeviceHeartbeat):
             status_code=400,
             detail=f"power_source must be one of: {', '.join(POWER_SOURCES)}",
         )
+    if data.trigger_age_seconds is not None and data.trigger_age_seconds < 0:
+        raise HTTPException(status_code=400, detail="trigger_age_seconds must be 0 or more")
     return await update_device_telemetry(
         db, device, battery=data.battery, signal=data.signal, live_url=data.live_url,
-        power_source=data.power_source,
+        power_source=data.power_source, trigger_age_seconds=data.trigger_age_seconds,
     )
 
 
@@ -293,6 +299,21 @@ class DeviceController(Controller):
             state=data.state,
             feed_type=data.feed_type,
         )
+        return await _to_response(db, device)
+
+    @post("/{device_id:int}/refills", guards=[user_guard], security=USER_JWT, status_code=201)
+    async def refill(
+        self, device_id: FromPath[int], request: Request, db: NamedDependency[AsyncSession]
+    ) -> DeviceResponse:
+        """Log that the feeder was just filled. **Feeder owner or owner role only.**
+
+        Ends any low or out alert, and starts the next fill for the forecast.
+        """
+        device = await get_device(db, device_id)
+        if device is None:
+            raise NotFoundException()
+        _assert_owner(request, device)
+        await log_refill(db, device, request.state.user_id, datetime.now(timezone.utc))
         return await _to_response(db, device)
 
     @post("/me/heartbeat", guards=[device_guard], security=DEVICE_TOKEN, status_code=200)

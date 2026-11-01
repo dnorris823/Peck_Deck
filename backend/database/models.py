@@ -12,6 +12,7 @@ from sqlalchemy import (
     String,
     UniqueConstraint,
     text,
+    true,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -123,6 +124,18 @@ class Device(Base):
     # Where the Pi's MediaMTX answers WHEP offers, from the latest heartbeat.
     # Null when the last heartbeat sent none. Never sent to the browser.
     live_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    # When the camera trigger last analysed a frame, from the latest heartbeat.
+    # Null when the last heartbeat sent none. The feed check skips the feeder
+    # then, because a dead trigger records no visits and reads as empty feed.
+    trigger_tick_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    # False from a refill until a feed check sees normal visits again. Birds
+    # can take days to find a refilled feeder, and the visit-drop rule must not
+    # call that empty feed. See backend/feed/monitor.py.
+    feed_drop_armed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=true()
+    )
 
     owner: Mapped["User"] = relationship(
         "User", foreign_keys=[owner_id], back_populates="owned_devices"
@@ -143,6 +156,61 @@ class DeviceUser(Base):
 
     device: Mapped["Device"] = relationship("Device", back_populates="members")
     user: Mapped["User"] = relationship("User", back_populates="device_memberships")
+
+
+class FeederRefill(Base):
+    """The owner tapped "Refilled". Every feed signal resets from this row."""
+
+    __tablename__ = "feeder_refills"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    device_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("devices.id"), nullable=False, index=True
+    )
+    refilled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    # The device's feed type at the refill. The forecast compares only fills of
+    # the same feed, since the feed changes how fast it goes.
+    feed_type: Mapped[str | None] = mapped_column(String, nullable=True)
+    user_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+
+
+class FeedSpell(Base):
+    """A time the feed was low or out. ``ended_at`` is null while it lasts.
+
+    At most one spell per device is open. The open spell is the feeder's feed
+    state, and no open spell means "ok". Closed "out" spells stay, so the
+    visit baseline can leave those hours out.
+    """
+
+    __tablename__ = "feed_spells"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    device_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("devices.id"), nullable=False, index=True
+    )
+    state: Mapped[str] = mapped_column(String, nullable=False)  # low|out
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class DeviceOutage(Base):
+    """A time the backend heard nothing from the device for over 30 minutes.
+
+    Written when the device reaches the backend again, from the old and new
+    ``last_seen``. The visit baseline leaves these hours out, and the feed
+    check waits 3 hours after one ends.
+    """
+
+    __tablename__ = "device_outages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    device_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("devices.id"), nullable=False, index=True
+    )
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    ended_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
 
 
 class Species(Base):

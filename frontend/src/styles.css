@@ -565,6 +565,19 @@ h1, h2, h3 { font-weight: 800; margin: 0; }
 .device-stat-num { font-size: 19px; font-weight: 800; line-height: 1.1; }
 .device-stat-lbl { font-size: 12px; color: var(--mu); margin-top: 2px; }
 .station-seen { margin-top: 12px; font-size: 12px; color: var(--mu); }
+/* The feeder card is a div. This button is its hit target, and the feed row
+   below it holds the Refilled button. */
+.station-card-open {
+  display: block; width: 100%; padding: 0; border: 0; background: none;
+  font: inherit; color: inherit; text-align: left; cursor: pointer;
+}
+.station-feed {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 10px 20px 14px; border-top: 1px solid var(--line);
+  font-size: 12.5px; color: var(--mu);
+}
+.station-feed.feed-low { background: var(--warn-bg); color: var(--warn); font-weight: 700; }
+.station-feed.feed-out { background: var(--bad-bg); color: var(--bad); font-weight: 700; }
 .station-tiers {
   display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
   margin-top: 12px; font-size: 12px; color: var(--mu);

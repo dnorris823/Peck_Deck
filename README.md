@@ -27,6 +27,8 @@ when Tier 2 fails. `SETUP.md` §7 has the tier orders and how to turn Tier 3 on.
   provisioning.
 - Animal visits. Tier 2 names a squirrel, raccoon or other feeder mammal, and the
   sighting records as an animal, outside every bird count.
+- Feed alerts. An hourly check warns a feeder's owner when the feed is probably
+  low or out, and a "Refilled" button on the feeder card resets it.
 - CI with backend, frontend and integration tests.
 
 Measured accuracy on 300 field photos is in `machine_learning/MODELS.md`.

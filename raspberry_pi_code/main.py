@@ -92,12 +92,17 @@ def _no_signal() -> str | None:
     return None
 
 
+def _no_trigger_age() -> float | None:
+    return None
+
+
 async def _heartbeat_loop(
     client: BackendClient,
     interval: float,
     live_url: Callable[[], str | None] = _no_live_url,
     power_source: str | None = None,
     signal: Callable[[], str | None] = _no_signal,
+    trigger_age: Callable[[], float | None] = _no_trigger_age,
 ) -> None:
     """Report to the backend every `interval` seconds, starting now.
 
@@ -106,7 +111,8 @@ async def _heartbeat_loop(
 
     ``live_url`` runs in a worker thread each beat, because deriving it looks up
     the route to the backend, which may resolve a host name. ``signal`` reads a
-    file, so it runs there too.
+    file, so it runs there too. ``trigger_age`` is the camera trigger's
+    seconds since its last analysis tick, for the backend's feed check.
     """
     logger = logging.getLogger(__name__)
     last_ok: bool | None = None
@@ -115,7 +121,8 @@ async def _heartbeat_loop(
             url = await asyncio.to_thread(live_url)
             wifi = await asyncio.to_thread(signal)
             outcome = await client.heartbeat(
-                live_url=url, power_source=power_source, signal=wifi
+                live_url=url, power_source=power_source, signal=wifi,
+                trigger_age_seconds=trigger_age(),
             )
         except Exception:
             logger.exception("Heartbeat error")
@@ -188,6 +195,7 @@ async def _run() -> None:
                     _live_url_source(config, live),
                     config.power_source,
                     read_signal,
+                    trigger.tick_age,
                 ),
                 name="heartbeat",
             ),

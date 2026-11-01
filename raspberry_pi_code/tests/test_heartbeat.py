@@ -59,6 +59,17 @@ def test_heartbeat_sends_power_source_and_signal():
     assert bodies[1] == {}
 
 
+def test_heartbeat_sends_a_zero_trigger_age():
+    # 0.0 is falsy, and it is the freshest tick there is.
+    bodies = []
+
+    async def body(client, _seen):
+        await client.heartbeat(trigger_age_seconds=0.0)
+
+    asyncio.run(_with_backend(200, body, bodies))
+    assert bodies[0] == {"trigger_age_seconds": 0.0}
+
+
 def test_power_source_defaults_to_mains():
     assert parse_power_source(None) == "mains"
     assert parse_power_source("") == "mains"
@@ -90,9 +101,11 @@ class _FakeClient:
         self._outcomes = list(outcomes)
         self.calls = 0
 
-    async def heartbeat(self, live_url=None, power_source=None, signal=None):
+    async def heartbeat(self, live_url=None, power_source=None, signal=None,
+                        trigger_age_seconds=None):
         self.calls += 1
-        self.last = {"power_source": power_source, "signal": signal}
+        self.last = {"power_source": power_source, "signal": signal,
+                     "trigger_age_seconds": trigger_age_seconds}
         item = self._outcomes.pop(0) if self._outcomes else UploadOutcome.OK
         if isinstance(item, Exception):
             raise item
@@ -130,7 +143,8 @@ def test_loop_reports_power_source_and_signal_each_beat():
 
     async def run():
         task = asyncio.create_task(pi_main._heartbeat_loop(
-            client, 0, power_source="mains", signal=lambda: "good"))
+            client, 0, power_source="mains", signal=lambda: "good",
+            trigger_age=lambda: 1.5))
         while client.calls < 2:
             await asyncio.sleep(0)
         task.cancel()
@@ -140,7 +154,8 @@ def test_loop_reports_power_source_and_signal_each_beat():
             pass
 
     asyncio.run(run())
-    assert client.last == {"power_source": "mains", "signal": "good"}
+    assert client.last == {"power_source": "mains", "signal": "good",
+                           "trigger_age_seconds": 1.5}
 
 
 def test_interval_stays_under_the_backend_warn_cutoff():
