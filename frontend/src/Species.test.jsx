@@ -6,8 +6,9 @@ import userEvent from "@testing-library/user-event";
 vi.mock("./api.js", () => ({ apiGet: vi.fn(), apiObjectUrl: vi.fn() }));
 
 let mockData;
+let mockFeeder = null;
 vi.mock("./DataContext.jsx", () => ({
-  useData: () => ({ data: mockData, reload: vi.fn() }),
+  useData: () => ({ data: mockData, reload: vi.fn(), feeder: mockFeeder }),
 }));
 
 import { apiGet } from "./api.js";
@@ -39,6 +40,7 @@ function setData(counts) {
     SPECIES: counts,
     DEVICES: [DEVICE],
     SIGHTINGS: [],
+    SCOPED_SIGHTINGS: [],
   };
 }
 
@@ -64,6 +66,7 @@ function setWide(wide) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockFeeder = null;
   window.scrollTo = vi.fn();
   routeApi();
   setWide(false);
@@ -107,7 +110,7 @@ describe("species list", () => {
     // Unknown is not a species, so it is not counted as one.
     expect(screen.getByText("2 at your feeders", { exact: false })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Needs a name/ }));
-    expect(go).toHaveBeenCalledWith("history", { species: UNKNOWN.id });
+    expect(go).toHaveBeenCalledWith("history", { species: UNKNOWN.id, device: null });
     unmount();
 
     setData([CARDINAL, FINCH]);
@@ -175,5 +178,40 @@ describe("species page", () => {
       "https://xeno-canto.org/explore?query=Blue%20Jay",
     ]);
     await screen.findByText("5:20 am · 7:58 pm");
+  });
+});
+
+describe("species scoped to one feeder", () => {
+  const PORCH = { id: 11, name: "Dad's Porch" };
+
+  it("opens History on the picked feeder from All N and Needs a name", async () => {
+    setWide(true);
+    setData([CARDINAL, UNKNOWN]);
+    mockData.DEVICES = [DEVICE, PORCH];
+    mockFeeder = 11;
+    const go = vi.fn();
+    render(<SpeciesPage go={go} openSighting={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /^All 3,713/ }));
+    expect(go).toHaveBeenLastCalledWith("history", { species: CARDINAL.id, device: 11 });
+    await userEvent.click(screen.getByRole("button", { name: /Needs a name/ }));
+    expect(go).toHaveBeenLastCalledWith("history", { species: UNKNOWN.id, device: 11 });
+  });
+
+  it("names the feeder and asks for its photos, visits and hours only", async () => {
+    setWide(true);
+    setData([CARDINAL]);
+    mockData.DEVICES = [DEVICE, PORCH];
+    mockFeeder = 11;
+    render(<SpeciesPage go={vi.fn()} openSighting={vi.fn()} />);
+    expect(screen.getByText("1 at Dad's Porch", { exact: false })).toBeInTheDocument();
+
+    await waitFor(() => {
+      const paths = apiGet.mock.calls.map(([p]) => p);
+      expect(paths.some((p) => p.startsWith("/stats/hours"))).toBe(true);
+      expect(paths.filter((p) => p.startsWith("/sightings")).length).toBeGreaterThan(0);
+    });
+    const paths = apiGet.mock.calls.map(([p]) => p);
+    expect(paths.every((p) => p.includes("device_id=11"))).toBe(true);
   });
 });

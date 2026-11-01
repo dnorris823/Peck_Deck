@@ -1,3 +1,6 @@
+from backend.tests.conftest import IDS
+
+
 def test_dashboard_owner(client, owner_headers):
     d = client.get("/stats/dashboard", headers=owner_headers).json()
     assert d["today_sightings"] == 5
@@ -40,3 +43,58 @@ def test_stats_scoped_to_viewer(client, viewer_headers):
 
     rows = client.get("/stats/species-counts", headers=viewer_headers).json()
     assert rows[0]["count"] == 3                 # Cardinal, dev1 only
+
+
+# ── Scoped to one feeder (device_id) ──────────────────────────────────────
+
+
+def _get(client, path, headers, device_id):
+    return client.get(path, params={"device_id": device_id}, headers=headers).json()
+
+
+def test_dashboard_scoped_to_one_feeder(client, owner_headers):
+    one = _get(client, "/stats/dashboard", owner_headers, IDS["dev1_id"])
+    assert one["today_sightings"] == 5
+    assert one["most_frequent_count"] == 3       # dev2's cardinal left out
+    assert one["total_devices"] == 1
+    assert sum(one["spark_sightings"]) == 5
+
+    two = _get(client, "/stats/dashboard", owner_headers, IDS["dev2_id"])
+    assert two["today_sightings"] == 0
+    assert two["most_frequent"] == "Test Cardinal"
+    assert two["most_frequent_count"] == 1
+    assert two["total_species"] == 1
+    assert sum(two["spark_sightings"]) == 1
+
+
+def test_species_counts_scoped_to_one_feeder(client, owner_headers):
+    one = _get(client, "/stats/species-counts", owner_headers, IDS["dev1_id"])
+    assert [(r["common_name"], r["count"]) for r in one] == [("Test Cardinal", 3), ("Test Jay", 2)]
+
+    two = _get(client, "/stats/species-counts", owner_headers, IDS["dev2_id"])
+    assert [(r["common_name"], r["count"]) for r in two] == [("Test Cardinal", 1)]
+
+
+def test_heatmap_scoped_to_one_feeder(client, owner_headers):
+    one = _get(client, "/stats/heatmap", owner_headers, IDS["dev1_id"])
+    two = _get(client, "/stats/heatmap", owner_headers, IDS["dev2_id"])
+    assert sum(map(sum, one)) == 5
+    assert sum(map(sum, two)) == 1
+
+
+def test_hours_scoped_to_one_feeder(client, owner_headers):
+    params = {"days": 30, "tz": "UTC"}
+    one = client.get("/stats/hours", params={**params, "device_id": IDS["dev1_id"]},
+                     headers=owner_headers).json()
+    two = client.get("/stats/hours", params={**params, "device_id": IDS["dev2_id"]},
+                     headers=owner_headers).json()
+    assert one["total"] == 5
+    assert two["total"] == 1
+
+
+def test_a_feeder_the_viewer_cannot_see_scopes_to_nothing(client, viewer_headers):
+    d = _get(client, "/stats/dashboard", viewer_headers, IDS["dev2_id"])
+    assert d["total_devices"] == 0
+    assert d["most_frequent_count"] == 0
+    assert _get(client, "/stats/species-counts", viewer_headers, IDS["dev2_id"]) == []
+    assert sum(map(sum, _get(client, "/stats/heatmap", viewer_headers, IDS["dev2_id"]))) == 0

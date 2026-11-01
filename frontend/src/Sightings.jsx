@@ -265,12 +265,13 @@ function LoadMore({ onLoad, loading, error }) {
 
 // `initialDay` opens History on one local day, as Home's yesterday line does.
 // That day shows as its own choice before the named ranges.
-export function Sightings({ openSighting, initialSpecies = "all", initialDay = null }) {
+// `initialDevice` opens it on one feeder, for a count from the feeder picker.
+export function Sightings({ openSighting, initialSpecies = "all", initialDay = null, initialDevice = null }) {
   const { data, reload } = useData();
   const { SIGHTINGS, SPECIES, SPECIES_COUNTS = [], DEVICES, ME } = data;
   // Null outside select mode, else the ids ticked so far.
   const [selected, setSelected] = useState(null);
-  const [device, setDevice] = useState("all");
+  const [device, setDevice] = useState(initialDevice ?? "all");
   const [species, setSpecies] = useState(initialSpecies);
   // Coming from a species page, start wide: that species' visits may be old.
   const [range, setRange] = useState(initialDay ? "day" : initialSpecies === "all" ? "week" : "all");

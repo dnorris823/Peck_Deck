@@ -5,7 +5,8 @@ import React from "react";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
 let mockData;
-vi.mock("./DataContext.jsx", () => ({ useData: () => ({ data: mockData }) }));
+let mockFeeder = null;
+vi.mock("./DataContext.jsx", () => ({ useData: () => ({ data: mockData, feeder: mockFeeder }) }));
 vi.mock("./data.js", async (importOriginal) => ({
   ...(await importOriginal()),
   fetchAnimalStats: vi.fn(),
@@ -45,6 +46,7 @@ function renderPage(me = { id: 7, role: "viewer" }) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockFeeder = null;
   fetchAnimalStats.mockResolvedValue(STATS);
   createMeasure.mockResolvedValue({});
   updateMeasure.mockResolvedValue({});
@@ -107,5 +109,27 @@ describe("AnimalsPage", () => {
     fetchAnimalStats.mockResolvedValue({ ...STATS, days: [], groups: [], measures: [] });
     renderPage();
     expect(await screen.findByText("No animal visits in the last 60 days")).toBeInTheDocument();
+  });
+});
+
+describe("AnimalsPage with two feeders", () => {
+  const MAPLE = { id: 1, name: "Backyard Maple", ownerId: 7 };
+
+  it("follows the shell's feeder and drops its own picker", async () => {
+    mockData = { DEVICES: [MAPLE, PORCH], ME: { id: 7, role: "viewer" } };
+    mockFeeder = 4;
+    render(<AnimalsPage />);
+    await screen.findByText(/Squirrel visits down 72%/);
+    expect(fetchAnimalStats).toHaveBeenCalledWith(4, expect.any(String));
+    expect(fetchAnimalStats).not.toHaveBeenCalledWith(1, expect.any(String));
+    expect(screen.queryByLabelText("Feeder")).toBeNull();
+  });
+
+  it("keeps its own picker on All feeders", async () => {
+    mockData = { DEVICES: [MAPLE, PORCH], ME: { id: 7, role: "viewer" } };
+    render(<AnimalsPage />);
+    await screen.findByText(/Squirrel visits down 72%/);
+    expect(fetchAnimalStats).toHaveBeenCalledWith(1, expect.any(String));
+    expect(screen.getByLabelText("Feeder")).toBeInTheDocument();
   });
 });

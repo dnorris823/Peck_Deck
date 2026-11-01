@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import React from "react";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 // Mock the data loader so the context's loading/data/error/auth branches are
 // driven directly, without any network. `mapAll` passes the raw payload straight
@@ -9,6 +9,7 @@ vi.mock("./data.js", () => ({
   fetchRaw: vi.fn(),
   mapAll: (raw) => raw,
   fetchAggregates: vi.fn(),
+  fetchScopedSightings: vi.fn(),
   applySighting: vi.fn(),
 }));
 
@@ -18,7 +19,8 @@ vi.mock("./data.js", () => ({
 // behaviour has its own file (Stream.test.jsx).
 vi.mock("./events.js", () => ({ openSightingStream: () => () => {} }));
 
-import { fetchRaw } from "./data.js";
+import { fetchAggregates, fetchRaw } from "./data.js";
+import { SCOPE_KEY } from "./feederScope.js";
 import { DataProvider, useData } from "./DataContext.jsx";
 
 // Tiny probe component that renders the context's current state as text.
@@ -38,7 +40,24 @@ function Probe() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.clear();
 });
+
+// Shows the scope and the dashboard it loaded, with a button per feeder.
+function ScopeProbe() {
+  const { data, feeder, setFeeder } = useData();
+  if (!data) return <div>loading</div>;
+  return (
+    <div>
+      <div>scope: {String(feeder)}</div>
+      <div>today: {data.dashboard.today_sightings}</div>
+      <button onClick={() => setFeeder(2)}>Porch</button>
+      <button onClick={() => setFeeder(null)}>All</button>
+    </div>
+  );
+}
+
+const TWO_FEEDERS = [{ id: 1 }, { id: 2 }];
 
 describe("DataProvider", () => {
   it("shows loading, then exposes the loaded dataset", async () => {
@@ -82,5 +101,39 @@ describe("DataProvider", () => {
     const spy = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(() => render(<Probe />)).toThrow(/must be used within a DataProvider/);
     spy.mockRestore();
+  });
+
+  it("refetches the aggregates for the picked feeder and keeps the choice", async () => {
+    fetchRaw.mockResolvedValue({ devices: TWO_FEEDERS, dashboard: { today_sightings: 6 } });
+    fetchAggregates.mockResolvedValue({ dashboard: { today_sightings: 1 } });
+    render(<DataProvider onAuthError={vi.fn()}><ScopeProbe /></DataProvider>);
+    await waitFor(() => expect(screen.getByText("today: 6")).toBeInTheDocument());
+    expect(fetchRaw).toHaveBeenCalledWith({ deviceId: null });
+
+    fireEvent.click(screen.getByText("Porch"));
+    await waitFor(() => expect(screen.getByText("today: 1")).toBeInTheDocument());
+    expect(screen.getByText("scope: 2")).toBeInTheDocument();
+    expect(fetchAggregates).toHaveBeenCalledWith({ deviceId: 2 });
+    expect(localStorage.getItem(SCOPE_KEY)).toBe("2");
+  });
+
+  it("loads the saved feeder's numbers on start", async () => {
+    localStorage.setItem(SCOPE_KEY, "2");
+    fetchRaw.mockResolvedValue({ devices: TWO_FEEDERS, dashboard: { today_sightings: 1 } });
+    render(<DataProvider onAuthError={vi.fn()}><ScopeProbe /></DataProvider>);
+    await waitFor(() => expect(screen.getByText("scope: 2")).toBeInTheDocument());
+    expect(fetchRaw).toHaveBeenCalledWith({ deviceId: 2 });
+    expect(fetchAggregates).not.toHaveBeenCalled();
+  });
+
+  it("falls back to all feeders when the saved one is gone", async () => {
+    localStorage.setItem(SCOPE_KEY, "9");
+    fetchRaw.mockResolvedValue({ devices: TWO_FEEDERS, dashboard: { today_sightings: 0 } });
+    fetchAggregates.mockResolvedValue({ dashboard: { today_sightings: 6 } });
+    render(<DataProvider onAuthError={vi.fn()}><ScopeProbe /></DataProvider>);
+    await waitFor(() => expect(screen.getByText("today: 6")).toBeInTheDocument());
+    expect(screen.getByText("scope: null")).toBeInTheDocument();
+    expect(fetchAggregates).toHaveBeenCalledWith({ deviceId: null });
+    expect(localStorage.getItem(SCOPE_KEY)).toBe(null);
   });
 });

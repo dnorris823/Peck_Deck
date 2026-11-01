@@ -102,7 +102,7 @@ describe("streamed sightings", () => {
 
     await handlers.onSighting({ id: 4, species_id: 99, datetime: "2026-07-30T15:00:00+00:00" });
 
-    await waitFor(() => expect(fetchAggregates).toHaveBeenCalledWith({ withSpecies: true }));
+    await waitFor(() => expect(fetchAggregates).toHaveBeenCalledWith({ withSpecies: true, deviceId: null }));
   });
 
   it("doesn't pull species for a bird already in the catalogue", async () => {
@@ -112,7 +112,7 @@ describe("streamed sightings", () => {
 
     await handlers.onSighting({ id: 4, species_id: 1, datetime: "2026-07-30T15:00:00+00:00" });
 
-    await waitFor(() => expect(fetchAggregates).toHaveBeenCalledWith({ withSpecies: false }));
+    await waitFor(() => expect(fetchAggregates).toHaveBeenCalledWith({ withSpecies: false, deviceId: null }));
   });
 
   it("keeps the feed on screen when the aggregate refetch fails", async () => {
@@ -178,7 +178,7 @@ describe("streamed sightings", () => {
 
     await waitFor(() => expect(screen.getByTestId("today")).toHaveTextContent("9"));
     expect(fetchAggregates).toHaveBeenCalledTimes(1);
-    expect(fetchAggregates).toHaveBeenCalledWith();
+    expect(fetchAggregates).toHaveBeenCalledWith({ deviceId: null });
     expect(fetchRaw).not.toHaveBeenCalled();
   });
 
@@ -220,7 +220,7 @@ describe("streamed sightings", () => {
     });
 
     await waitFor(() => expect(screen.getByTestId("species")).toHaveTextContent("5,1"));
-    expect(fetchAggregates).toHaveBeenCalledWith({ withSpecies: true });
+    expect(fetchAggregates).toHaveBeenCalledWith({ withSpecies: true, deviceId: null });
   });
 
   it("loads the species first when the correction names a new one", async () => {
@@ -233,7 +233,7 @@ describe("streamed sightings", () => {
     });
 
     await waitFor(() => expect(screen.getByTestId("species")).toHaveTextContent("1,5"));
-    expect(fetchAggregates).toHaveBeenCalledWith({ withSpecies: true });
+    expect(fetchAggregates).toHaveBeenCalledWith({ withSpecies: true, deviceId: null });
   });
 
   it("refreshes the counts for a corrected sighting outside the loaded window", async () => {

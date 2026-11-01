@@ -5,7 +5,8 @@ import React from "react";
 import { act, render, screen, fireEvent, within } from "@testing-library/react";
 
 let mockData;
-vi.mock("./DataContext.jsx", () => ({ useData: () => ({ data: mockData }) }));
+let mockFeeder = null;
+vi.mock("./DataContext.jsx", () => ({ useData: () => ({ data: mockData, feeder: mockFeeder }) }));
 const counts = vi.fn();
 vi.mock("./data.js", async (importOriginal) => ({
   ...(await importOriginal()),
@@ -26,8 +27,9 @@ const MAPLE = { id: 1, name: "Backyard Maple", status: "online", lastSeen: "9s a
 // hasImage false keeps SightingImage on its plate, with no fetch.
 const visit = (id, species, d) => ({ id, species, device: MAPLE, datetime: d, hasImage: false });
 
-function renderHome(sightings, { devices = [MAPLE], ...props } = {}) {
-  mockData = { SIGHTINGS: sightings, DEVICES: devices };
+function renderHome(sightings, { devices = [MAPLE], feeder = null, ...props } = {}) {
+  mockData = { SIGHTINGS: sightings, SCOPED_SIGHTINGS: sightings, DEVICES: devices };
+  mockFeeder = feeder;
   const openSighting = vi.fn();
   const go = vi.fn();
   const view = render(<Dashboard openSighting={openSighting} go={go} {...props} />);
@@ -129,7 +131,7 @@ describe("Home", () => {
     expect(start).toEqual(new Date(2026, 9, 28));
     expect(end).toEqual(new Date(new Date(2026, 9, 29).getTime() - 1));
     fireEvent.click(line);
-    expect(go).toHaveBeenCalledWith("history", { day: new Date(2026, 9, 28) });
+    expect(go).toHaveBeenCalledWith("history", { day: new Date(2026, 9, 28), device: null });
   });
 
   it("leaves the yesterday line out when yesterday had no visits", async () => {
@@ -153,7 +155,7 @@ describe("Home", () => {
   it("replaces the hero when a new sighting arrives", () => {
     const { rerender, openSighting, go } = renderHome(today);
     const jay = visit(14, JAY, new Date(2026, 9, 29, 19, 41, 40));
-    mockData = { SIGHTINGS: [jay, ...today], DEVICES: [MAPLE] };
+    mockData = { SIGHTINGS: [jay, ...today], SCOPED_SIGHTINGS: [jay, ...today], DEVICES: [MAPLE] };
     rerender(<Dashboard openSighting={openSighting} go={go} />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Blue Jay");
     expect(screen.getByText("A visit just now.")).toBeInTheDocument();
@@ -190,5 +192,40 @@ describe("Home", () => {
     const { go } = renderHome([], { devices: [] });
     fireEvent.click(screen.getByRole("button", { name: "Register a feeder" }));
     expect(go).toHaveBeenCalledWith("feeders");
+  });
+});
+
+describe("Home scoped to one feeder", () => {
+  const PORCH = { id: 2, name: "Dad's Porch", status: "online", lastSeen: "1m ago",
+    tierMix: { tier2Down: true } };
+  const at = (id, species, device, h, m) =>
+    ({ id, species, device, datetime: new Date(2026, 9, 29, h, m), hasImage: false });
+  const both = [
+    at(23, FINCH, MAPLE, 19, 31),
+    at(22, JAY, PORCH, 19, 2),
+    at(21, FINCH, MAPLE, 18, 40),
+    at(20, JAY, PORCH, 9, 15),
+  ];
+
+  it("shows only the picked feeder's birds and counts", () => {
+    renderHome(both, { devices: [MAPLE, PORCH], feeder: 2 });
+    const hero = screen.getByRole("region", { name: "Latest visitor" });
+    expect(within(hero).getByRole("heading", { level: 1 })).toHaveTextContent("Blue Jay");
+    expect(hero).toHaveTextContent("Dad's Porch");
+    expect(screen.getByText(/visits today/)).toHaveTextContent("2 visits today, all Blue Jay.");
+    // The yesterday line asks for the same feeder.
+    expect(counts.mock.calls[0][2]).toBe(2);
+  });
+
+  it("warns about Tier 2 only for the picked feeder", () => {
+    renderHome(both, { devices: [MAPLE, PORCH], feeder: 1 });
+    expect(screen.getByText(/visits today/)).toHaveTextContent("2 visits today, all House Finch.");
+    expect(screen.queryByText(/stopped naming birds/)).not.toBeInTheDocument();
+  });
+
+  it("shows every feeder on All feeders", () => {
+    renderHome(both, { devices: [MAPLE, PORCH] });
+    expect(screen.getByText(/visits today/)).toHaveTextContent("4 visits today, 2 species.");
+    expect(counts.mock.calls[0][2]).toBe(null);
   });
 });

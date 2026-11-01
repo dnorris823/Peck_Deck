@@ -4,6 +4,7 @@
 // the wall.
 import { apiGet } from "./api.js";
 import { browserZone, mapSighting, startOfToday } from "./data.js";
+import { withScope } from "./feederScope.js";
 
 // The Pi files a capture no tier could name under this species.
 export function isUnknown(species) {
@@ -30,18 +31,21 @@ export function speciesLinks(species) {
   return links;
 }
 
-/** Visits per local hour for one species. `days` of 0 means all time. */
-export function fetchHours(speciesId, { days = 30, zone = browserZone() } = {}) {
+/**
+ * Visits per local hour for one species. `days` of 0 means all time.
+ * `deviceId` scopes it to one feeder.
+ */
+export function fetchHours(speciesId, { days = 30, zone = browserZone(), deviceId = null } = {}) {
   const params = new URLSearchParams({ species_id: String(speciesId), days: String(days), tz: zone });
-  return apiGet(`/stats/hours?${params}`);
+  return apiGet(withScope(`/stats/hours?${params}`, deviceId));
 }
 
 /**
  * The newest sightings of one species, mapped like the main feed so the
  * sighting view can open them. `data` is the DataContext payload.
  */
-export async function fetchSpeciesSightings(speciesId, data, { limit = 12 } = {}) {
-  const rows = await apiGet(`/sightings?species_id=${speciesId}&limit=${limit}`);
+export async function fetchSpeciesSightings(speciesId, data, { limit = 12, deviceId = null } = {}) {
+  const rows = await apiGet(withScope(`/sightings?species_id=${speciesId}&limit=${limit}`, deviceId));
   const speciesById = new Map(data.SPECIES.map((s) => [s.id, s]));
   const devicesById = new Map(data.DEVICES.map((d) => [d.id, d]));
   return rows

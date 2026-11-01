@@ -11,7 +11,7 @@ import {
   loadAll, saveMe, savePreferences, fetchSighting,
   fmtRelative, fmtTime, fmtDateFull,
   confidenceLevel, countToday, toLocalGrid, fmtDayHeading,
-  speciesCountsPath, isBirdSighting,
+  speciesCountsPath, isBirdSighting, fetchRaw, fetchAggregates, fetchSpeciesCountsBetween, mapAll,
 } from "./data.js";
 
 // Route each apiGet(path) call to a fixture keyed by path.
@@ -299,5 +299,57 @@ describe("loadAll for a viewer", () => {
   it("still fails on any other GET /users error", async () => {
     refuseUsers(500);
     await expect(loadAll()).rejects.toThrow("failed (500)");
+  });
+});
+
+describe("feeder scope", () => {
+  it("scopes the aggregates and a second sightings list to one feeder", async () => {
+    const porchRow = { id: 2000, species_id: 1, device_id: 10, datetime: "2026-07-18T12:00:00Z",
+      confidence_score: 0.9, classification_tier_used: "gpu", has_image: false };
+    routeApiGet({
+      [speciesCountsPath(undefined, 10)]: [],
+      "/stats/heatmap?device_id=10": [[0]],
+      "/stats/dashboard?device_id=10": { today_sightings: 1 },
+      "/sightings?limit=100&device_id=10": [porchRow],
+    });
+    const raw = await fetchRaw({ deviceId: 10 });
+    expect(raw.dashboard).toEqual({ today_sightings: 1 });
+    const paths = apiGet.mock.calls.map(([p]) => p);
+    // The full list stays, for Live, Feeders and History.
+    expect(paths).toContain("/sightings?limit=100");
+    expect(paths.filter((p) => p.startsWith("/stats/")).every((p) => p.includes("device_id=10"))).toBe(true);
+
+    const data = mapAll(raw);
+    expect(data.SIGHTINGS.map((s) => s.id)).toEqual([1000]);
+    expect(data.SCOPED_SIGHTINGS.map((s) => s.id)).toEqual([2000]);
+  });
+
+  it("uses the full list as the scoped one for all feeders", async () => {
+    routeApiGet();
+    const data = await loadAll();
+    expect(data.SCOPED_SIGHTINGS).toBe(data.SIGHTINGS);
+    expect(apiGet.mock.calls.some(([p]) => p.includes("device_id"))).toBe(false);
+  });
+
+  it("scopes the refetch after a streamed sighting", async () => {
+    routeApiGet({
+      [speciesCountsPath(undefined, 10)]: [],
+      "/stats/heatmap?device_id=10": [[0]],
+      "/stats/dashboard?device_id=10": { today_sightings: 1 },
+    });
+    const patch = await fetchAggregates({ deviceId: 10 });
+    expect(patch.dashboard).toEqual({ today_sightings: 1 });
+  });
+
+  it("sends no device_id for all feeders", async () => {
+    routeApiGet();
+    await fetchAggregates();
+    expect(apiGet.mock.calls.some(([p]) => p.includes("device_id"))).toBe(false);
+  });
+
+  it("scopes Home's yesterday counts", async () => {
+    apiGet.mockResolvedValue([{ id: 1, common_name: "Northern Cardinal", count: 2 }]);
+    await fetchSpeciesCountsBetween(new Date(0), new Date(1000), 10);
+    expect(apiGet.mock.calls[0][0]).toMatch(/^\/stats\/species-counts\?from_date=.*&device_id=10$/);
   });
 });

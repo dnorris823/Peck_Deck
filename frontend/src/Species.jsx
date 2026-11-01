@@ -42,33 +42,38 @@ function useMediaQuery(query) {
   return matches;
 }
 
-// The newest photo per species. The loaded feed covers the last 100 visits, so
-// a species seen only before that gets one small lookup of its own, once.
-function useLatestPhotos(rows, data) {
+// The newest photo per species, from the picked feeder when there is one. The
+// loaded feed covers the last 100 visits, so a species seen only before that
+// gets one small lookup of its own, once per feeder scope.
+function useLatestPhotos(rows, data, feeder) {
   const fromFeed = useMemo(() => {
     const by = new Map();
-    for (const s of data.SIGHTINGS) {
+    for (const s of data.SCOPED_SIGHTINGS) {
+      if (feeder != null && s.device.id !== feeder) continue;
       if (s.hasImage && !by.has(s.species.id)) by.set(s.species.id, s);
     }
     return by;
-  }, [data.SIGHTINGS]);
+  }, [data.SCOPED_SIGHTINGS, feeder]);
+  // Keyed "feeder:species", so another feeder's photo never stands in.
   const [looked, setLooked] = useState(() => new Map());
   const asked = useRef(new Set());
+  const key = (id) => `${feeder}:${id}`;
 
   useEffect(() => {
     for (const sp of rows) {
-      if (fromFeed.has(sp.id) || asked.current.has(sp.id)) continue;
-      asked.current.add(sp.id);
-      fetchSpeciesSightings(sp.id, data, { limit: 5 })
+      const k = `${feeder}:${sp.id}`;
+      if (fromFeed.has(sp.id) || asked.current.has(k)) continue;
+      asked.current.add(k);
+      fetchSpeciesSightings(sp.id, data, { limit: 5, deviceId: feeder })
         .then((list) => {
           const photo = list.find((s) => s.hasImage);
-          if (photo) setLooked((m) => new Map(m).set(sp.id, photo));
+          if (photo) setLooked((m) => new Map(m).set(k, photo));
         })
         .catch(() => { /* The plate stays. A missing thumbnail is not an error. */ });
     }
-  }, [rows, fromFeed, data]);
+  }, [rows, fromFeed, data, feeder]);
 
-  return (id) => fromFeed.get(id) ?? looked.get(id);
+  return (id) => fromFeed.get(id) ?? looked.get(key(id));
 }
 
 function Thumb({ species, photo }) {
@@ -167,7 +172,7 @@ function AddSpeciesModal({ onClose, onDone }) {
 }
 
 export function SpeciesPage({ go, openSighting }) {
-  const { data, reload } = useData();
+  const { data, reload, feeder } = useData();
   const wide = useMediaQuery(WIDE);
   const [order, setOrder] = useState("recent");
   const [openId, setOpenId] = useState(null);
@@ -178,7 +183,8 @@ export function SpeciesPage({ go, openSighting }) {
   const named = useMemo(() => data.SPECIES_COUNTS.filter((s) => !isUnknown(s)), [data.SPECIES_COUNTS]);
   const sorted = useMemo(() => sortSpecies(named, order), [named, order]);
   const photoRows = useMemo(() => (unknown ? [unknown, ...sorted] : sorted), [unknown, sorted]);
-  const photoOf = useLatestPhotos(photoRows, data);
+  const photoOf = useLatestPhotos(photoRows, data, feeder);
+  const where = data.DEVICES.find((d) => d.id === feeder)?.name ?? "your feeders";
 
   const since = named.reduce((min, s) => (s.firstSeenAt && (!min || s.firstSeenAt < min) ? s.firstSeenAt : min), null);
   const shown = named.find((s) => s.id === openId) ?? (wide ? sorted[0] : null);
@@ -216,7 +222,7 @@ export function SpeciesPage({ go, openSighting }) {
         <div>
           <h1 className="sp-title">Species</h1>
           <p className="sp-sub">
-            {named.length.toLocaleString()} at your feeders{since ? ` since ${fmtSince(since)}` : ""}
+            {named.length.toLocaleString()} at {where}{since ? ` since ${fmtSince(since)}` : ""}
           </p>
         </div>
         <button className="icon-btn sp-add" onClick={() => setAdding(true)} aria-label="Add a species" title="Add a species">
@@ -232,7 +238,7 @@ export function SpeciesPage({ go, openSighting }) {
       <ul className="sp-rows">
         {unknown && (
           <NeedsName s={unknown} photo={photoOf(unknown.id)}
-            onOpen={() => go("history", { species: unknown.id })} />
+            onOpen={() => go("history", { species: unknown.id, device: feeder })} />
         )}
         {sorted.map((s) => (
           <SpeciesRow key={s.id} s={s} photo={photoOf(s.id)} active={wide && shown?.id === s.id} onOpen={open} />

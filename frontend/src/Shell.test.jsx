@@ -5,18 +5,23 @@ import React from "react";
 import { render, screen, fireEvent, within, act } from "@testing-library/react";
 
 // `stream.live` stands in for the GET /events status, so a test can drop it.
-const stream = vi.hoisted(() => ({ live: true }));
+// `stream.devices` and `stream.feeder` drive the feeder picker.
+const stream = vi.hoisted(() => ({ live: true, devices: [], feeder: null, setFeeder: null }));
 
 vi.mock("./DataContext.jsx", () => ({
   useData: () => ({
-    data: { ME: { name: "Dominic Norris", role: "owner" } },
+    data: { ME: { name: "Dominic Norris", role: "owner" }, DEVICES: stream.devices },
     live: stream.live,
     reload: () => {},
     loading: false,
+    feeder: stream.feeder,
+    setFeeder: stream.setFeeder,
   }),
 }));
 
-import { TABS, TabBar, TopBar, MoreMenu, LIVE_GRACE_MS, moreFor, allowedRoute } from "./Shell.jsx";
+import {
+  TABS, TabBar, TopBar, MoreMenu, FeederPicker, LIVE_GRACE_MS, moreFor, allowedRoute,
+} from "./Shell.jsx";
 import { initialRoute } from "./App.jsx";
 
 describe("navigation", () => {
@@ -148,5 +153,52 @@ describe("owner-only screens", () => {
     expect(allowedRoute("users", { role: "viewer" })).toBe("latest");
     expect(allowedRoute("users", { role: "owner" })).toBe("users");
     expect(allowedRoute("settings", { role: "viewer" })).toBe("settings");
+  });
+});
+
+describe("feeder picker", () => {
+  const MAPLE = { id: 1, name: "Backyard Maple" };
+  const PORCH = { id: 2, name: "Dad's Porch" };
+
+  afterEach(() => {
+    stream.devices = [];
+    stream.feeder = null;
+    stream.setFeeder = null;
+  });
+
+  it("hides for a user who sees one feeder", () => {
+    stream.devices = [MAPLE];
+    render(<FeederPicker route="latest" />);
+    expect(screen.queryByRole("combobox", { name: "Feeder" })).not.toBeInTheDocument();
+  });
+
+  it("offers all feeders or one, and sets the scope", () => {
+    stream.devices = [MAPLE, PORCH];
+    stream.feeder = 2;
+    stream.setFeeder = vi.fn();
+    render(<TopBar route="species" setRoute={() => {}} moreOpen={false} onMore={() => {}} />);
+    const picker = screen.getByRole("combobox", { name: "Feeder" });
+    expect(picker).toHaveValue("2");
+    expect(within(picker).getAllByRole("option").map(o => o.textContent))
+      .toEqual(["All feeders", "Backyard Maple", "Dad's Porch"]);
+
+    fireEvent.change(picker, { target: { value: "1" } });
+    expect(stream.setFeeder).toHaveBeenLastCalledWith(1);
+    fireEvent.change(picker, { target: { value: "all" } });
+    expect(stream.setFeeder).toHaveBeenLastCalledWith(null);
+  });
+
+  it("shows on Home, Species and Animals only", () => {
+    stream.devices = [MAPLE, PORCH];
+    for (const route of ["latest", "species", "animals"]) {
+      const { unmount } = render(<FeederPicker route={route} />);
+      expect(screen.getByRole("combobox", { name: "Feeder" })).toBeInTheDocument();
+      unmount();
+    }
+    for (const route of ["history", "live", "feeders", "settings"]) {
+      const { unmount } = render(<FeederPicker route={route} />);
+      expect(screen.queryByRole("combobox", { name: "Feeder" })).not.toBeInTheDocument();
+      unmount();
+    }
   });
 });

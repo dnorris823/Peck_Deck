@@ -5,14 +5,14 @@ import { useData } from "./DataContext.jsx";
 import { useDialog } from "./Modal.jsx";
 
 // The five tabs sit in the top bar on desktop and in the tab bar on a phone.
-// The rest live under More.
+// The rest live under More. A `scoped` screen follows the feeder picker.
 export const NAV = [
-  { id: "latest", label: "Latest", icon: "home" },
+  { id: "latest", label: "Latest", icon: "home", scoped: true },
   { id: "live", label: "Live", icon: "video" },
-  { id: "species", label: "Species", icon: "book" },
+  { id: "species", label: "Species", icon: "book", scoped: true },
   { id: "history", label: "History", icon: "feather" },
   { id: "feeders", label: "Feeders", icon: "device" },
-  { id: "animals", label: "Animals", icon: "paw", more: true },
+  { id: "animals", label: "Animals", icon: "paw", more: true, scoped: true },
   { id: "users", label: "Users", icon: "users", more: true, owner: true },
   { id: "settings", label: "Settings", icon: "gear", more: true },
 ];
@@ -80,6 +80,22 @@ export function LiveStatus() {
   );
 }
 
+// Scopes Home, Species and Animals to one feeder, or all of them. Hidden for a
+// user who sees one feeder, and on screens it does not scope. History and Live
+// have their own feeder choice.
+export function FeederPicker({ route }) {
+  const { data, feeder, setFeeder } = useData();
+  const devices = data?.DEVICES || [];
+  if (devices.length < 2 || !NAV.find(n => n.id === route)?.scoped) return null;
+  return (
+    <select className="feeder-picker" aria-label="Feeder" value={feeder ?? "all"}
+      onChange={e => setFeeder(e.target.value === "all" ? null : Number(e.target.value))}>
+      <option value="all">All feeders</option>
+      {devices.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+    </select>
+  );
+}
+
 export function TopBar({ route, setRoute, moreOpen, onMore }) {
   const { reload, loading } = useData();
   return (
@@ -94,6 +110,7 @@ export function TopBar({ route, setRoute, moreOpen, onMore }) {
         ))}
       </nav>
       <div className="top-actions">
+        <FeederPicker route={route} />
         <LiveStatus />
         <button className="icon-btn" title="Refresh" aria-label="Refresh data"
           onClick={reload} disabled={loading}>

@@ -63,8 +63,14 @@ class StatsController(Controller):
     security = USER_JWT
 
     @get("/dashboard")
-    async def dashboard(self, request: Request, db: NamedDependency[AsyncSession]) -> DashboardResponse:
-        data = await operations.dashboard(db, request.state.user_id)
+    async def dashboard(
+        self,
+        request: Request,
+        db: NamedDependency[AsyncSession],
+        device_id: FromQuery[int | None] = None,
+    ) -> DashboardResponse:
+        """Headline numbers. With `device_id`, they cover that one feeder."""
+        data = await operations.dashboard(db, request.state.user_id, device_id=device_id)
         return DashboardResponse(**data)
 
     @get("/species-counts")
@@ -75,12 +81,14 @@ class StatsController(Controller):
         tz: FromQuery[str | None] = None,
         from_date: FromQuery[str | None] = None,
         to_date: FromQuery[str | None] = None,
+        device_id: FromQuery[int | None] = None,
     ) -> list[SpeciesCountResponse]:
         """Per-species totals, most frequent first.
 
         `from_date` and `to_date` are inclusive ISO-8601 bounds, as on
         `GET /sightings`. With them, counts cover only that range. Home sends
-        the bounds of the viewer's local yesterday.
+        the bounds of the viewer's local yesterday. With `device_id`, counts
+        cover that one feeder.
         """
         zone = _zone_or_400(tz) if tz is not None else None
         try:
@@ -92,7 +100,12 @@ class StatsController(Controller):
                 detail="from_date/to_date must be ISO-8601 (e.g. 2026-07-19 or 2026-07-19T10:00:00Z)",
             )
         rows = await operations.species_counts(
-            db, request.state.user_id, tz=zone, from_date=from_dt, to_date=to_dt
+            db,
+            request.state.user_id,
+            tz=zone,
+            from_date=from_dt,
+            to_date=to_dt,
+            device_id=device_id,
         )
         return [_species_count_response(r) for r in rows]
 
@@ -104,8 +117,12 @@ class StatsController(Controller):
         species_id: FromQuery[int | None] = None,
         days: FromQuery[int] = 30,
         tz: FromQuery[str] = "UTC",
+        device_id: FromQuery[int | None] = None,
     ) -> HourStatsResponse:
-        """Visits per local hour in `tz`. `days=0` covers all time."""
+        """Visits per local hour in `tz`. `days=0` covers all time.
+
+        With `device_id`, visits on that one feeder only.
+        """
         if not 0 <= days <= MAX_DAYS:
             raise HTTPException(
                 status_code=400, detail=f"days must be 0 (all time) to {MAX_DAYS}"
@@ -116,6 +133,7 @@ class StatsController(Controller):
             tz=_zone_or_400(tz),
             days=days or None,
             species_id=species_id,
+            device_id=device_id,
         )
         return HourStatsResponse(**data)
 
@@ -142,8 +160,14 @@ class StatsController(Controller):
         )
 
     @get("/heatmap")
-    async def heatmap(self, request: Request, db: NamedDependency[AsyncSession]) -> list[list[int]]:
-        return await operations.heatmap(db, request.state.user_id)
+    async def heatmap(
+        self,
+        request: Request,
+        db: NamedDependency[AsyncSession],
+        device_id: FromQuery[int | None] = None,
+    ) -> list[list[int]]:
+        """Bird visits per weekday and UTC hour, last 7 days. `device_id` scopes it."""
+        return await operations.heatmap(db, request.state.user_id, device_id=device_id)
 
     @get("/storage")
     async def storage(self, db: NamedDependency[AsyncSession]) -> StorageResponse:

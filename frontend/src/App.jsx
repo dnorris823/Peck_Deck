@@ -167,13 +167,16 @@ function AppShell({ onLogout }) {
   const [speciesFilter, setSpeciesFilter] = useState("all");
   // A day handed to Sightings, so Home's yesterday line opens that day.
   const [historyDay, setHistoryDay] = useState(null);
+  // A feeder handed to Sightings, so a count from one feeder opens on its visits.
+  const [historyDevice, setHistoryDevice] = useState(null);
 
   // Navigating always closes the More menu and the sighting, and starts at
   // the top.
-  const go = useCallback((r, { species = "all", day = null } = {}) => {
+  const go = useCallback((r, { species = "all", day = null, device = null } = {}) => {
     setRoute(r);
     setSpeciesFilter(species);
     setHistoryDay(day);
+    setHistoryDevice(device);
     setMoreOpen(false);
     closeSighting();
     window.scrollTo?.(0, 0);
@@ -215,8 +218,9 @@ function AppShell({ onLogout }) {
             {route === "latest" && <Dashboard openSighting={openSighting} go={go} selectedId={openId} />}
             {route === "live" && <LivePage go={go} />}
             {route === "history" && (
-              <Sightings key={`${speciesFilter}|${historyDay?.getTime()}`} openSighting={openSighting}
-                initialSpecies={speciesFilter} initialDay={historyDay} />
+              <Sightings key={`${speciesFilter}|${historyDay?.getTime()}|${historyDevice}`}
+                openSighting={openSighting} initialSpecies={speciesFilter} initialDay={historyDay}
+                initialDevice={historyDevice} />
             )}
             {route === "species" && <SpeciesPage go={go} openSighting={openSighting} />}
             {route === "feeders" && <DevicesPage />}
