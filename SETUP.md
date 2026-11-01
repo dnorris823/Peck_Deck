@@ -3,6 +3,11 @@
 Manual steps required before `raspberry_pi_code` runs end-to-end.
 Work through these in order — later sections depend on earlier ones.
 
+`scripts/install_pi.sh` does §1, §2, §4, §5, §6, §9 and the MediaMTX install in
+§11 in one run, and is safe to run twice. `docs/feeder-onboarding.md` says when
+to run it. This file is the reference for each step, and the way to do one by
+hand.
+
 ---
 
 ## 1. Environment file
@@ -212,6 +217,9 @@ capture.
 ## 8. Network
 
 - [ ] Pi connected to home WiFi (run `sudo raspi-config` → System → Wireless LAN).
+- [ ] For a feeder at another house, `scripts/install_pi.sh` saves that house's
+      Wi-Fi and a rescue phone hotspot. See *When their Wi-Fi changes* in
+      `docs/feeder-onboarding.md`.
 - [ ] Gaming PC and Pi are on the same subnet.
 - [ ] The gaming PC has a fixed LAN address, so the Pi's `.env` never goes stale. Set a DHCP
       reservation on the router. On the eero, use the eero app: Settings → Network settings →

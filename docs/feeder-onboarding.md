@@ -68,104 +68,83 @@ tailscale ip -4   # on the Pi
 tailscale ip -4   # on the gaming PC
 ```
 
-## 3. Install the code
-
-```bash
-sudo apt update
-sudo apt install -y git python3-venv python3-picamera2
-git clone https://github.com/dnorris823/Peck_Deck.git ~/peck_deck
-cd ~/peck_deck
-python3 -m venv --system-site-packages .venv
-.venv/bin/pip install tflite-runtime -r raspberry_pi_code/requirements.txt
-.venv/bin/python scripts/fetch_models.py
-rpicam-hello --list-cameras
-```
-
-`--system-site-packages` is required. picamera2 comes from apt, and a plain venv
-cannot import it.
-
-The last command must list the camera.
-
-## 4. Write the Pi's `.env`
-
-The file is `raspberry_pi_code/.env`. The Pi service and the provisioning
-script both read that path and no other, so a `.env` at the repo root is ignored.
-
-```bash
-cp raspberry_pi_code/.env.example raspberry_pi_code/.env
-mkdir -p ~/peck_deck_cache
-```
-
-Set these values, with the gaming PC's tailnet address from step 2:
-
-```
-BACKEND_URL=http://<pc-tailnet-ip>:8000
-INFERENCE_SERVER_URL=http://<pc-tailnet-ip>:8001
-CACHE_DIR=/home/<user>/peck_deck_cache
-```
-
-Leave `DEVICE_TOKEN` alone. Step 6 writes it. Leave `TIER_PREFERENCE` at `gpu`.
-
-Check that the Pi reaches the gaming PC, with the backend and Tier 2 running:
-
-```bash
-curl -m 5 http://<pc-tailnet-ip>:8000/ready
-curl -m 5 http://<pc-tailnet-ip>:8001/health
-```
-
-## 5. Register the feeder in the app
+## 3. Register the feeder in the app
 
 Sign in to the web app as the user at that house. Use a private browser window
 if you are on your own device. Go to **Feeders → Register feeder**.
 
-- **Name:** the Pi's hostname, exactly. Provisioning finds the feeder by this
-  name.
+- **Name:** the Pi's hostname, exactly. The install script finds the feeder by
+  this name.
 - **City and State:** where the feeder is. The backend looks up the weather for
   each sighting from these. To change them later, open the feeder under
   **Feeders** and edit **Details**.
 
-Ignore the token the dialog shows. Provisioning fetches it.
+Ignore the token the dialog shows. The Pi fetches it.
 
 The feeder now belongs to that user. They get its alerts, and nobody else sees
 it yet.
 
-## 6. Provision the device token
+## 4. Run the install script
 
-The Pi fetches its own device token at every start. It signs in with the
-credentials in a root-only file:
+Start the backend and Tier 2 on the gaming PC first. Then, on the Pi:
 
 ```bash
-sudo install -d -m 700 /etc/peck_deck
-sudo tee /etc/peck_deck/owner.env >/dev/null <<'EOF'
-PECK_OWNER_EMAIL=their-email@example.com
-PECK_OWNER_PASSWORD=their-password
-DEVICE_NAME=peck-lakehouse
-EOF
-sudo chmod 600 /etc/peck_deck/owner.env
+sudo apt update && sudo apt install -y git
+git clone https://github.com/dnorris823/Peck_Deck.git ~/peck_deck
+~/peck_deck/scripts/install_pi.sh
 ```
 
-Use the account of the user at that house, not your owner account. The variable
-names say "owner", but any account that owns the feeder works. The owner
+It asks these questions first, then runs on its own for several minutes.
+
+| Question | Answer |
+|---|---|
+| Gaming PC tailnet address | `tailscale ip -4` on the gaming PC. |
+| Feeder name | The name from step 3. It defaults to the hostname. |
+| App email and password | The account of the user at that house. |
+| Live video user and password | `LIVE_READ_USER` and `LIVE_READ_PASSWORD` in the backend `.env`. |
+| Home Wi-Fi | The network at their house. Enter skips it. |
+| Rescue phone hotspot | The hotspot name and password of a phone at their house. Enter skips it. |
+
+Use the account of the user at that house, not your owner account. The owner
 account can create users and manage every feeder. It does not belong on a Pi in
 someone else's house.
 
-Run the script once by hand:
+The script then:
 
-```bash
-env $(sudo cat /etc/peck_deck/owner.env | xargs) .venv/bin/python scripts/provision_device.py
-```
+1. Installs the packages, the venv and the models, and checks the camera.
+2. Writes `raspberry_pi_code/.env` with the gaming PC's tailnet address. The
+   service reads that file and no other.
+3. Writes the root-only `/etc/peck_deck/owner.env` and
+   `/etc/peck_deck/mediamtx.env`. The MediaMTX file gets the Pi's tailnet
+   address and the backend's one read user. Every feeder uses that same user,
+   or every live offer fails with 502.
+4. Installs MediaMTX v1.21.3 after it checks the checksum.
+5. Writes the `peck-deck` and `mediamtx` units for your user and clone path.
+6. Saves the two Wi-Fi networks. It never switches to them. The Pi stays on
+   the network it uses now.
+7. Checks that the backend and Tier 2 answer.
+8. Fetches the device token, and starts both services.
 
-It must print `matched existing device 'peck-lakehouse' (id N)`. Note the id. If
-it prints `registered new device`, the name did not match step 5. It made a
-second feeder with no city. Fix `DEVICE_NAME`, then open the extra feeder under
-**Feeders** and use **Remove feeder**.
+It must print `matched existing device 'peck-lakehouse' (id N)`. If it warns
+that it registered a new feeder, the name did not match step 3. Open the extra
+feeder under **Feeders**, and use **Remove feeder**. Then run the script again
+with the right name.
+
+The script is safe to run again. Enter keeps every saved answer, and it keeps
+`DEVICE_TOKEN`. Run it with `--dry-run` to see what it would change. Run it again
+after a fix, such as a wrong password or a backend that was off.
+
+Leave `LIVE_URL` and `TIER_PREFERENCE` alone. The Pi works out its live address
+from its route to the gaming PC, which gives its tailnet address.
 
 If that user changes their password later, the feeder keeps working. The token
-does not depend on the password. Provisioning fails without harm until you
-update this file. The token only needs fetching again after a database wipe or a
-token rotation.
+does not depend on the password. Fetching it fails without harm until you run
+the script again with the new password. The token only needs fetching again
+after a database wipe or a token rotation.
 
-## 7. Add yourself to the feeder
+`SETUP.md` has every step by hand, if the script fails partway.
+
+## 5. Add yourself to the feeder
 
 Owners see only the feeders they own or belong to, so the new feeder is not in
 your app yet. The user at that house shares it with you:
@@ -176,65 +155,43 @@ your app yet. The user at that house shares it with you:
 
 You now see the feeder. You also get its alerts if your alerts are on.
 
-## 8. Live video
-
-Install MediaMTX as in `SETUP.md` §11. Two values differ from a feeder on the
-home LAN.
-
-`/etc/peck_deck/mediamtx.env`:
-
-```
-MTX_AUTHINTERNALUSERS_1_USER=<LIVE_READ_USER from the backend .env>
-MTX_AUTHINTERNALUSERS_1_PASS=<LIVE_READ_PASSWORD from the backend .env>
-MTX_WEBRTCADDITIONALHOSTS=<pi-tailnet-ip>
-```
-
-- The backend has one read user for all feeders. Every feeder's MediaMTX must
-  use the same name and password, or every offer fails with 502.
-- Give only the tailnet address. The Pi's LAN address at the other house is not
-  known in advance, and MediaMTX offers every interface's address anyway.
-
-Leave `LIVE_URL` unset. The Pi works it out from its route to `BACKEND_URL`.
-With a tailnet `BACKEND_URL`, that gives the Pi's tailnet address, which the
-backend accepts.
-
-## 9. Install the services
-
-Copy both units from `SETUP.md` §9. Replace `User=pi` with your user, and
-`/home/pi/peck_deck` with `/home/<user>/peck_deck`. Then:
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now peck-deck mediamtx
-journalctl -u peck-deck -f
-```
-
-## 10. Test it
+## 6. Test it
 
 Run the desk test in `SETUP.md` §10. Hold a bird photo up to the camera. The
 sighting must reach the app for the user at that house, and for you. Open
 **Live** and check the video plays.
 
-## 11. Add their Wi-Fi and hand it over
+## 7. Hand it over
 
-Add their network before the Pi leaves your house. The command works when the
-network is out of range:
+Fill in the blanks on `docs/feeder-handover.md`, print it, and give it to the
+user at that house. It covers mounting, aiming with the Live tab, the feeder
+card, and what to do when their Wi-Fi changes.
 
-```bash
-sudo nmcli connection add type wifi con-name their-wifi ssid "<their SSID>" \
-  wifi-sec.key-mgmt wpa-psk wifi-sec.psk "<their password>"
-nmcli connection show
-```
-
-At their house, the Pi joins the network it can see. Plug it in, wait two
+At their house, the Pi joins their saved network by itself. Plug it in, wait two
 minutes, and check that **Feeders** shows it online.
 
-Then mount it and set `CAMERA_ROI` to the feeder's region, as in `SETUP.md`
+Once it is mounted, set `CAMERA_ROI` to the feeder's region, as in `SETUP.md`
 §10. You do this from home over SSH:
 
 ```bash
 ssh <user>@peck-lakehouse
 ```
+
+## When their Wi-Fi changes
+
+A new router with the same Wi-Fi name and password needs nothing. Any other
+change leaves the Pi offline, and nobody can SSH to an offline Pi. The rescue
+hotspot fixes that:
+
+1. They turn on the phone hotspot saved in step 4, near the feeder.
+2. The Pi joins it, and comes back on the tailnet.
+3. You SSH in and run `~/peck_deck/scripts/install_pi.sh --wifi`. Enter the new
+   home network. Press Enter at the hotspot questions to keep it.
+4. They turn the hotspot off. The Pi joins the new network within a few minutes.
+
+The home network has priority 0 and the hotspot -10, so the Pi prefers the home
+network when both are in range. It never leaves a working network for the
+hotspot.
 
 ## What the feeder depends on
 
