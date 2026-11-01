@@ -44,9 +44,18 @@ function setData(counts) {
   };
 }
 
+// The life list answers per year. Tests set LIFE to a year's raw rows.
+let LIFE;
+function lifeList(path) {
+  const year = new URLSearchParams(path.split("?")[1]).get("year");
+  return { year: year && Number(year), years: Object.keys(LIFE.byYear).map(Number).sort((a, b) => b - a),
+    species: (year ? LIFE.byYear[year] : LIFE.all) || [] };
+}
+
 function routeApi() {
   apiGet.mockImplementation((path) => {
     if (path.startsWith("/stats/hours")) return Promise.resolve(HOURS);
+    if (path.startsWith("/stats/life-list")) return Promise.resolve(lifeList(path));
     if (path.startsWith("/sightings")) {
       const id = Number(new URLSearchParams(path.split("?")[1]).get("species_id"));
       return Promise.resolve([
@@ -67,6 +76,7 @@ function setWide(wide) {
 beforeEach(() => {
   vi.clearAllMocks();
   mockFeeder = null;
+  LIFE = { all: [], byYear: {} };
   window.scrollTo = vi.fn();
   routeApi();
   setWide(false);
@@ -213,5 +223,62 @@ describe("species scoped to one feeder", () => {
     });
     const paths = apiGet.mock.calls.map(([p]) => p);
     expect(paths.every((p) => p.includes("device_id=11"))).toBe(true);
+  });
+});
+
+describe("life list and year list", () => {
+  // Raw /stats/life-list rows, as the backend sends them.
+  const raw = (id, common, count, first, extra = {}) => ({
+    id, common_name: common, genus: "Genus", species_name: common.toLowerCase(), order_name: null,
+    wiki_url: null, palette: [], silhouette: null, note: null, count,
+    first_seen: first.toISOString(), last_seen: first.toISOString(), peak_hours: [],
+    first_feeder_id: 10, first_feeder_name: "Backyard Maple", new_in_year: false, ...extra,
+  });
+
+  it("sorts by first seen, newest first", () => {
+    const older = species(4, "Old Wren", 2, 60, { firstSeenAt: ago(60 * 24 * 400) });
+    expect(sortSpecies([older, CARDINAL, FINCH], "first").map((s) => s.common))
+      .toEqual(["House Finch", "Northern Cardinal", "Old Wren"]);
+  });
+
+  it("marks this year's new species and names the first feeder on the life list", async () => {
+    setData([CARDINAL, FINCH, UNKNOWN]);
+    LIFE = {
+      all: [
+        raw(2, "House Finch", 326, ago(60 * 24 * 3), { new_in_year: true }),
+        raw(1, "Northern Cardinal", 3713, ago(60 * 24 * 90)),
+      ],
+      byYear: { 2025: [], 2026: [] },
+    };
+    render(<SpeciesPage go={vi.fn()} openSighting={vi.fn()} />);
+    expect(await screen.findByText("New")).toBeInTheDocument();
+    expect(screen.getByText("1 new this year", { exact: false })).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "First seen" }));
+    expect(screen.getAllByText(/^First seen .* at Backyard Maple/)).toHaveLength(2);
+    // Unknown names no species, but it still waits for a name on all time.
+    expect(rowNames()).toEqual(["Needs a name", "House FinchNew", "Northern Cardinal"]);
+  });
+
+  it("shows one year's birds when a year is picked, without Unknown", async () => {
+    setData([CARDINAL, FINCH, UNKNOWN]);
+    LIFE = {
+      all: [],
+      byYear: { 2025: [raw(1, "Northern Cardinal", 12, new Date(2025, 2, 1), { new_in_year: true })], 2026: [] },
+    };
+    render(<SpeciesPage go={vi.fn()} openSighting={vi.fn()} />);
+    const picker = await screen.findByRole("combobox", { name: "Year" });
+    expect(within(picker).getAllByRole("option").map((o) => o.textContent)).toEqual(["All time", "2026", "2025"]);
+
+    await userEvent.selectOptions(picker, "2025");
+    await screen.findByText("1 at your feeders in 2025", { exact: false });
+    expect(apiGet).toHaveBeenCalledWith(expect.stringMatching(/^\/stats\/life-list\?tz=.*&year=2025$/));
+    expect(rowNames()).toEqual(["Northern CardinalNew"]);
+    expect(screen.getByText("1 new in 2025", { exact: false })).toBeInTheDocument();
+    expect(screen.getByText(/^First seen Mar 1, 2025 at Backyard Maple/)).toBeInTheDocument();
+    expect(screen.getByText("12")).toBeInTheDocument();
+
+    await userEvent.selectOptions(picker, "2026");
+    expect(await screen.findByText("No birds at your feeders in 2026.")).toBeInTheDocument();
   });
 });

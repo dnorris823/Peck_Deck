@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy import Integer, Time, cast, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database.models import Sighting, Species
+from ..database.models import Device, Sighting, Species
 from ..sightings.operations import _accessible_device_ids
 from ..species.operations import BIRD, is_bird_sighting
 
@@ -242,6 +242,121 @@ async def species_counts(
             }
         )
     result.sort(key=lambda r: r["count"], reverse=True)
+    return result
+
+
+def _names_a_species():
+    """A WHERE clause that drops "Unknown", the species the Pi files when no tier names one."""
+    unknown = select(Species.id).where(func.lower(func.trim(Species.common_name)) == "unknown")
+    return Sighting.species_id.not_in(unknown)
+
+
+def _year_bounds(year: int, zone: ZoneInfo) -> tuple[datetime, datetime]:
+    """1 January of ``year`` to 1 January of the next, local midnight, in UTC."""
+    start = datetime(year, 1, 1, tzinfo=zone)
+    end = datetime(year + 1, 1, 1, tzinfo=zone)
+    return _utc(start), _utc(end)
+
+
+async def life_list(
+    db: AsyncSession,
+    user_id: int,
+    *,
+    tz: str,
+    year: int | None = None,
+    device_id: int | None = None,
+) -> dict:
+    """Every bird species recorded, with its first sighting, for one year or all time.
+
+    ``year`` of None is the life list. A year is the year list, bounded by local
+    midnight on 1 January in ``tz``. Each row is a ``species_counts`` row for the
+    range, plus the feeder of its first sighting in the range, and
+    ``new_in_year``. That is True when the species' first sighting ever, in this
+    scope, falls in ``year``, or in the current local year for the life list.
+
+    ``years`` lists every local year with a bird sighting, newest first, for the
+    year picker. With ``device_id``, everything covers that one feeder.
+
+    Birds only, through ``is_bird_sighting()``, and never "Unknown".
+    """
+    zone = ZoneInfo(tz)
+    accessible = await _scoped_device_ids(db, user_id, device_id)
+    result = {"year": year, "years": [], "species": []}
+    if not accessible:
+        return result
+    named_birds = [Sighting.device_id.in_(accessible), is_bird_sighting(), _names_a_species()]
+
+    first_ever: dict[int, datetime] = {
+        sp_id: _aware(when)
+        for sp_id, when in (
+            await db.execute(
+                select(Sighting.species_id, func.min(Sighting.datetime))
+                .where(*named_birds)
+                .group_by(Sighting.species_id)
+            )
+        ).all()
+    }
+    if not first_ever:
+        return result
+
+    # Few years per feeder, so one cheap EXISTS per candidate year beats a
+    # time zone conversion that differs between Postgres and SQLite.
+    span = (
+        await db.execute(select(func.min(Sighting.datetime), func.max(Sighting.datetime)).where(*named_birds))
+    ).one()
+    first_year = _aware(span[0]).astimezone(zone).year
+    last_year = _aware(span[1]).astimezone(zone).year
+    for y in range(last_year, first_year - 1, -1):
+        lo, hi = _year_bounds(y, zone)
+        hit = await db.execute(
+            select(Sighting.id).where(*named_birds, Sighting.datetime >= lo, Sighting.datetime < hi).limit(1)
+        )
+        if hit.first() is not None:
+            result["years"].append(y)
+
+    in_range = list(named_birds)
+    start = end = None
+    if year is not None:
+        start, end = _year_bounds(year, zone)
+        in_range += [Sighting.datetime >= start, Sighting.datetime < end]
+    new_lo, new_hi = _year_bounds(year if year is not None else datetime.now(zone).year, zone)
+
+    # The feeder of each species' first sighting in range. Ties on the
+    # timestamp go to the lower sighting id, so the answer is stable.
+    rank = (
+        func.row_number()
+        .over(partition_by=Sighting.species_id, order_by=(Sighting.datetime, Sighting.id))
+        .label("rank")
+    )
+    firsts = select(Sighting.species_id, Sighting.device_id, rank).where(*in_range).subquery()
+    first_feeder = {
+        sp_id: (dev_id, name)
+        for sp_id, dev_id, name in (
+            await db.execute(
+                select(firsts.c.species_id, Device.id, Device.name)
+                .join(Device, Device.id == firsts.c.device_id)
+                .where(firsts.c.rank == 1)
+            )
+        ).all()
+    }
+
+    rows = await species_counts(
+        db,
+        user_id,
+        tz,
+        from_date=start,
+        # species_counts takes an inclusive bound, so stop just short of 1 January.
+        to_date=end - timedelta(microseconds=1) if end is not None else None,
+        device_id=device_id,
+    )
+    for row in rows:
+        sp_id = row["species"].id
+        if sp_id not in first_feeder:
+            continue  # "Unknown", which species_counts keeps for the Species page
+        row["first_feeder_id"], row["first_feeder_name"] = first_feeder[sp_id]
+        row["new_in_year"] = new_lo <= first_ever[sp_id] < new_hi
+        result["species"].append(row)
+    result["species"].sort(key=lambda r: datetime.fromisoformat(r["first_seen"]), reverse=True)
     return result
 
 
