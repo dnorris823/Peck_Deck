@@ -93,13 +93,16 @@ SPECIES = [
 DEVICES = [
     {"name": "Backyard Maple", "city": "Burlington", "state": "VT",
      "feed_type": "Black-oil sunflower",
-     "battery": 0.78, "signal": "good", "last_seen_secs": 32, "weight": 5},
+     "power_source": "mains", "battery": None, "signal": "good",
+     "last_seen_secs": 32, "weight": 5},
     {"name": "Front Porch", "city": "Burlington", "state": "VT",
      "feed_type": "Nyjer thistle",
-     "battery": 0.42, "signal": "good", "last_seen_secs": 60, "weight": 3},
+     "power_source": "battery", "battery": 0.42, "signal": "good",
+     "last_seen_secs": 60, "weight": 3},
     {"name": "Cabin Window", "city": "Stowe", "state": "VT",
      "feed_type": "Suet cake",
-     "battery": 0.18, "signal": "weak", "last_seen_secs": 14 * 60, "weight": 1},
+     "power_source": "battery", "battery": 0.18, "signal": "weak",
+     "last_seen_secs": 14 * 60, "weight": 1},
 ]
 
 
@@ -169,7 +172,7 @@ async def seed_demo_data(db, *, rng_seed: int = 42) -> int:
             name=d["name"], city=d["city"], state=d["state"],
             owner_id=owner.id,
             feed_type=d["feed_type"], token=secrets.token_urlsafe(32),
-            battery=d["battery"], signal=d["signal"],
+            power_source=d["power_source"], battery=d["battery"], signal=d["signal"],
             last_seen=now - timedelta(seconds=d["last_seen_secs"]),
         )
         db.add(dev)

@@ -275,7 +275,7 @@ def test_heartbeat_loop_passes_the_url_through():
         def __init__(self):
             self.urls = []
 
-        async def heartbeat(self, live_url=None):
+        async def heartbeat(self, live_url=None, **_):
             self.urls.append(live_url)
             return UploadOutcome.OK
 

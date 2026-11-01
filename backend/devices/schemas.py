@@ -25,6 +25,8 @@ class UpdateDevice:
 @dataclass
 class DeviceHeartbeat:
     battery: float | None = None
+    # "mains" or "battery". Mains clears any stored battery level.
+    power_source: str | None = None
     signal: str | None = None
     # Where the Pi's MediaMTX answers WHEP offers. A private IP literal only,
     # see backend/live/address.py. Omitting it clears the stored address.
@@ -86,6 +88,7 @@ class DeviceResponse:
     owner_id: int
     feed_type: str | None
     battery: float | None
+    power_source: str | None
     signal: str | None
     last_seen: str | None
     status: str  # online|warn|offline — derived from last_seen/battery/signal

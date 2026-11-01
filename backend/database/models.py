@@ -112,6 +112,8 @@ class Device(Base):
     # Runtime telemetry reported by the Pi via POST /devices/{id}/heartbeat.
     # All nullable — a freshly registered device has never checked in yet.
     battery: Mapped[float | None] = mapped_column(Float, nullable=True)  # 0.0–1.0
+    # mains|battery, from the Pi's POWER_SOURCE. Null for a Pi on older code.
+    power_source: Mapped[str | None] = mapped_column(String, nullable=True)
     signal: Mapped[str | None] = mapped_column(String, nullable=True)  # good|weak|none
     last_seen: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

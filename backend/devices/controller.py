@@ -56,9 +56,12 @@ def _derive_status(device) -> str:
     age = datetime.now(timezone.utc) - last_seen
     if age > timedelta(minutes=30):
         return "offline"
-    unhealthy = (device.battery is not None and device.battery < 0.2) or (
-        device.signal == "weak"
+    low_battery = (
+        device.power_source != "mains"
+        and device.battery is not None
+        and device.battery < 0.2
     )
+    unhealthy = low_battery or device.signal == "weak"
     if age > timedelta(minutes=5) or unhealthy:
         return "warn"
     return "online"
@@ -79,6 +82,7 @@ async def _to_response(db: AsyncSession, device) -> DeviceResponse:
         owner_id=device.owner_id,
         feed_type=device.feed_type,
         battery=device.battery,
+        power_source=device.power_source,
         signal=device.signal,
         last_seen=device.last_seen.isoformat() if device.last_seen else None,
         status=_derive_status(device),
@@ -90,13 +94,22 @@ async def _to_response(db: AsyncSession, device) -> DeviceResponse:
     )
 
 
+POWER_SOURCES = ("mains", "battery")
+
+
 async def _record_heartbeat(db: AsyncSession, device, data: DeviceHeartbeat):
     if data.live_url is not None:
         problem = check_live_url(data.live_url)
         if problem:
             raise HTTPException(status_code=400, detail=problem)
+    if data.power_source is not None and data.power_source not in POWER_SOURCES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"power_source must be one of: {', '.join(POWER_SOURCES)}",
+        )
     return await update_device_telemetry(
-        db, device, battery=data.battery, signal=data.signal, live_url=data.live_url
+        db, device, battery=data.battery, signal=data.signal, live_url=data.live_url,
+        power_source=data.power_source,
     )
 
 
