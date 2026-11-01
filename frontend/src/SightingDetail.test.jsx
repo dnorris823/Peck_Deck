@@ -156,6 +156,15 @@ describe("species picker", () => {
     expect(screen.getByRole("button", { name: /Gray Squirrel/ })).toBeDisabled();
   });
 
+  it("offers animals too, tagged, so a squirrel logged as a bird can be fixed", () => {
+    const animal = { ...SQUIRREL, id: 6, kind: "animal", animalGroup: "squirrel" };
+    species = [animal, FINCH, JAY];
+    render(<SightingDetail s={{ ...S, species: FINCH }} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Wrong bird?" }));
+    expect(screen.getByRole("button", { name: /Gray Squirrel/ })).toHaveTextContent("Animal");
+    expect(screen.getByRole("button", { name: /Blue Jay/ })).not.toHaveTextContent("Animal");
+  });
+
   it("closes on Escape without closing the sighting", () => {
     const onClose = vi.fn();
     render(<SightingDetail s={S} onClose={onClose} />);

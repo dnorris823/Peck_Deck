@@ -5,6 +5,7 @@ from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.models import Device, DeviceUser, Sighting, User
+from ..species.operations import is_bird_sighting
 
 
 async def get_device(db: AsyncSession, device_id: int) -> Device | None:
@@ -113,7 +114,11 @@ async def transfer_device(db: AsyncSession, device: Device, new_owner_id: int) -
 
 
 async def get_sighting_counts(db: AsyncSession, device_id: int) -> dict[str, int]:
-    """Today / last-7-days / all-time sighting counts for a device."""
+    """Today / last-7-days / all-time bird sighting counts for a device.
+
+    Animal visits are left out, so a squirrel that camps on the feeder does not
+    read as a busy day for birds.
+    """
     now = datetime.now(timezone.utc)
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     week_start = now - timedelta(days=7)
@@ -122,7 +127,7 @@ async def get_sighting_counts(db: AsyncSession, device_id: int) -> dict[str, int
         return (
             select(func.count())
             .select_from(Sighting)
-            .where(Sighting.device_id == device_id, *conditions)
+            .where(Sighting.device_id == device_id, is_bird_sighting(), *conditions)
         )
 
     today = (await db.execute(_count(Sighting.datetime >= day_start))).scalar_one()

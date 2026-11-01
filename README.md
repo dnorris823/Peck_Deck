@@ -25,6 +25,8 @@ when Tier 2 fails. `SETUP.md` §7 has the tier orders and how to turn Tier 3 on.
 - GPU inference server (FastAPI) for Tier 2.
 - Pi code: capture, the tier chain, an offline queue and unattended device-token
   provisioning.
+- Animal visits. Tier 2 names a squirrel, raccoon or other feeder mammal, and the
+  sighting records as an animal, outside every bird count.
 - CI with backend, frontend and integration tests.
 
 Measured accuracy on 300 field photos is in `machine_learning/MODELS.md`.

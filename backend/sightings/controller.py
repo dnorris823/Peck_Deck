@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..auth.guards import DEVICE_TOKEN, USER_JWT, device_guard, user_guard
 from ..devices.operations import mark_device_seen
 from ..events.hub import SightingDeleted, SightingsDeleted, SightingUpdated, sighting_hub
-from ..species.operations import get_species
+from ..species.operations import ANIMAL, BIRD, get_species
 from . import export as export_ops
 from .aftercare import schedule_aftercare
 from .recheck import needs_recheck
@@ -85,6 +85,28 @@ class SightingUploadForm:
     # JSON [left, top, right, bottom], the pixel edges of the square the Pi
     # classified. Left out when it classified the full frame.
     crop_box: str | None = None
+    # "animal" when Tier 2 named a feeder animal, with its group, such as
+    # "squirrel". Older Pi builds and bird sightings leave both out.
+    kind: str = "bird"
+    animal_group: str | None = None
+
+
+def _upload_kind(form: SightingUploadForm) -> tuple[str, str | None]:
+    """The upload's kind and animal group, read leniently.
+
+    A bad value records a bird rather than a 4xx, because the Pi drops a
+    rejected sighting for good, and the photo matters more than the label.
+    """
+    kind = (form.kind or "").strip().lower()
+    group = (form.animal_group or "").strip().lower() or None
+    if kind == ANIMAL and group:
+        return ANIMAL, group
+    if kind not in ("", BIRD):
+        logger.warning(
+            "Upload sent kind=%r with animal_group=%r. Recording a bird",
+            form.kind, form.animal_group,
+        )
+    return BIRD, None
 
 
 class SightingController(Controller):
@@ -184,6 +206,7 @@ class SightingController(Controller):
         # returns None rather than raise, so a bad image never fails the upload.
         thumbnail = await asyncio.to_thread(make_thumbnail, image_bytes) if image_bytes else None
         tier_trace = parse_tier_trace(data.tier_trace)
+        kind, animal_group = _upload_kind(data)
         sighting = await create_sighting(
             db,
             device_id=request.state.device_id,
@@ -203,6 +226,8 @@ class SightingController(Controller):
                 else None
             ),
             crop_box=parse_crop_box(data.crop_box),
+            kind=kind,
+            animal_group=animal_group,
         )
         # Now, not the capture time: a delayed upload from the offline queue
         # still proves the station is up.

@@ -13,6 +13,11 @@ python scripts/degrade_eval_set.py     # 9 feeder-camera degradations of each
 python -m inference_server             # Tier 2 must be up to be measured
 python scripts/validate_tiers.py --out report.json
 python scripts/simulate_tier_chain.py report.json   # compare threshold settings
+
+# Feeder animals: the detector and Tier 2 on squirrels, raccoons and cats
+python scripts/build_eval_set.py --set animals --per-species 30
+python scripts/degrade_eval_set.py --root .eval_animals
+python scripts/validate_animals.py --out animals.json
 ```
 
 ## The two CSVs are not interchangeable
@@ -21,6 +26,7 @@ python scripts/simulate_tier_chain.py report.json   # compare threshold settings
 |---|---|---|
 | `taxonomy.csv` | 965 | **The model's label space.** Row *N* is output index *N*. Generated — never hand-edit. |
 | `feeder_species.csv` | 20 | A curated North American backyard list, a subset of the above. Hand-maintained. |
+| `feeder_animals.csv` | 23 | Feeder mammals Tier 2 may name, each with its animal group. Hand-maintained. |
 
 `taxonomy.csv` is a contract, not a list of interesting birds:
 `tier1_tflite.py` does `self._taxa[argmax]`, so a row inserted in the wrong
@@ -32,6 +38,13 @@ only cheap way to catch it.
 `feeder_species.csv` is the ground truth for the evaluation scripts. Scoring
 against all 964 species would put limpkins and cranes in a backyard-feeder
 benchmark.
+
+`feeder_animals.csv` maps iNat21 scientific names to a group: squirrel,
+chipmunk, raccoon, opossum, deer, bear, cat, rat, or rabbit. Red, gray, fox and
+flying squirrels all map to `squirrel`. It never adds rows to `taxonomy.csv`,
+because that file's row order is Tier 1's index contract. Every name in it must
+be in Tier 2's `label_names`, or Tier 2 cannot predict it. The northern flying
+squirrel, *Glaucomys sabrinus*, is not, so it is not listed.
 
 ## Tier 1 — on-device (Pi)
 
@@ -70,8 +83,14 @@ Tier 2 answer directly comparable.
 
 **Softmax runs over all 10,000 classes, then the best *mapped* class is taken.**
 Restricting before the softmax would renormalise a squirrel into a confident
-bird. As written, a non-bird leaves every bird class low and the pipeline's
-confidence threshold falls through to Tier 3 — which is the intended behaviour.
+bird. A non-bird leaves every bird class low.
+
+The same softmax also gives the best row of `feeder_animals.csv`. `POST /classify`
+returns it as `animal`, with `common_name`, `scientific_name`, `group` and
+`confidence`, or null. The bird fields do not change, so an old Pi build reads
+them as before. The Pi records an animal sighting when the animal's confidence
+meets `TIER2_ANIMAL_THRESHOLD` and beats the best bird. Tier 1 and Tier 3 then
+never run, because Tier 1 knows birds only and Tier 3 costs money.
 
 A model with no published `label_names` falls back to the legacy path: the head
 is resized to the taxonomy and, without a `MODEL_PATH`, randomly initialised.
@@ -111,8 +130,9 @@ Blank frames (black, grey, white, a gradient, random noise) score 0.012 at most.
 `CAMERA_DETECTION_THRESHOLD` defaults to 0.5. Per-frame recall understates
 per-visit recall, because the trigger checks several frames a second for as long
 as the bird moves. A false positive costs more than one missed frame, since it
-uploads a sighting of an empty feeder. This set has no hand or squirrel photos,
-so the false-positive rate on real scenes is not measured yet.
+uploads a sighting of an empty feeder. This set has no hand photos, so the
+false-positive rate on real scenes is not measured yet. What the detector does
+with a squirrel is under *Feeder animals* below.
 
 Feeding the frame as BGR instead of RGB costs about 5 points (`clean` 62.0% to
 57.3% at 0.5). `PiCamera` asks picamera2 for `BGR888`, which is its name for an
@@ -223,6 +243,70 @@ fewer silent errors, on the grounds that a wrong species stated as fact is worse
 than a right one arrived at through one more hop. Tier 3 is absent from this
 replay, so where `CLAUDE_API_KEY` *is* set the accuracy column is a floor — a
 real Tier 3 call can only improve on the best-effort answer it replaces.
+
+### Feeder animals
+
+Measured on 2026-11-01 with `scripts/validate_animals.py`. The set is 30
+research-grade iNaturalist photos each of six mammals, observed on or after
+2022-01-01, one photo per observer. That is 180 clean photos, and 1,800 with the
+nine degradations. The bird set is the 300 field photos above and their
+degradations, 3,000 photos in all. Tier 2 sees the full frame, because a squirrel
+the detector misses has no box to crop to.
+
+**The detector misses most animals.** EfficientDet-Lite0 has no squirrel class.
+The table gives the share of clean photos where each COCO class scores 0.5 or
+more, which is `CAMERA_DETECTION_THRESHOLD`. "Any" is bird, cat, dog or bear.
+
+| Species | n | bird | cat | dog | bear | any |
+|---|---:|---:|---:|---:|---:|---:|
+| Eastern gray squirrel | 30 | 20.0% | 3.3% | 0.0% | 6.7% | 30.0% |
+| American red squirrel | 30 | 13.3% | 3.3% | 3.3% | 6.7% | 26.7% |
+| Eastern chipmunk | 30 | 10.0% | 10.0% | 3.3% | 6.7% | 30.0% |
+| Raccoon | 30 | 3.3% | 10.0% | 3.3% | 20.0% | 36.7% |
+| Virginia opossum | 30 | 3.3% | 20.0% | 6.7% | 3.3% | 33.3% |
+| House cat | 30 | 6.7% | 50.0% | 3.3% | 0.0% | 56.7% |
+| **All clean** | 180 | 9.4% | 16.1% | 3.3% | 7.2% | **35.6%** |
+
+Across the degraded variants "any" falls to between 8.3% (`field_combo`) and
+38.9% (`off_center`). Half the clean photos score no class at 0.5 at all. So the
+bird-only trigger catches about one squirrel photo in six. Firing on bird, cat,
+dog and bear catches about one in three. A trigger that must see most squirrels
+needs the motion fallback, or a detector with an animal class.
+
+**Tier 2 names animals well, and never names a bird as one.** "Group ok" is the
+share where the best listed animal is in the right group, at any confidence. The
+other columns are the share recorded as the right group under the Pi's rule,
+which needs the animal to meet the bar and beat the best bird.
+
+| Species | n | group ok | median conf | @0.3 | @0.5 |
+|---|---:|---:|---:|---:|---:|
+| Eastern gray squirrel | 30 | 100.0% | 0.78 | 83.3% | 76.7% |
+| American red squirrel | 30 | 100.0% | 0.88 | 93.3% | 83.3% |
+| Eastern chipmunk | 30 | 100.0% | 0.88 | 93.3% | 90.0% |
+| Raccoon | 30 | 83.3% | 0.64 | 63.3% | 60.0% |
+| Virginia opossum | 30 | 86.7% | 0.89 | 76.7% | 70.0% |
+| House cat | 30 | 90.0% | 0.79 | 73.3% | 73.3% |
+| **All clean** | 180 | 93.3% | 0.84 | **80.6%** | 75.6% |
+
+| Bar | Animals recorded, clean | Wrong group, clean | Wrong group, all 1,800 | Birds recorded as animals, all 3,000 |
+|---:|---:|---:|---:|---:|
+| 0.2 | 86.1% | 3 | 23 (1.8% of accepted) | 0 |
+| **0.3** | **80.6%** | **0** | **11 (0.9%)** | **0** |
+| 0.4 | 77.8% | 0 | 3 (0.3%) | 0 |
+| 0.5 | 75.6% | 0 | 1 (0.1%) | 0 |
+
+The highest animal confidence Tier 2 gave any of the 3,000 bird photos was 0.088.
+
+`TIER2_ANIMAL_THRESHOLD` defaults to **0.30**. It sits more than three times
+above the worst bird, and it records 80.6% of clean animal photos with no wrong
+group. A higher bar costs squirrels for little gain. An animal that misses the
+bar goes down the bird chain, and none of the 35 that missed at 0.30 had a Tier 2
+bird at 0.60 or more. So each one falls to Tier 1, which can accept a wrong bird.
+A wrong animal group is the cheaper mistake.
+
+`distant` and `field_combo` hurt Tier 2 the most here too: 35.6% and 18.3% recorded
+at 0.5. The Pi crops to the detector's box when there is one, which should help
+the distant case. That is not measured.
 
 ### What this measurement still is not
 

@@ -350,3 +350,22 @@ def test_the_client_sends_crop_box_as_a_json_form_field(tmp_path):
 
     assert received[0]["crop_box"] == "[810, 390, 1110, 690]"
     assert "crop_box" not in received[1]
+
+
+# ── Every class, for scripts/validate_animals.py ─────────────────────────────
+
+
+def test_scores_by_class_keeps_the_best_score_of_every_class():
+    det = BirdDetector("unused.tflite", 0.5)
+    assert det.attach(FakeInterpreter([
+        (16, 0.3),  # cat
+        (BIRD_CLASS_ID, 0.2),
+        (16, 0.7),
+        (22, 0.1),  # bear
+    ]))
+
+    scores = det.scores_by_class(np.zeros((240, 320, 3), np.uint8))
+
+    assert scores == pytest.approx({16: 0.7, BIRD_CLASS_ID: 0.2, 22: 0.1})
+    # detect() still answers for birds only, and only at its threshold.
+    assert det.detect(np.zeros((240, 320, 3), np.uint8)) is None

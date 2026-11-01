@@ -16,6 +16,7 @@ from ..database.models import (
     User,
     UserPreferences,
 )
+from ..species.operations import BIRD
 from .email_sender import send_email
 from .push import delete_endpoints, subscriptions_for_users, to_target
 from .push_sender import push_enabled, send_push
@@ -80,6 +81,13 @@ class NotificationService:
         ).scalar_one_or_none()
 
         if species is None or device is None:
+            return
+
+        # An animal visit sends no bird alert. It must not count as a "new
+        # species" or start the bird throttle, so a squirrel never mutes the
+        # cardinal that lands after it. Per-group animal alerts are not built yet.
+        if species.kind != BIRD:
+            logger.debug("No alert for animal sighting %d (%s)", sighting_id, species.animal_group)
             return
 
         sighting_count: int = (

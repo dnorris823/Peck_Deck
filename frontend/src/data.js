@@ -32,7 +32,16 @@ function mapSpecies(s) {
     wiki: s.wiki_url || null,
     ebird: s.ebird_code || null,
     note: s.note || "",
+    // "animal" for a squirrel or other feeder mammal Tier 2 named. A backend
+    // without the field only has birds.
+    kind: s.kind || "bird",
+    animalGroup: s.animal_group || null,
   };
+}
+
+/** True for a bird visit. Home and the bird counts leave animal visits out. */
+export function isBirdSighting(s) {
+  return s.species?.kind !== "animal";
 }
 
 function mapSpeciesCount(s) {

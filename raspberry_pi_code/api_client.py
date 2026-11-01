@@ -81,6 +81,7 @@ class BackendClient:
         tier_trace: list[dict] | None = None,
         crop_box: list[int] | None = None,
         delayed: bool = False,
+        animal_group: str | None = None,
     ) -> UploadOutcome:
         """Upload image + sighting metadata in a single multipart POST.
 
@@ -90,6 +91,9 @@ class BackendClient:
         ``crop_box`` goes up as a JSON ``[left, top, right, bottom]``, the
         pixel edges of the square the tiers classified. None leaves it out, and
         the backend's Tier 2 re-check then uses the full frame.
+
+        ``animal_group`` marks an animal sighting. It sends ``kind=animal`` and
+        the group. A bird sends neither, which the backend reads as a bird.
 
         Returns an :class:`UploadOutcome`; it is falsy for every failure, so
         callers that only care whether it worked can still just test it.
@@ -113,6 +117,9 @@ class BackendClient:
                     if crop_box is not None:
                         form.add_field("crop_box", json.dumps(list(crop_box)))
                     form.add_field("delayed", str(delayed).lower())
+                    if animal_group is not None:
+                        form.add_field("kind", "animal")
+                        form.add_field("animal_group", animal_group)
 
                     async with session.post(
                         f"{self._base}/sightings",

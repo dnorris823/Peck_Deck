@@ -4,9 +4,28 @@ from pathlib import Path
 
 import aiohttp
 
-from .base import ClassificationResult, ClassifierBase
+from .base import AnimalAnswer, ClassificationResult, ClassifierBase
 
 logger = logging.getLogger(__name__)
+
+
+def _animal(raw) -> AnimalAnswer | None:
+    """The ``animal`` field of the reply. An older server sends none.
+
+    A malformed field is dropped, so the bird answer still counts.
+    """
+    if not isinstance(raw, dict):
+        return None
+    try:
+        return AnimalAnswer(
+            common_name=str(raw["common_name"]),
+            scientific_name=str(raw["scientific_name"]),
+            group=str(raw["group"]),
+            confidence=float(raw["confidence"]),
+        )
+    except (KeyError, TypeError, ValueError):
+        logger.warning("GPU server sent a malformed animal field: %.200r", raw)
+        return None
 
 
 class GPUServerClassifier(ClassifierBase):
@@ -40,6 +59,7 @@ class GPUServerClassifier(ClassifierBase):
                             scientific_name=data["scientific_name"],
                             confidence=float(data["confidence"]),
                             tier_used="gpu",
+                            animal=_animal(data.get("animal")),
                         )
         except asyncio.TimeoutError:
             logger.warning("GPU server timed out (%s)", image_path.name)

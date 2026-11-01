@@ -15,7 +15,7 @@ import { AppearanceProvider } from "./Appearance.jsx";
 import { OfflineBanner, useOnline } from "./Offline.jsx";
 import { getToken, logout } from "./api.js";
 import { useSpeciesAccent } from "./accent.js";
-import { fetchSighting, mapAgainst } from "./data.js";
+import { fetchSighting, isBirdSighting, mapAgainst } from "./data.js";
 
 // Home-screen shortcuts in the web manifest deep-link with ?screen=<id>, so a
 // long-press on the installed icon can open straight to History or Species.
@@ -172,9 +172,9 @@ function AppShell({ onLogout }) {
   const closeMore = useCallback(() => setMoreOpen(false), []);
   const toggleMore = useCallback(() => setMoreOpen(o => !o), []);
 
-  // The app-wide accent is the latest visitor's. A screen that shows another
+  // The app-wide accent is the latest bird's. A screen that shows another
   // bird sets its own accent on that part of the page.
-  const accent = useSpeciesAccent(data?.SIGHTINGS[0]?.species);
+  const accent = useSpeciesAccent(data?.SIGHTINGS.find(isBirdSighting)?.species);
 
   // A viewer on ?screen=users, or an owner who just demoted themselves.
   const route = data ? allowedRoute(asked, data.ME) : asked;

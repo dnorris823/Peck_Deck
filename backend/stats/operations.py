@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.models import Sighting, Species
 from ..sightings.operations import _accessible_device_ids
+from ..species.operations import BIRD, is_bird_sighting
 
 
 def _aware(dt: datetime) -> datetime:
@@ -53,7 +54,8 @@ async def _local_hour_rows(
 
     Each row is ``(species_id, hour, count, earliest, latest)``. ``earliest`` and
     ``latest`` are the local times of day of the first and last visit in that
-    hour. ``since`` of None means all time.
+    hour. ``since`` of None means all time. Without ``species_id`` it counts
+    birds only, so a squirrel never makes a busy hour.
     """
     if not accessible:
         return []
@@ -62,6 +64,8 @@ async def _local_hour_rows(
         filters.append(Sighting.datetime >= since)
     if species_id is not None:
         filters.append(Sighting.species_id == species_id)
+    else:
+        filters.append(is_bird_sighting())
 
     if db.bind.dialect.name == "postgresql":
         local = Sighting.datetime.op("AT TIME ZONE")(tz)
@@ -173,11 +177,13 @@ async def species_counts(
     either, ``count``, ``first_seen`` and ``last_seen`` cover only that range,
     and a species with no visit in it is left out. ``peak_hours`` keeps its
     30-day window.
+
+    Birds only. Animal visits are not species in this sense.
     """
     accessible = await _accessible_device_ids(db, user_id)
     if not accessible:
         return []
-    filters = [Sighting.device_id.in_(accessible)]
+    filters = [Sighting.device_id.in_(accessible), Species.kind == BIRD]
     if from_date is not None:
         filters.append(Sighting.datetime >= _utc(from_date))
     if to_date is not None:
@@ -228,14 +234,16 @@ async def _recent_sightings(
         return []
     rows = await db.execute(
         select(Sighting).where(
-            Sighting.device_id.in_(accessible), Sighting.datetime >= since
+            Sighting.device_id.in_(accessible),
+            Sighting.datetime >= since,
+            is_bird_sighting(),
         )
     )
     return list(rows.scalars().all())
 
 
 async def heatmap(db: AsyncSession, user_id: int) -> list[list[int]]:
-    """7×24 grid of sighting counts, rows Mon→Sun, over the last 7 days."""
+    """7×24 grid of bird sighting counts, rows Mon→Sun, over the last 7 days."""
     accessible = await _accessible_device_ids(db, user_id)
     now = datetime.now(timezone.utc)
     since = now - timedelta(days=7)

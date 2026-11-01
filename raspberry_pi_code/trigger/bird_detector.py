@@ -117,6 +117,32 @@ class BirdDetector:
         if self._interp is None:
             return None
 
+        classes, scores = self._run(rgb)
+        birds = np.flatnonzero(classes == BIRD_CLASS_ID)
+        if birds.size == 0:
+            return None
+        best = int(birds[np.argmax(scores[birds])])
+        if float(scores[best]) < self._threshold:
+            return None
+        boxes = np.asarray(self._interp.get_tensor(self._boxes["index"])).reshape(-1, 4)
+        return Detection(float(scores[best]), _to_box(boxes[best]))
+
+    def scores_by_class(self, rgb: np.ndarray) -> dict[int, float]:
+        """The best score for every COCO class the model reported, any score.
+
+        ``scripts/validate_animals.py`` uses it to see what the detector calls a
+        squirrel. Blocking, like ``detect``.
+        """
+        if self._interp is None:
+            return {}
+        classes, scores = self._run(rgb)
+        best: dict[int, float] = {}
+        for cls, score in zip(classes.tolist(), scores.tolist()):
+            best[cls] = max(best.get(cls, 0.0), float(score))
+        return best
+
+    def _run(self, rgb: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """Run the model on one frame. Returns the class ids and their scores."""
         from PIL import Image
 
         _, in_h, in_w, _ = self._input["shape"]
@@ -133,12 +159,4 @@ class BirdDetector:
         n = int(np.asarray(self._interp.get_tensor(self._count["index"])).reshape(-1)[0])
         classes = np.asarray(self._interp.get_tensor(self._classes["index"])).reshape(-1)[:n]
         scores = np.asarray(self._interp.get_tensor(self._scores["index"])).reshape(-1)[:n]
-
-        birds = np.flatnonzero(np.rint(classes).astype(int) == BIRD_CLASS_ID)
-        if birds.size == 0:
-            return None
-        best = int(birds[np.argmax(scores[birds])])
-        if float(scores[best]) < self._threshold:
-            return None
-        boxes = np.asarray(self._interp.get_tensor(self._boxes["index"])).reshape(-1, 4)
-        return Detection(float(scores[best]), _to_box(boxes[best]))
+        return np.rint(classes).astype(int), scores

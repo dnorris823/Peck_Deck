@@ -26,6 +26,8 @@ def _to_response(s) -> SpeciesResponse:
         description=s.description,
         family=s.family,
         ebird_code=ebird_code(s.common_name, s.genus, s.species_name),
+        kind=s.kind,
+        animal_group=s.animal_group,
     )
 
 

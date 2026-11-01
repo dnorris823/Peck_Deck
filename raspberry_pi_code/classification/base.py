@@ -4,12 +4,28 @@ from pathlib import Path
 from typing import Literal
 
 
+@dataclass(frozen=True)
+class AnimalAnswer:
+    """Tier 2's best feeder animal, a row of ``machine_learning/feeder_animals.csv``."""
+
+    common_name: str
+    scientific_name: str
+    group: str  # squirrel, raccoon, bear, ...
+    confidence: float
+
+
 @dataclass
 class ClassificationResult:
     common_name: str
     scientific_name: str
     confidence: float
     tier_used: str  # "local" | "gpu" | "cloud", or "none" when every tier failed
+    # Set on a result that names an animal, not a bird. The sighting then
+    # uploads with kind "animal" and this group.
+    animal_group: str | None = None
+    # Tier 2's animal candidate next to its bird answer. The pipeline decides
+    # whether it wins. Only Tier 2 sets it.
+    animal: AnimalAnswer | None = None
 
 
 # What happened at one tier of the chain. "failed" covers a tier that returned

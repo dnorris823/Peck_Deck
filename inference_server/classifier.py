@@ -20,10 +20,69 @@ except ImportError:
 
 
 @dataclass
+class AnimalPrediction:
+    """The best feeder animal in the softmax, from ``feeder_animals.csv``."""
+
+    common_name: str
+    scientific_name: str
+    group: str
+    confidence: float
+
+
+@dataclass
 class Prediction:
     common_name: str
     scientific_name: str
     confidence: float
+    # The best listed animal from the same softmax. None when the model has no
+    # listed animal in its label space, or the list is missing. The bird fields
+    # never change because of it, so an old Pi build reads them as before.
+    animal: AnimalPrediction | None = None
+
+
+def load_animals(path: Path) -> list[dict]:
+    """Rows of ``feeder_animals.csv``: scientific_name, common_name, group.
+
+    A missing file means no animal answers, not a failed load. The bird answer
+    does not depend on it.
+    """
+    if not path.exists():
+        logger.warning("Feeder animal list not found: %s. Tier 2 names birds only", path)
+        return []
+    with open(path, newline="", encoding="utf-8") as fh:
+        return [
+            {k: (v or "").strip() for k, v in row.items()}
+            for row in csv.DictReader(fh)
+            if (row.get("scientific_name") or "").strip()
+        ]
+
+
+def animal_index(label_names: list[str], animals: list[dict]) -> dict[int, dict]:
+    """Model output index -> feeder animal row, matched on scientific name."""
+    by_name = {a["scientific_name"].lower(): a for a in animals}
+    return {
+        i: by_name[name.strip().lower()]
+        for i, name in enumerate(label_names)
+        if name.strip().lower() in by_name
+    }
+
+
+def best_animal(probs, index: dict[int, dict]) -> AnimalPrediction | None:
+    """The listed animal with the highest probability in ``probs``.
+
+    ``probs`` is the softmax over every model class, so the number compares
+    directly with the bird answer's confidence.
+    """
+    if not index:
+        return None
+    best = max(index, key=lambda i: float(probs[i]))
+    row = index[best]
+    return AnimalPrediction(
+        common_name=row["common_name"],
+        scientific_name=row["scientific_name"],
+        group=row["group"],
+        confidence=float(probs[best]),
+    )
 
 
 class BirdClassifier:
@@ -35,9 +94,11 @@ class BirdClassifier:
         image_size: int = 380,
         weights_path: str | None = None,
         device: str = "cuda",
+        animals_path: str | None = None,
     ):
         self._model_name = model_name
         self._taxonomy_path = Path(taxonomy_path)
+        self._animals_path = Path(animals_path) if animals_path else None
         self._image_size = image_size
         self._weights_path = weights_path
         self._requested_device = device
@@ -48,6 +109,8 @@ class BirdClassifier:
         # model output index -> taxonomy index. Empty when the model's head was
         # built to match the taxonomy directly (the legacy path).
         self._projection: dict[int, int] = {}
+        # model output index -> feeder_animals.csv row. Empty on the legacy path.
+        self._animals: dict[int, dict] = {}
 
     def load(self) -> bool:
         if not _TORCH_AVAILABLE:
@@ -78,6 +141,10 @@ class BirdClassifier:
                 # project its classes onto the shared taxonomy by name.
                 self._model = timm.create_model(self._model_name, pretrained=True)
                 self._build_projection(label_names)
+                if self._animals_path is not None:
+                    self._animals = animal_index(
+                        label_names, load_animals(self._animals_path)
+                    )
                 if not self._projection:
                     logger.error(
                         "No class in '%s' maps onto the taxonomy — refusing to load "
@@ -116,10 +183,10 @@ class BirdClassifier:
 
             logger.info(
                 "Loaded model '%s' on %s (%d model classes -> %d taxonomy entries, "
-                "%d mapped)",
+                "%d mapped, %d feeder animals)",
                 self._model_name, self._device,
                 getattr(self._model, "num_classes", len(self._taxonomy)),
-                len(self._taxonomy), len(self._projection),
+                len(self._taxonomy), len(self._projection), len(self._animals),
             )
             return True
 
@@ -157,8 +224,8 @@ class BirdClassifier:
         Anything unmatched (iNat21 carries plants and insects too) stays out of
         the projection. Predictions are still softmaxed over the *full* output,
         so a squirrel at the feeder leaves every bird class with low probability
-        and the pipeline's confidence threshold falls through to the next tier,
-        rather than being forced into a confident bird answer.
+        rather than being forced into a confident bird answer. The squirrel's
+        own score comes back as ``Prediction.animal``.
         """
         by_name = {
             entry["scientific_name"].strip().lower(): i
@@ -224,6 +291,8 @@ class BirdClassifier:
                     idx = int(probs.argmax())
                     confidence = float(probs[idx])
 
+                animal = best_animal(probs, self._animals)
+
             entry = (
                 self._taxonomy[idx]
                 if idx < len(self._taxonomy)
@@ -233,6 +302,7 @@ class BirdClassifier:
                 common_name=entry["common_name"],
                 scientific_name=entry["scientific_name"],
                 confidence=confidence,
+                animal=animal,
             )
 
         except Exception:

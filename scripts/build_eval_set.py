@@ -29,9 +29,14 @@ Two choices worth knowing about:
 Ground truth is ``machine_learning/feeder_species.csv`` — the 20 curated
 backyard species.
 
+``--set animals`` pulls the feeder mammals in ``ANIMAL_EVAL_SPECIES`` instead,
+into ``.eval_animals``. ``scripts/validate_animals.py`` scores the camera
+trigger's detector and Tier 2 on them.
+
     python scripts/build_eval_set.py                      # 15 photos/species
     python scripts/build_eval_set.py --per-species 30
     python scripts/build_eval_set.py --species "Cardinalis cardinalis"
+    python scripts/build_eval_set.py --set animals --per-species 30
 
 Photos land in ``<root>/clean/<Genus_species>/obs_<id>.jpg`` alongside a
 ``manifest.json`` carrying licence and attribution for every file. The tree is
@@ -53,6 +58,18 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 FEEDER_CSV = REPO_ROOT / "machine_learning" / "feeder_species.csv"
 DEFAULT_ROOT = REPO_ROOT / ".eval_photos"
+ANIMAL_ROOT = REPO_ROOT / ".eval_animals"
+
+# The mammals most likely to raid a feeder, for the animal measurement. Every
+# name is in Tier 2's label space and in machine_learning/feeder_animals.csv.
+ANIMAL_EVAL_SPECIES = [
+    "Sciurus carolinensis",  # eastern gray squirrel
+    "Tamiasciurus hudsonicus",  # American red squirrel
+    "Tamias striatus",  # eastern chipmunk
+    "Procyon lotor",  # raccoon
+    "Didelphis virginiana",  # Virginia opossum
+    "Felis catus",  # house cat
+]
 
 API = "https://api.inaturalist.org/v1"
 # iNaturalist asks for an identifying User-Agent and tolerates ~60 requests/min.
@@ -258,7 +275,10 @@ def load_species() -> list[str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--root", default=str(DEFAULT_ROOT), help="output tree")
+    ap.add_argument("--set", choices=("birds", "animals"), default="birds",
+                    help="birds from feeder_species.csv, or the feeder mammals")
+    ap.add_argument("--root", help="output tree (default .eval_photos, or "
+                                   ".eval_animals with --set animals)")
     ap.add_argument("--per-species", type=int, default=15)
     ap.add_argument(
         "--since",
@@ -274,10 +294,12 @@ def main() -> int:
                     help="rebuild the manifest from already-downloaded photos")
     args = ap.parse_args()
 
-    root = Path(args.root)
+    root = Path(args.root or (ANIMAL_ROOT if args.set == "animals" else DEFAULT_ROOT))
     root.mkdir(parents=True, exist_ok=True)
 
-    species = args.species or load_species()
+    species = args.species or (
+        ANIMAL_EVAL_SPECIES if args.set == "animals" else load_species()
+    )
     print(f"Collecting <= {args.per_species} photos each for {len(species)} species "
           f"(observed on/after {args.since}, seed {args.seed})\n")
 

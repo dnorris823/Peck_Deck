@@ -39,3 +39,4 @@ machine_learning/*.pth
 # The measured results live in machine_learning/MODELS.md; the provenance of
 # every photo is in the tree's own manifest.json.
 .eval_photos/
+.eval_animals/

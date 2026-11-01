@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import defer
 
 from ..database.models import Device, DeviceUser, Sighting
-from ..species.operations import get_or_create_species
+from ..species.operations import BIRD, get_or_create_species
 
 # The list and export queries use both. The database answers "has an image?"
 # itself, and the bytes stay there. A page of 100 rows would
@@ -83,17 +83,30 @@ async def get_image_bytes(db: AsyncSession, sighting_id: int, *, thumb: bool) ->
     return row[0], thumb and bool(row[1])
 
 
-async def species_for_names(db: AsyncSession, common_name: str, scientific_name: str):
+async def species_for_names(
+    db: AsyncSession,
+    common_name: str,
+    scientific_name: str,
+    *,
+    kind: str = BIRD,
+    animal_group: str | None = None,
+):
     """The species row for a tier's answer, created on first sight.
 
     A tier gives "Genus species". An empty name, which the Pi sends for
-    "Unknown", files under the common name with species "sp.".
+    "Unknown", files under the common name with species "sp.". ``kind`` and
+    ``animal_group`` mark a feeder animal, as in ``get_or_create_species``.
     """
     parts = scientific_name.strip().split()
     genus = parts[0] if parts else common_name
     species_name = parts[1] if len(parts) > 1 else "sp."
     return await get_or_create_species(
-        db, common_name=common_name, genus=genus, species_name=species_name
+        db,
+        common_name=common_name,
+        genus=genus,
+        species_name=species_name,
+        kind=kind,
+        animal_group=animal_group,
     )
 
 
@@ -112,8 +125,12 @@ async def create_sighting(
     thumbnail_data: bytes | None = None,
     tier2_recheck: str | None = None,
     crop_box: list[int] | None = None,
+    kind: str = BIRD,
+    animal_group: str | None = None,
 ) -> Sighting:
-    species = await species_for_names(db, common_name, scientific_name)
+    species = await species_for_names(
+        db, common_name, scientific_name, kind=kind, animal_group=animal_group
+    )
 
     dt = datetime.fromisoformat(timestamp)
     if dt.tzinfo is None:

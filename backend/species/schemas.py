@@ -30,3 +30,7 @@ class SpeciesResponse:
     # eBird's species code ("blujay"), for the eBird and All About Birds links.
     # Null for a species outside the taxonomy.
     ebird_code: str | None = None
+    # "bird", or "animal" for a feeder mammal Tier 2 named.
+    kind: str = "bird"
+    # The animal's group, such as "squirrel". Null for a bird.
+    animal_group: str | None = None

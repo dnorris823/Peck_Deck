@@ -362,6 +362,7 @@ function SpeciesPicker({ s, onClose, onCorrected }) {
                     aria-current={current ? "true" : undefined} onClick={() => save(x.id)}>
                     <b>{x.common}</b>
                     {x.sci && <i>{x.sci}</i>}
+                    {x.kind === "animal" && <span className="sd-pick-tag">Animal</span>}
                     {current && <span className="sd-pick-tag">Current</span>}
                   </button>
                 </li>

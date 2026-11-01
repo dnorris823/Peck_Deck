@@ -38,6 +38,12 @@ DEFAULT_TIER_THRESHOLDS: dict[str, float] = {
     "cloud": 0.50,
 }
 
+# Tier 2's animal answer wins when it meets this bar and beats Tier 2's best
+# bird. Measured with scripts/validate_animals.py, see machine_learning/MODELS.md.
+# At 0.30 no bird of 3,000 photos became an animal (the highest scored 0.088),
+# and 80.6% of clean animal photos recorded as the right group, none wrong.
+DEFAULT_TIER2_ANIMAL_THRESHOLD = 0.30
+
 
 def _opt_float(name: str) -> float | None:
     """Read an optional float. Unset stays None so "set" is distinguishable
@@ -121,6 +127,9 @@ class Config:
     tier1_confidence_threshold: float | None = _opt_float("TIER1_CONFIDENCE_THRESHOLD")
     tier2_confidence_threshold: float | None = _opt_float("TIER2_CONFIDENCE_THRESHOLD")
     tier3_confidence_threshold: float | None = _opt_float("TIER3_CONFIDENCE_THRESHOLD")
+    tier2_animal_threshold: float = float(
+        os.getenv("TIER2_ANIMAL_THRESHOLD", str(DEFAULT_TIER2_ANIMAL_THRESHOLD))
+    )
     # The classifiers get a square crop around the detector's bird box. The
     # square's side is the box's longer side plus this fraction of it on each side.
     classify_crop_margin: float = float(os.getenv("CLASSIFY_CROP_MARGIN", "0.25"))

@@ -901,6 +901,16 @@
       },
       "SightingUploadForm": {
         "properties": {
+          "animal_group": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "classification_tier_used": {
             "type": "string"
           },
@@ -927,6 +937,10 @@
           "image": {
             "contentMediaType": "application/octet-stream",
             "format": "binary",
+            "type": "string"
+          },
+          "kind": {
+            "default": "bird",
             "type": "string"
           },
           "scientific_name": {
@@ -1103,6 +1117,16 @@
       },
       "SpeciesResponse": {
         "properties": {
+          "animal_group": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "common_name": {
             "type": "string"
           },
@@ -1141,6 +1165,10 @@
           },
           "id": {
             "type": "integer"
+          },
+          "kind": {
+            "default": "bird",
+            "type": "string"
           },
           "note": {
             "oneOf": [

@@ -5,7 +5,7 @@ import { SightingImage } from "./SightingImage.jsx";
 import { Icon } from "./Icon.jsx";
 import { Empty } from "./Empty.jsx";
 import { useData } from "./DataContext.jsx";
-import { SIGHTING_WINDOW, fetchSpeciesCountsBetween } from "./data.js";
+import { SIGHTING_WINDOW, fetchSpeciesCountsBetween, isBirdSighting } from "./data.js";
 import { useSpeciesAccent } from "./accent.js";
 import {
   DAY_END_HOUR, DAY_START_HOUR, RECENT_BELOW, RECENT_COUNT, fmtClock, heroWhen, isToday, isUnknown,
@@ -153,21 +153,25 @@ export function Dashboard({ openSighting, go, selectedId = null }) {
   const { data } = useData();
   const { SIGHTINGS, DEVICES } = data;
   const now = useNow();
+  // Home is about birds. A squirrel visit stays in History but never takes the
+  // hero, the strip, or today's count.
+  const birds = SIGHTINGS.filter(isBirdSighting);
   // The stream inserts by capture time, so the first row is the newest bird.
-  const hero = SIGHTINGS[0];
+  const hero = birds[0];
   const accent = useSpeciesAccent(hero?.species);
-  const yesterday = useYesterday(SIGHTINGS, now);
+  const yesterday = useYesterday(birds, now);
 
   if (!hero) return <HomeEmpty hasFeeders={DEVICES.length > 0} go={go} />;
 
   // Counted in local time from the loaded window. When every loaded row is from
   // today, the window has cut the day short, so the count says "100+".
-  const today = SIGHTINGS.filter(s => isToday(s.datetime, now));
-  const capped = SIGHTINGS.length >= SIGHTING_WINDOW && today.length === SIGHTINGS.length;
+  const today = birds.filter(s => isToday(s.datetime, now));
+  const capped = SIGHTINGS.length >= SIGHTING_WINDOW
+    && SIGHTINGS.every(s => isToday(s.datetime, now));
   // A quiet day has too little of its own to fill the strip, so it shows the
   // latest visits from any day instead. The hero is never repeated there.
   const recent = today.length < RECENT_BELOW;
-  const strip = recent ? SIGHTINGS.slice(1, 1 + RECENT_COUNT) : today.slice(1);
+  const strip = recent ? birds.slice(1, 1 + RECENT_COUNT) : today.slice(1);
   const yday = yesterday && yesterdayLine(yesterday);
   const tier2Down = DEVICES.some(d => d.tierMix?.tier2Down);
   const { quiet, count, warning } = statusLine(hero, today, { now, capped, tier2Down });

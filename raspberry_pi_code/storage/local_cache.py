@@ -22,6 +22,9 @@ class QueuedSighting:
     # [left, top, right, bottom] of the square the tiers classified. None for
     # the full frame, or a row queued by an older build.
     crop_box: list[int] | None = None
+    # The animal group, such as "squirrel", for an animal sighting. None for a
+    # bird, and for a row queued by an older build.
+    animal_group: str | None = None
 
 
 class LocalCache:
