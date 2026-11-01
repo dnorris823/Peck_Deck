@@ -30,6 +30,7 @@ function mapSpecies(s) {
     palette: Array.isArray(s.palette) ? s.palette : [],
     silhouette: s.silhouette || "songbird",
     wiki: s.wiki_url || null,
+    ebird: s.ebird_code || null,
     note: s.note || "",
   };
 }

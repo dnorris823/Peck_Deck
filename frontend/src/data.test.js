@@ -20,7 +20,8 @@ function routeApiGet(overrides = {}) {
     "/species": [
       { id: 1, common_name: "Northern Cardinal", genus: "Cardinalis", species_name: "cardinalis",
         order_name: "Passeriformes", palette: ["#b8412c"], silhouette: "songbird",
-        wiki_url: "https://en.wikipedia.org/wiki/Northern_cardinal", note: "Bright red." },
+        wiki_url: "https://en.wikipedia.org/wiki/Northern_cardinal", ebird_code: "norcar",
+        note: "Bright red." },
       // Sparse species (Pi-created): missing silhouette/wiki → defaults.
       { id: 2, common_name: "Mystery Bird", genus: "Ignotus", species_name: "avis" },
     ],
@@ -73,6 +74,7 @@ describe("loadAll", () => {
       sci: "Cardinalis cardinalis",
       order: "Passeriformes",
       wiki: "https://en.wikipedia.org/wiki/Northern_cardinal",
+      ebird: "norcar",
     });
 
     const device = data.DEVICES[0];
@@ -88,6 +90,7 @@ describe("loadAll", () => {
     expect(sparse.palette).toEqual([]);
     expect(sparse.silhouette).toBe("songbird");
     expect(sparse.wiki).toBeNull();
+    expect(sparse.ebird).toBeNull();
   });
 
   it("drops sightings whose species or device can't be resolved", async () => {

@@ -7,7 +7,7 @@ import { HourDial } from "./HourDial.jsx";
 import { useData } from "./DataContext.jsx";
 import { useSpeciesAccent } from "./accent.js";
 import {
-  fetchHours, fetchSpeciesSightings,
+  fetchHours, fetchSpeciesSightings, speciesLinks,
   fmtClock, fmtHour, fmtSeen, fmtSince, fmtVisit, fmtVisitFull,
 } from "./speciesData.js";
 
@@ -118,6 +118,28 @@ function RecentVisits({ species, visits, onAll, openSighting }) {
   );
 }
 
+function LearnMore({ species }) {
+  const links = speciesLinks(species);
+  if (links.length === 0) return null;
+  return (
+    <section aria-labelledby="sv-more-h">
+      <div className="sv-sec">
+        <h2 id="sv-more-h">Learn more</h2>
+      </div>
+      <ul className="sv-more">
+        {links.map((l) => (
+          <li key={l.label}>
+            <a href={l.href} target="_blank" rel="noopener noreferrer">
+              <span className="sv-more-name">{l.label} ›</span>
+              <span className="sv-more-hint">{l.hint}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export function SpeciesView({ species, onBack, go, openSighting }) {
   const { data } = useData();
   const accent = useSpeciesAccent(species);
@@ -163,11 +185,7 @@ export function SpeciesView({ species, onBack, go, openSighting }) {
         </div>
         <div>
           <RecentVisits species={species} visits={visits} onAll={onAll} openSighting={openSighting} />
-          {species.wiki && (
-            <a className="sv-link sv-wiki" href={species.wiki} target="_blank" rel="noopener noreferrer">
-              Read about the {species.common} on Wikipedia ›
-            </a>
-          )}
+          <LearnMore species={species} />
         </div>
       </div>
     </article>

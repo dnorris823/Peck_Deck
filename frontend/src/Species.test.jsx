@@ -159,4 +159,21 @@ describe("species page", () => {
     expect(within(nav).getByRole("button", { name: /Northern Cardinal/ })).toHaveAttribute("aria-current", "true");
     await screen.findByText("5:20 am · 7:58 pm");
   });
+
+  it("links out to Wikipedia, eBird, All About Birds and Xeno-canto", async () => {
+    setWide(true);
+    setData([species(1, "Blue Jay", 40, 60, {
+      wiki: "https://en.wikipedia.org/wiki/Blue_jay", ebird: "blujay",
+    })]);
+    render(<SpeciesPage go={vi.fn()} openSighting={vi.fn()} />);
+    const more = screen.getByRole("region", { name: "Learn more" });
+    const hrefs = within(more).getAllByRole("link").map((a) => a.getAttribute("href"));
+    expect(hrefs).toEqual([
+      "https://en.wikipedia.org/wiki/Blue_jay",
+      "https://ebird.org/species/blujay",
+      "https://www.allaboutbirds.org/guide/blujay",
+      "https://xeno-canto.org/explore?query=Blue%20Jay",
+    ]);
+    await screen.findByText("5:20 am · 7:58 pm");
+  });
 });

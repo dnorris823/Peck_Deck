@@ -935,6 +935,16 @@
               }
             ]
           },
+          "ebird_code": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "family": {
             "oneOf": [
               {
@@ -1057,6 +1067,16 @@
             "type": "string"
           },
           "description": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ebird_code": {
             "oneOf": [
               {
                 "type": "string"

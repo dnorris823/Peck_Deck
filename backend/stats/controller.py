@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..auth.guards import USER_JWT, user_guard
 from ..config import settings
+from ..species.ebird import ebird_code
 from . import operations
 from .schemas import (
     DashboardResponse,
@@ -46,6 +47,7 @@ def _species_count_response(row: dict) -> SpeciesCountResponse:
         note=s.note,
         description=s.description,
         family=s.family,
+        ebird_code=ebird_code(s.common_name, s.genus, s.species_name),
         count=row["count"],
         first_seen=row["first_seen"],
         last_seen=row["last_seen"],
