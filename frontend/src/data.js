@@ -493,6 +493,13 @@ export async function rotateDeviceToken(deviceId) {
   return apiSend(`/devices/${deviceId}/token`, "POST", {});
 }
 
+// ── Compare ───────────────────────────────────────────────────────────────
+// Every feeder the user can see, side by side, with each species' first visit
+// this year at each feeder. "This year" starts on 1 January in `zone`.
+export async function fetchCompare(zone = browserZone()) {
+  return apiGet(`/stats/compare?tz=${encodeURIComponent(zone)}`);
+}
+
 // ── Animals ───────────────────────────────────────────────────────────────
 // Daily animal visits per group on one feeder, with its measures and their
 // effect. The last 60 days by default, in the viewer's time zone.

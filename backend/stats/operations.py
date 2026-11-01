@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy import Integer, Time, cast, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..database.models import Sighting, Species
+from ..database.models import Device, Sighting, Species
 from ..sightings.operations import _accessible_device_ids
 from ..species.operations import BIRD, is_bird_sighting
 
@@ -330,6 +330,100 @@ async def dashboard(db: AsyncSession, user_id: int, device_id: int | None = None
         "spark_species": spark_species,
         "spark_confidence": spark_confidence,
     }
+
+
+async def compare(db: AsyncSession, user_id: int, *, tz: str) -> dict:
+    """Every feeder the user can see, side by side, for the Compare page.
+
+    Per feeder: bird visits in the last 7 days, bird species since 1 January
+    in ``tz``, and the busiest local hour over the last 30 days. Per species
+    seen this year: its first visit at each feeder that saw it. Birds only.
+    """
+    accessible = await _accessible_device_ids(db, user_id)
+    zone = ZoneInfo(tz)
+    now = datetime.now(timezone.utc)
+    year = now.astimezone(zone).year
+    year_start = datetime(year, 1, 1, tzinfo=zone).astimezone(timezone.utc)
+    if not accessible:
+        return {"year": year, "feeders": [], "species": []}
+
+    devices = (
+        await db.execute(
+            select(Device.id, Device.name).where(Device.id.in_(accessible)).order_by(Device.id)
+        )
+    ).all()
+
+    week = dict(
+        (
+            await db.execute(
+                select(Sighting.device_id, func.count(Sighting.id))
+                .where(
+                    Sighting.device_id.in_(accessible),
+                    Sighting.datetime >= now - timedelta(days=7),
+                    is_bird_sighting(),
+                )
+                .group_by(Sighting.device_id)
+            )
+        ).all()
+    )
+
+    firsts = (
+        await db.execute(
+            select(Sighting.device_id, Sighting.species_id, func.min(Sighting.datetime))
+            .where(
+                Sighting.device_id.in_(accessible),
+                Sighting.datetime >= year_start,
+                is_bird_sighting(),
+            )
+            .group_by(Sighting.device_id, Sighting.species_id)
+        )
+    ).all()
+    by_species: dict[int, list[tuple[int, datetime]]] = {}
+    species_year: dict[int, int] = {}
+    for dev_id, sp_id, first in firsts:
+        by_species.setdefault(sp_id, []).append((dev_id, _aware(first)))
+        species_year[dev_id] = species_year.get(dev_id, 0) + 1
+
+    since = now - timedelta(days=PEAK_WINDOW_DAYS)
+    feeders = []
+    for dev_id, name in devices:
+        counts = [0] * 24
+        for _sp, hour, count, _first, _last in await _local_hour_rows(
+            db, [dev_id], tz, since=since
+        ):
+            counts[hour] += count
+        busiest = peak_hours(counts, limit=1)
+        feeders.append(
+            {
+                "device_id": dev_id,
+                "name": name,
+                "visits_week": week.get(dev_id, 0),
+                "species_year": species_year.get(dev_id, 0),
+                "busiest_hour": busiest[0] if busiest else None,
+            }
+        )
+
+    rows = (
+        (await db.execute(select(Species).where(Species.id.in_(by_species)))).scalars().all()
+        if by_species
+        else []
+    )
+    for seen in by_species.values():
+        seen.sort(key=lambda f: f[1])
+    # The newest arrival at any feeder comes first, so a migrant that just
+    # turned up heads the list.
+    rows = sorted(rows, key=lambda s: by_species[s.id][0][1], reverse=True)
+    species = [
+        {
+            "species": s,
+            "firsts": [
+                {"device_id": dev_id, "first_seen": when.isoformat()}
+                for dev_id, when in by_species[s.id]
+            ],
+        }
+        for s in rows
+    ]
+    return {"year": year, "feeders": feeders, "species": species}
 
 
 async def storage(db: AsyncSession) -> dict:
