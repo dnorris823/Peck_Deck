@@ -31,6 +31,8 @@ os.environ["WEATHER_ENABLED"] = "false"
 os.environ["TIER2_RECHECK_INTERVAL_SECONDS"] = "0"
 # No hourly feed check racing the suite. The feed tests call run_once themselves.
 os.environ["FEED_ALERTS_ENABLED"] = "false"
+# No digest task either. The digest tests call run_once themselves.
+os.environ["DIGESTS_ENABLED"] = "false"
 
 import asyncio  # noqa: E402
 

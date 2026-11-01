@@ -61,6 +61,10 @@ def test_preferences_defaults_then_update(client, viewer_headers):
             "chipmunk": False, "rat": False, "rabbit": False, "opossum": False, "deer": False,
         },
         "animal_quiet_interval_seconds": 1800,
+        "time_zone": None,
+        "digest_push": False,
+        "digest_push_time": "19:00",
+        "digest_email": False,
     }
 
     upd = client.put(

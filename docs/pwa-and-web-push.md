@@ -76,6 +76,33 @@ species is new to the user. The code is in `backend/notifications/new_species.py
 - The push tag is per sighting, so a normal alert never replaces it on the
   phone.
 
+## Digests
+
+Two summaries, each with its own switch in Settings, Notifications. Both default
+off. The code is in `backend/notifications/digest.py`.
+
+| Digest | When | What |
+|---|---|---|
+| Evening push | Daily at `digest_push_time`, default 19:00 local | "Today: 23 birds, 7 species", then "New this year" and "New for Peck Deck" names, then an animal visit count. Tapping it opens Home. |
+| Weekly email | Sunday from 08:00 local, through SendGrid | The seven local days before Sunday. Per feeder: bird visits, species, new species, animal visits, and up to three inline photos. |
+
+- A task in the API process checks once a minute. `DIGESTS_ENABLED=false`
+  starts no task.
+- Days run midnight to midnight in `user_preferences.time_zone`. The web app sets
+  the zone from the browser on the first visit to Settings. Null counts in UTC.
+- A day or week with no bird visits sends nothing.
+- Bird counts filter on `is_bird_sighting()`. "Unknown" is a visit but not a
+  species. Animal visits get their own line.
+- "New" is `new_species.new_kinds()` on the first sighting of each species in the
+  period, with the first ever confidence floor. The user's alert switches do not
+  apply. The push leaves out "first at this feeder", because it covers every
+  feeder.
+- A photo is the highest-confidence Tier 2 sighting of one species. The email
+  takes the three most confident species.
+- `digest_push_sent_at` and `digest_email_sent_at` mark a period done. The task
+  commits them before it sends, so a restart never sends a period twice. A failed
+  send is not retried, and an empty period is marked done too.
+
 Notes that will bite otherwise:
 
 - **The VAPID public key is derived from the private key**, never read from
