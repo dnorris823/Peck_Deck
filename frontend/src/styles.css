@@ -736,7 +736,7 @@ h1, h2, h3 { font-weight: 800; margin: 0; }
 .theme-swatch-preview i { width: 12px; height: 12px; border-radius: 50%; background: currentColor; }
 .theme-swatch-label { padding: 0 2px 2px; }
 
-input[type="text"], input[type="email"], input[type="password"], select, textarea {
+input[type="text"], input[type="email"], input[type="password"], input[type="time"], select, textarea {
   background: var(--sheet);
   border: 1px solid var(--line-strong);
   border-radius: var(--r-sm);
@@ -782,6 +782,7 @@ input[type="range"], input[type="checkbox"], input[type="radio"] { accent-color:
 .toggle-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; }
 .toggle-row + .toggle-row { border-top: 1px solid var(--line); }
 .toggle-row-text { flex: 1; min-width: 0; }
+.toggle-row input[type="time"] { width: auto; }
 .toggle-row-title { font-size: 13.5px; font-weight: 700; overflow-wrap: anywhere; }
 .toggle-row-sub { font-size: 12.5px; color: var(--mu); margin-top: 2px; }
 

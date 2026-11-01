@@ -12,6 +12,7 @@ from sqlalchemy import (
     LargeBinary,
     String,
     UniqueConstraint,
+    false,
     text,
     true,
 )
@@ -82,6 +83,29 @@ class UserPreferences(Base):
     # quiet_interval_seconds, so a squirrel never mutes a bird alert.
     animal_quiet_interval_seconds: Mapped[int] = mapped_column(
         Integer, nullable=False, default=1800, server_default="1800"
+    )
+    # The user's IANA time zone ("America/Chicago"). The web app sets it from the
+    # browser on the first visit to Settings. Null reads as UTC.
+    time_zone: Mapped[str | None] = mapped_column(String, nullable=True)
+    # The evening digest push and the weekly digest email. Both default off.
+    # See backend/notifications/digest.py.
+    digest_push: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    # Local time of day for the evening push, "HH:MM".
+    digest_push_time: Mapped[str] = mapped_column(
+        String(5), nullable=False, default="19:00", server_default="19:00"
+    )
+    digest_email: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=false()
+    )
+    # When each digest last went out. A restart reads these, so it never sends
+    # a period's digest twice.
+    digest_push_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    digest_email_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
     )
 
     user: Mapped["User"] = relationship("User")

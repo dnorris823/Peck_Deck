@@ -52,6 +52,13 @@ class PreferencesResponse:
     animal_alerts: dict[str, bool] = field(default_factory=dict)
     # Minimum seconds between animal pushes per feeder and group.
     animal_quiet_interval_seconds: int = 1800
+    # IANA time zone, set from the browser. Null until the first visit to Settings.
+    time_zone: str | None = None
+    # The evening digest push at digest_push_time ("HH:MM", local), and the
+    # weekly digest email on Sunday morning. Both default off.
+    digest_push: bool = False
+    digest_push_time: str = "19:00"
+    digest_email: bool = False
 
 
 @dataclass
@@ -64,6 +71,10 @@ class UpdatePreferences:
     # Groups to switch. A group left out keeps its setting.
     animal_alerts: dict[str, bool] | None = None
     animal_quiet_interval_seconds: int | None = None
+    time_zone: str | None = None
+    digest_push: bool | None = None
+    digest_push_time: str | None = None
+    digest_email: bool | None = None
 
 
 @dataclass

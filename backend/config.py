@@ -68,6 +68,11 @@ class Settings:
     # "false" turns it off. See backend/feed/monitor.py.
     FEED_ALERTS_ENABLED: bool = os.getenv("FEED_ALERTS_ENABLED", "true").lower() == "true"
 
+    # ── Digests ───────────────────────────────────────────────────────────────
+    # The evening digest push and the weekly digest email. Each user turns them
+    # on in Settings. "false" starts no task. See backend/notifications/digest.py.
+    DIGESTS_ENABLED: bool = os.getenv("DIGESTS_ENABLED", "true").lower() == "true"
+
     # ── Environment ───────────────────────────────────────────────────────────
     # "development" | "production". Production refuses to start on insecure
     # defaults (see backend/main.py).

@@ -15,7 +15,13 @@ async def send_email(
     html_body: str,
     image_data: bytes | None = None,
     image_filename: str = "sighting.jpg",
+    inline_images: list[tuple[str, bytes]] | None = None,
 ) -> bool:
+    """Send one HTML email through SendGrid. Never raises.
+
+    ``image_data`` goes inline as ``cid:sighting_image``. ``inline_images`` adds
+    more, each a (content id, JPEG bytes) pair the HTML refers to as ``cid:<id>``.
+    """
     if not settings.SENDGRID_API_KEY:
         logger.debug("SendGrid not configured — skipping email to %s", to_email)
         return False
@@ -27,15 +33,18 @@ async def send_email(
         "content": [{"type": "text/html", "value": html_body}],
     }
 
-    if image_data:
+    images = [(image_filename, "sighting_image", image_data)] if image_data else []
+    images += [(f"{cid}.jpg", cid, data) for cid, data in inline_images or []]
+    if images:
         payload["attachments"] = [
             {
-                "content": base64.b64encode(image_data).decode(),
+                "content": base64.b64encode(data).decode(),
                 "type": "image/jpeg",
-                "filename": image_filename,
+                "filename": filename,
                 "disposition": "inline",
-                "content_id": "sighting_image",
+                "content_id": cid,
             }
+            for filename, cid, data in images
         ]
 
     try:

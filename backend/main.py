@@ -20,6 +20,7 @@ from .animals.controller import MeasureController
 from .devices.controller import DeviceController
 from .events.controller import EventController
 from .feed import monitor as feed_monitor
+from .notifications import digest
 from .live.controller import LiveController, LiveHlsController
 from .errors import http_exception_handler, unhandled_exception_handler
 from .notifications.controller import PushController
@@ -166,12 +167,14 @@ async def on_startup(app: Litestar) -> None:
     retention.start(settings.RETENTION_UNKNOWN_DAYS)
     recheck.start(settings.TIER2_RECHECK_INTERVAL_SECONDS, settings.INFERENCE_SERVER_URL)
     feed_monitor.start(settings.FEED_ALERTS_ENABLED)
+    digest.start(settings.DIGESTS_ENABLED)
 
 
 async def on_shutdown(app: Litestar) -> None:
     await recheck.stop()
     await retention.stop()
     await feed_monitor.stop()
+    await digest.stop()
     await dispose_db()
 
 

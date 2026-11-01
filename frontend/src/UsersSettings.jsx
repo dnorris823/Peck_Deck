@@ -25,6 +25,15 @@ const NEW_SPECIES_KINDS = [
   ["notify_first_this_year", "First this year", "Not seen at your feeders since 1 January"],
 ];
 
+// The browser's IANA time zone, or null when it cannot tell.
+export function browserTimeZone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+  } catch {
+    return null;
+  }
+}
+
 export const ANIMAL_INTERVALS = [
   [900, "15 minutes"], [1800, "30 minutes"], [3600, "1 hour"], [7200, "2 hours"], [21600, "6 hours"],
 ];
@@ -257,6 +266,15 @@ export function SettingsPage() {
 
   // Sliders buffer locally for smooth dragging, then commit on release.
   const [quiet, setQuiet] = useState(prefs.quiet_interval_seconds);
+  // The digest time buffers too, and saves when the field loses focus.
+  const [digestTime, setDigestTime] = useState(prefs.digest_push_time || "19:00");
+
+  // The digests count days in the user's time zone. The first visit to
+  // Settings sets it from the browser.
+  useEffect(() => {
+    const tz = browserTimeZone();
+    if (!prefs.time_zone && tz) savePrefs({ time_zone: tz });
+  }, []);
 
   async function saveUser(patchObj) {
     setStatus({ kind: "saving" });
@@ -385,6 +403,34 @@ export function SettingsPage() {
                 help="When on, you get the new species alerts above and no other bird alerts.">
                 <Toggle on={prefs.notify_new_species_only}
                   onChange={v => savePrefs({ notify_new_species_only: v })} />
+              </Field>
+
+              <Field label="Digests"
+                help={`A summary instead of an alert. Times use ${prefs.time_zone || "UTC"}. Both off by default.`}>
+                <div role="group" aria-label="Digests">
+                  <div className="toggle-row">
+                    <Toggle on={!!prefs.digest_push} onChange={v => savePrefs({ digest_push: v })} />
+                    <div className="toggle-row-text">
+                      <div className="toggle-row-title">Evening push</div>
+                      <div className="toggle-row-sub">Today's birds, species and new species. None on a day with no birds.</div>
+                    </div>
+                    <input type="time" aria-label="Evening push time" value={digestTime}
+                      disabled={!prefs.digest_push}
+                      onChange={e => setDigestTime(e.target.value)}
+                      onBlur={() => {
+                        if (digestTime && digestTime !== prefs.digest_push_time) {
+                          savePrefs({ digest_push_time: digestTime });
+                        }
+                      }} />
+                  </div>
+                  <div className="toggle-row">
+                    <Toggle on={!!prefs.digest_email} onChange={v => savePrefs({ digest_email: v })} />
+                    <div className="toggle-row-text">
+                      <div className="toggle-row-title">Weekly email</div>
+                      <div className="toggle-row-sub">Sunday morning. Per feeder: visits, species, new species and the three best photos.</div>
+                    </div>
+                  </div>
+                </div>
               </Field>
 
               <Field label="Animal alerts"
