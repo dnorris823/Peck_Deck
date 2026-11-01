@@ -479,11 +479,13 @@ async def _mk_recipient_with_subscription(n_subs: int = 1):
             )
             db.add_all([d, sp])
             await db.flush()
-            s = Sighting(
-                species_id=sp.id, device_id=d.id, datetime=datetime.now(timezone.utc),
-                confidence_score=0.91, classification_tier_used="gpu", delayed=False,
-            )
-            db.add(s)
+            # Two sightings, so the species is not new and the alert is the normal one.
+            for _ in range(2):
+                s = Sighting(
+                    species_id=sp.id, device_id=d.id, datetime=datetime.now(timezone.utc),
+                    confidence_score=0.91, classification_tier_used="gpu", delayed=False,
+                )
+                db.add(s)
             endpoints = []
             for _ in range(n_subs):
                 _, p256dh, _, auth_b64 = _fake_browser()

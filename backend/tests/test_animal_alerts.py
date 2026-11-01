@@ -177,6 +177,7 @@ def test_a_squirrel_never_mutes_a_bird_or_opens_a_feed_spell(client, monkeypatch
     station = asyncio.run(_station({"quiet_interval_seconds": 600}))
     squirrel = asyncio.run(_species("animal", "squirrel"))
     cardinal = asyncio.run(_species("bird", None))
+    asyncio.run(_sighting(cardinal, station["device_id"]))  # not a new species
     svc = NotificationService()
 
     async def spells() -> int:

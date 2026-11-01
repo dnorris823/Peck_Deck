@@ -146,6 +146,7 @@ async def update_preferences(
     *,
     quiet_interval_seconds: int | None,
     notify_new_species_only: bool | None,
+    new_species_alerts: dict[str, bool | None] | None = None,
     animal_alerts: dict[str, bool] | None = None,
     animal_quiet_interval_seconds: int | None = None,
 ) -> UserPreferences:
@@ -153,6 +154,10 @@ async def update_preferences(
         prefs.quiet_interval_seconds = quiet_interval_seconds
     if notify_new_species_only is not None:
         prefs.notify_new_species_only = notify_new_species_only
+    # notify_first_ever and its siblings. A None leaves the switch alone.
+    for name, value in (new_species_alerts or {}).items():
+        if value is not None:
+            setattr(prefs, name, value)
     if animal_alerts is not None:
         # A new dict, so SQLAlchemy sees the JSON column change.
         prefs.animal_alerts = {**(prefs.animal_alerts or {}), **animal_alerts}

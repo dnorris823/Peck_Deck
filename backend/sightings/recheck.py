@@ -21,7 +21,10 @@ Pi's live requests still get a turn.
   Tier 1 said, because Tier 1 knows birds only.
 - ``tier_trace`` stays as the Pi wrote it. The Tier 2 warning on the feeder
   card reads the Pi's own attempt, and a re-check must not hide the outage.
-- A changed row goes to open tabs as ``SightingUpdated``. No push goes out.
+- A changed row goes to open tabs as ``SightingUpdated``. The normal alert went
+  out at upload, so the only push is the new species alert, which waited for
+  the re-check. A person's correction sends none. See
+  backend/notifications/new_species.py.
 
 Like the SSE fan-out, the loop assumes one API process. Two processes could
 re-check one row twice.
@@ -41,6 +44,7 @@ from ..config import settings
 from ..database.connection import get_session_factory
 from ..database.models import Sighting
 from ..events.hub import SightingUpdated, sighting_hub
+from ..notifications.service import notification_service
 from ..species.operations import ANIMAL
 from .aftercare import enrich_if_sparse
 from .operations import HAS_IMAGE, SKIP_IMAGE, species_for_names
@@ -363,6 +367,11 @@ async def _apply(sighting_id: int, answer: Answer | None, *, outcome: str = "") 
     )
     # A species the GPU named for the first time gets its field-guide entry.
     enrich_if_sparse(new_species)
+    # "New species" waited for this answer. Fire and forget, like the upload.
+    if outcome != "corrected":
+        asyncio.create_task(
+            notification_service.dispatch(sighting_id, device_id, after_recheck=True)
+        )
     return outcome
 
 

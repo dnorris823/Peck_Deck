@@ -18,6 +18,13 @@ import {
 import { GROUPS } from "./animals.js";
 
 // How often one feeder may push about one animal group.
+// The new species alert switches, strongest first. All default on.
+const NEW_SPECIES_KINDS = [
+  ["notify_first_ever", "First ever", "No feeder you can see has recorded it"],
+  ["notify_first_at_feeder", "First at this feeder", "New to this feeder, seen at another"],
+  ["notify_first_this_year", "First this year", "Not seen at your feeders since 1 January"],
+];
+
 export const ANIMAL_INTERVALS = [
   [900, "15 minutes"], [1800, "30 minutes"], [3600, "1 hour"], [7200, "2 hours"], [21600, "6 hours"],
 ];
@@ -359,8 +366,23 @@ export function SettingsPage() {
                 </div>
               </Field>
 
-              <Field label="Notify only for new species"
-                help="When on, you'll only be alerted the first time a species shows up.">
+              <Field label="New species alerts"
+                help="A separate alert when a bird is new to you. It ignores the quiet interval. You get only the strongest one that applies.">
+                <div role="group" aria-label="New species alerts">
+                  {NEW_SPECIES_KINDS.map(([key, title, sub]) => (
+                    <div className="toggle-row" key={key}>
+                      <Toggle on={prefs[key] !== false} onChange={v => savePrefs({ [key]: v })} />
+                      <div className="toggle-row-text">
+                        <div className="toggle-row-title">{title}</div>
+                        <div className="toggle-row-sub">{sub}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Field>
+
+              <Field label="Only new species"
+                help="When on, you get the new species alerts above and no other bird alerts.">
                 <Toggle on={prefs.notify_new_species_only}
                   onChange={v => savePrefs({ notify_new_species_only: v })} />
               </Field>

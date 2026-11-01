@@ -113,6 +113,7 @@ def test_per_recipient_throttle_suppresses_rapid_repeat(client, monkeypatch):
     emails = _patch_senders(monkeypatch)
     uid, did, email = asyncio.run(_mk_user_device())
     spid = asyncio.run(_mk_species())
+    asyncio.run(_insert_sighting(spid, did))  # seen before, so not a new species
     sid = asyncio.run(_insert_sighting(spid, did))
 
     svc = NotificationService()  # shared instance keeps the throttle map

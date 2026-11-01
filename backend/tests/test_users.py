@@ -53,6 +53,9 @@ def test_preferences_defaults_then_update(client, viewer_headers):
     assert res.json() == {
         "quiet_interval_seconds": 60,
         "notify_new_species_only": False,
+        "notify_first_ever": True,
+        "notify_first_at_feeder": True,
+        "notify_first_this_year": True,
         "animal_alerts": {
             "squirrel": True, "raccoon": True, "bear": True, "cat": True,
             "chipmunk": False, "rat": False, "rabbit": False, "opossum": False, "deer": False,
@@ -85,6 +88,20 @@ def test_preferences_partial_update(client, owner_headers):
     body = client.get("/users/me/preferences", headers=owner_headers).json()
     assert body["notify_new_species_only"] is True
     assert body["quiet_interval_seconds"] == 60
+
+
+def test_new_species_switches_save_one_at_a_time(client, viewer_headers):
+    res = client.put(
+        "/users/me/preferences", headers=viewer_headers, json={"notify_first_this_year": False}
+    )
+    assert res.status_code == 200
+    body = client.get("/users/me/preferences", headers=viewer_headers).json()
+    assert body["notify_first_this_year"] is False
+    assert body["notify_first_ever"] is True
+    assert body["notify_first_at_feeder"] is True
+    client.put(
+        "/users/me/preferences", headers=viewer_headers, json={"notify_first_this_year": True}
+    )
 
 
 def test_preferences_validation(client, owner_headers):
