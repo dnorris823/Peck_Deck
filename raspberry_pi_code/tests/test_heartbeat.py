@@ -7,20 +7,26 @@ A quiet feeder uploads nothing, so without a heartbeat a healthy Pi read
 import asyncio
 import logging
 
+import pytest
 from aiohttp import web
 from aiohttp.test_utils import TestServer
 
 from raspberry_pi_code import main as pi_main
 from raspberry_pi_code.api_client import BackendClient, UploadOutcome
-from raspberry_pi_code.config import Config
+from raspberry_pi_code.config import Config, parse_power_source
 
 
-async def _with_backend(status, body):
-    """Run `body(client, seen)` against a local backend answering `status`."""
+async def _with_backend(status, body, bodies=None):
+    """Run `body(client, seen)` against a local backend answering `status`.
+
+    Each JSON body the backend receives goes into `bodies`, when given.
+    """
     seen = []
 
     async def heartbeat(request):
         seen.append((request.path, request.headers.get("Authorization")))
+        if bodies is not None:
+            bodies.append(await request.json())
         return web.json_response({}, status=status)
 
     app = web.Application()
@@ -38,6 +44,30 @@ def test_heartbeat_posts_with_the_device_token():
     outcome, seen = asyncio.run(_with_backend(200, body))
     assert outcome is UploadOutcome.OK
     assert seen == [("/devices/me/heartbeat", "Bearer dev-token")]
+
+
+def test_heartbeat_sends_power_source_and_signal():
+    bodies = []
+
+    async def body(client, _seen):
+        await client.heartbeat(power_source="mains", signal="weak")
+        await client.heartbeat()
+
+    asyncio.run(_with_backend(200, body, bodies))
+    assert bodies[0] == {"power_source": "mains", "signal": "weak"}
+    # Left out, so the backend keeps what it stored.
+    assert bodies[1] == {}
+
+
+def test_power_source_defaults_to_mains():
+    assert parse_power_source(None) == "mains"
+    assert parse_power_source("") == "mains"
+    assert parse_power_source(" Battery ") == "battery"
+
+
+def test_unknown_power_source_refuses_to_start():
+    with pytest.raises(ValueError, match="POWER_SOURCE"):
+        parse_power_source("solar")
 
 
 def test_refused_token_is_unauthorized_not_retry():
@@ -60,8 +90,9 @@ class _FakeClient:
         self._outcomes = list(outcomes)
         self.calls = 0
 
-    async def heartbeat(self, live_url=None):
+    async def heartbeat(self, live_url=None, power_source=None, signal=None):
         self.calls += 1
+        self.last = {"power_source": power_source, "signal": signal}
         item = self._outcomes.pop(0) if self._outcomes else UploadOutcome.OK
         if isinstance(item, Exception):
             raise item
@@ -92,6 +123,24 @@ def test_loop_survives_failures_and_logs_each_change_once(caplog):
     recovered = [r for r in caplog.records if "again" in r.message]
     assert len(failed) == 1, "a long outage is one warning, not one per beat"
     assert len(recovered) == 1
+
+
+def test_loop_reports_power_source_and_signal_each_beat():
+    client = _FakeClient([])
+
+    async def run():
+        task = asyncio.create_task(pi_main._heartbeat_loop(
+            client, 0, power_source="mains", signal=lambda: "good"))
+        while client.calls < 2:
+            await asyncio.sleep(0)
+        task.cancel()
+        try:
+            await task
+        except asyncio.CancelledError:
+            pass
+
+    asyncio.run(run())
+    assert client.last == {"power_source": "mains", "signal": "good"}
 
 
 def test_interval_stays_under_the_backend_warn_cutoff():

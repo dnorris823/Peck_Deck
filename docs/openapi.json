@@ -266,6 +266,16 @@
               }
             ]
           },
+          "power_source": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "signal": {
             "oneOf": [
               {
@@ -362,6 +372,16 @@
           "owner_id": {
             "type": "integer"
           },
+          "power_source": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "signal": {
             "oneOf": [
               {
@@ -405,6 +425,7 @@
           "live_available",
           "name",
           "owner_id",
+          "power_source",
           "signal",
           "state",
           "status",
@@ -673,6 +694,16 @@
           "owner_id": {
             "type": "integer"
           },
+          "power_source": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "signal": {
             "oneOf": [
               {
@@ -719,6 +750,7 @@
           "live_available",
           "name",
           "owner_id",
+          "power_source",
           "signal",
           "state",
           "status",

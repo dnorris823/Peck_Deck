@@ -58,7 +58,8 @@ still starts, logs a warning, and the camera trigger fires no events.
 - [ ] Raspberry Pi 5 physically assembled.
 - [ ] Camera module connected (ribbon cable seated, locked).
 - [ ] No trigger peripheral. The camera is the trigger.
-- [ ] Mains power at the window.
+- [ ] Mains power at the window. `POWER_SOURCE` in the Pi's `.env` defaults to `mains`, and the
+      Feeders page then shows "Mains power". Set it to `battery` only for a feeder on a battery.
 - [ ] Camera port enabled in `raspi-config` → Interface Options → Camera.
 
 ---

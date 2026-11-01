@@ -64,7 +64,8 @@ def test_live_available_needs_a_url_and_a_recent_heartbeat():
     now = datetime.now(timezone.utc)
 
     def dev(live_url, seen):
-        return SimpleNamespace(live_url=live_url, last_seen=seen, battery=None, signal=None)
+        return SimpleNamespace(live_url=live_url, last_seen=seen, battery=None,
+                               power_source=None, signal=None)
 
     url = "http://10.0.0.7:8889/feeder/whep"
     assert live_available(dev(url, now))

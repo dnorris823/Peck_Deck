@@ -84,13 +84,25 @@ export function DeviceStatus({ d }) {
   );
 }
 
-// Battery only for stations that report one. A mains-powered Pi sends null.
-function Battery({ value }) {
-  if (value == null) return null;
-  const pct = Math.round(value * 100);
+// What powers the station, from the Pi's POWER_SOURCE. A Pi on older code
+// sends none, so the card shows nothing rather than guess.
+export function Power({ source, battery }) {
+  if (source === "mains") {
+    return (
+      <span className="power" title="Plugged in at the wall">
+        <Icon name="plug" className="power-icon" />
+        Mains power
+      </span>
+    );
+  }
+  if (source !== "battery") return null;
+  if (battery == null) {
+    return <span className="power" title="This feeder does not report a battery level">Battery</span>;
+  }
+  const pct = Math.round(battery * 100);
   const level = pct > 50 ? "ok" : pct > 20 ? "low" : "crit";
   return (
-    <span className={`battery bat-${level}`} title={`Battery ${pct}%`}>
+    <span className={`power bat-${level}`} title={`Battery ${pct}%`}>
       <span className="bat-bar"><span className="bat-fill" style={{ width: `${pct}%` }} /></span>
       <span className="tnum">{pct}%</span>
     </span>
@@ -151,7 +163,7 @@ function DeviceListCard({ d, latest, onClick }) {
           </div>
           <div className="station-card-status">
             <DeviceStatus d={d} />
-            <Battery value={d.battery} />
+            <Power source={d.powerSource} battery={d.battery} />
           </div>
         </div>
         <div className="device-stats">

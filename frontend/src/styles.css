@@ -574,7 +574,8 @@ h1, h2, h3 { font-weight: 800; margin: 0; }
   background: var(--warn-bg); color: var(--warn); font-weight: 700;
 }
 
-.battery { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--mu); }
+.power { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--mu); }
+.power-icon { width: 14px; height: 14px; }
 .bat-bar { width: 26px; height: 10px; border: 1px solid var(--line-strong); border-radius: 3px; padding: 1px; display: inline-block; }
 .bat-fill { display: block; height: 100%; border-radius: 1px; background: var(--ok); }
 .bat-low .bat-fill { background: var(--warn-fill); }

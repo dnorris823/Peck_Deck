@@ -22,6 +22,7 @@ from .live.address import LiveUrl
 from .live.demand import LiveDemandServer
 from .pipeline import Pipeline
 from .trigger.base import TriggerBase
+from .wifi import read_signal
 
 
 def _build_trigger(config: Config, camera: CameraBase) -> TriggerBase:
@@ -87,10 +88,16 @@ async def _sync_loop(pipeline: Pipeline, interval: int) -> None:
             logging.getLogger(__name__).exception("Sync loop error")
 
 
+def _no_signal() -> str | None:
+    return None
+
+
 async def _heartbeat_loop(
     client: BackendClient,
     interval: float,
     live_url: Callable[[], str | None] = _no_live_url,
+    power_source: str | None = None,
+    signal: Callable[[], str | None] = _no_signal,
 ) -> None:
     """Report to the backend every `interval` seconds, starting now.
 
@@ -98,14 +105,18 @@ async def _heartbeat_loop(
     costs one warning, not sixty. Nothing here may stop capture.
 
     ``live_url`` runs in a worker thread each beat, because deriving it looks up
-    the route to the backend, which may resolve a host name.
+    the route to the backend, which may resolve a host name. ``signal`` reads a
+    file, so it runs there too.
     """
     logger = logging.getLogger(__name__)
     last_ok: bool | None = None
     while True:
         try:
             url = await asyncio.to_thread(live_url)
-            outcome = await client.heartbeat(live_url=url)
+            wifi = await asyncio.to_thread(signal)
+            outcome = await client.heartbeat(
+                live_url=url, power_source=power_source, signal=wifi
+            )
         except Exception:
             logger.exception("Heartbeat error")
             outcome = UploadOutcome.RETRY
@@ -148,7 +159,7 @@ async def _run() -> None:
 
     logger.info(
         "Peck Deck Pi starting  [tier=%s  trigger=camera  visit_gap=%.0fs  "
-        "motion=%.3f  detect=%.2f  fps=%.1f  roi=%s  live=%s]",
+        "motion=%.3f  detect=%.2f  fps=%.1f  roi=%s  live=%s  power=%s]",
         config.tier_preference,
         config.camera_visit_gap_seconds,
         config.camera_motion_threshold,
@@ -156,6 +167,7 @@ async def _run() -> None:
         config.camera_analysis_fps,
         ",".join(f"{v:g}" for v in config.camera_roi),
         "on" if live is not None else "off",
+        config.power_source,
     )
 
     # The live server exits first, so the encoder stops before the camera does.
@@ -174,6 +186,8 @@ async def _run() -> None:
                                   config.backend_connect_timeout),
                     config.heartbeat_interval_seconds,
                     _live_url_source(config, live),
+                    config.power_source,
+                    read_signal,
                 ),
                 name="heartbeat",
             ),

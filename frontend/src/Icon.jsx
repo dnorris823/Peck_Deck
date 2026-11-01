@@ -27,6 +27,7 @@ export function Icon({ name, className = "nav-icon" }) {
     more: <g fill="currentColor"><circle cx="3.5" cy="8" r="1.2" /><circle cx="8" cy="8" r="1.2" /><circle cx="12.5" cy="8" r="1.2" /></g>,
     logout: <g stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M6 13.5 H3.5 a1 1 0 0 1 -1 -1 V3.5 a1 1 0 0 1 1 -1 H6" /><path d="M10.5 11 L13.5 8 L10.5 5 M13.5 8 H6" /></g>,
     arrow: <path d="M3 8 H13 M9 4 L13 8 L9 12" stroke="currentColor" strokeWidth="1.3" fill="none" strokeLinecap="round" strokeLinejoin="round" />,
+    plug: <g stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2 V5 M10 2 V5" /><path d="M4.5 5 H11.5 V7.5 a3.5 3.5 0 0 1 -7 0 Z" /><path d="M8 11 V14" /></g>,
     sun:<g stroke="currentColor" strokeWidth="1.2" fill="none" strokeLinecap="round"><circle cx="8" cy="8" r="2.6" /><path d="M8 2 V3.5 M8 12.5 V14 M2 8 H3.5 M12.5 8 H14 M3.5 3.5 L4.6 4.6 M11.4 11.4 L12.5 12.5 M3.5 12.5 L4.6 11.4 M11.4 4.6 L12.5 3.5" /></g>,
   };
   return (

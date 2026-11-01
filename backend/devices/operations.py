@@ -201,8 +201,15 @@ async def update_device_telemetry(
     battery: float | None,
     signal: str | None,
     live_url: str | None,
+    power_source: str | None = None,
 ) -> Device:
-    if battery is not None:
+    if power_source is not None:
+        device.power_source = power_source
+    if device.power_source == "mains":
+        # A plugged-in feeder has no battery. Clearing it here also wipes a
+        # level left over from seed data, which no heartbeat would ever replace.
+        device.battery = None
+    elif battery is not None:
         device.battery = battery
     if signal is not None:
         device.signal = signal

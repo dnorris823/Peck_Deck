@@ -45,13 +45,72 @@ def test_viewer_sees_only_member_device(client, viewer_headers):
 
 
 def test_heartbeat_updates_telemetry(client):
-    res = client.post("/devices/%d/heartbeat" % IDS["dev1_id"],
+    headers = _fresh_owner(client)
+    device = client.post("/devices", json={"name": "Telemetry"}, headers=headers).json()
+    res = client.post("/devices/%d/heartbeat" % device["id"],
                       json={"battery": 0.6, "signal": "good"},
-                      headers={"Authorization": "Bearer dev1-token"})
+                      headers={"Authorization": f"Bearer {device['token']}"})
     assert res.status_code == 200
     body = res.json()
     assert body["battery"] == 0.6
     assert body["status"] == "online"  # heartbeat refreshes last_seen
+
+
+# --- Power source. A plugged-in feeder has no battery to show. ---
+
+def _beat(client, token, body):
+    return client.post("/devices/me/heartbeat", json=body,
+                       headers={"Authorization": f"Bearer {token}"})
+
+
+def _new_device(client, name):
+    return client.post("/devices", json={"name": name}, headers=_fresh_owner(client)).json()
+
+
+def test_device_list_carries_power_source(client, owner_headers):
+    by_name = {d["name"]: d for d in client.get("/devices", headers=owner_headers).json()}
+    assert by_name["Dev One"]["power_source"] == "mains"
+    assert by_name["Dev One"]["battery"] is None
+    assert by_name["Dev Three"]["power_source"] == "battery"
+
+
+def test_mains_heartbeat_clears_a_stale_battery_level(client):
+    # The live feeder kept a seeded 78% because no heartbeat ever replaced it.
+    device = _new_device(client, "Stale Battery")
+    assert _beat(client, device["token"], {"battery": 0.15}).json()["status"] == "warn"
+
+    body = _beat(client, device["token"], {"power_source": "mains"}).json()
+    assert body["power_source"] == "mains"
+    assert body["battery"] is None
+    assert body["status"] == "online"
+
+
+def test_mains_ignores_a_battery_level_in_the_same_heartbeat(client):
+    device = _new_device(client, "Mains And Battery")
+    body = _beat(client, device["token"], {"power_source": "mains", "battery": 0.1}).json()
+    assert body["battery"] is None
+    assert body["status"] == "online"
+
+
+def test_battery_feeder_keeps_its_level_and_warns_when_low(client):
+    device = _new_device(client, "On Battery")
+    body = _beat(client, device["token"], {"power_source": "battery", "battery": 0.15}).json()
+    assert body["power_source"] == "battery"
+    assert body["battery"] == 0.15
+    assert body["status"] == "warn"
+
+
+def test_power_source_stays_when_a_heartbeat_omits_it(client):
+    device = _new_device(client, "Sticky Power")
+    _beat(client, device["token"], {"power_source": "mains"})
+    body = _beat(client, device["token"], {}).json()
+    assert body["power_source"] == "mains"
+
+
+def test_unknown_power_source_is_refused(client):
+    device = _new_device(client, "Solar Maybe")
+    res = _beat(client, device["token"], {"power_source": "solar"})
+    assert res.status_code == 400
 
 
 def test_self_heartbeat_reports_for_the_token_device(client):

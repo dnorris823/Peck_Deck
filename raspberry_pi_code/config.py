@@ -86,6 +86,26 @@ def parse_roi(raw: str | None) -> tuple[float, float, float, float]:
     return (x, y, w, h)
 
 
+POWER_SOURCES = ("mains", "battery")
+
+
+def parse_power_source(raw: str | None) -> str:
+    """Parse POWER_SOURCE. Unset or empty means mains.
+
+    The Pi cannot tell a wall adapter from a USB-C power bank, so this setting
+    is the only source of truth. Anything else raises ValueError, so the Pi
+    refuses to start rather than report the wrong power source.
+    """
+    if raw is None or raw.strip() == "":
+        return "mains"
+    value = raw.strip().lower()
+    if value not in POWER_SOURCES:
+        raise ValueError(
+            f"POWER_SOURCE must be one of: {', '.join(POWER_SOURCES)}, got {raw!r}"
+        )
+    return value
+
+
 @dataclass
 class Config:
     # Backend API
@@ -183,6 +203,11 @@ class Config:
     # The backend calls a station "warn" after 5 silent minutes, so this must
     # stay well under that.
     heartbeat_interval_seconds: int = int(os.getenv("HEARTBEAT_INTERVAL_SECONDS", "60"))
+    # mains or battery. Sent in every heartbeat. The Feeders page shows "Mains
+    # power" for mains, and the backend drops any stored battery level.
+    power_source: str = field(
+        default_factory=lambda: parse_power_source(os.getenv("POWER_SOURCE"))
+    )
 
     def threshold_for(self, tier_name: str) -> float:
         """The confidence a given tier must reach to win outright.

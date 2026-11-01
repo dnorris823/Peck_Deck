@@ -19,7 +19,7 @@ vi.mock("./data.js", async (importOriginal) => ({
   deleteSightingsBefore: vi.fn(),
 }));
 
-import { DevicesPage, tierMixText } from "./Devices.jsx";
+import { DevicesPage, Power, tierMixText } from "./Devices.jsx";
 import {
   addFeederMember, countSightingsBefore, deleteDevice, deleteSightingsBefore, fetchDeviceToken,
   fetchFeederAccess, removeFeederMember, rotateDeviceToken, updateDevice,
@@ -42,6 +42,31 @@ describe("tierMixText", () => {
 
   it("adds Claude only once it has answered", () => {
     expect(tierMixText(mix({ gpu: 2, cloud: 1, none: 1 }))).toBe("Last 24 h: 2 GPU, 0 Pi, 1 Claude, 1 none");
+  });
+});
+
+describe("Power", () => {
+  it("shows a mains feeder as plugged in, with no battery bar", () => {
+    const { container } = render(<Power source="mains" battery={0.78} />);
+    expect(screen.getByText("Mains power")).toBeInTheDocument();
+    expect(container.querySelector(".bat-bar")).toBeNull();
+  });
+
+  it("shows a battery feeder's level", () => {
+    const { container } = render(<Power source="battery" battery={0.15} />);
+    expect(screen.getByText("15%")).toBeInTheDocument();
+    expect(container.querySelector(".bat-crit")).not.toBeNull();
+  });
+
+  it("says Battery when a battery feeder reports no level", () => {
+    render(<Power source="battery" battery={null} />);
+    expect(screen.getByText("Battery")).toBeInTheDocument();
+  });
+
+  it("shows nothing for a Pi that does not report its power source", () => {
+    // A stale level from seed data must not draw a bar.
+    const { container } = render(<Power source={null} battery={0.78} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });
 

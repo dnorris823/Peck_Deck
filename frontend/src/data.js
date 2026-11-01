@@ -58,6 +58,8 @@ function mapDevice(d) {
     // Null means the station reports no battery (mains power). Mapping it to 0
     // drew a red "0%" on every plugged-in Pi.
     battery: d.battery == null ? null : d.battery,
+    // "mains", "battery", or null from a Pi that does not say.
+    powerSource: d.power_source || null,
     signal: d.signal || "none",
     lastSeen: d.last_seen ? fmtRelative(new Date(d.last_seen)) : "never",
     lastSeenAt: d.last_seen ? new Date(d.last_seen) : null,

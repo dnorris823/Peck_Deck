@@ -84,13 +84,15 @@ async def seed_reference_data(db: AsyncSession) -> dict:
 
     dev1 = Device(name="Dev One", city="Burlington", state="VT", owner_id=owner.id,
                   feed_type="sunflower", token=DEV1_TOKEN,
-                  battery=0.8, signal="good", last_seen=now)                       # online
+                  power_source="mains", signal="good", last_seen=now)              # online, mains
     dev2 = Device(name="Dev Two", city="Stowe", state="VT", owner_id=owner.id,
                   feed_type="nyjer", token=DEV2_TOKEN,
-                  battery=0.5, signal="good", last_seen=now - timedelta(minutes=40))  # offline
+                  power_source="battery", battery=0.5, signal="good",
+                  last_seen=now - timedelta(minutes=40))                            # offline
     dev3 = Device(name="Dev Three", city="Essex", state="VT", owner_id=owner.id,
                   feed_type="suet", token=DEV3_TOKEN,
-                  battery=0.15, signal="good", last_seen=now)                      # warn (low battery)
+                  power_source="battery", battery=0.15, signal="good",
+                  last_seen=now)                                                    # warn (low battery)
     db.add_all([dev1, dev2, dev3])
     await db.flush()
 
