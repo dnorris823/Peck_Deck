@@ -152,7 +152,8 @@ export function SpeciesView({ species, onBack, go, openSighting }) {
     `${species.id}:${species.count}:${feeder}`,
   );
   const hero = visits.value?.find((s) => s.hasImage);
-  const onAll = () => go("history", { species: species.id });
+  // `species.count` is the picked feeder's, so History opens on that feeder.
+  const onAll = () => go("history", { species: species.id, device: feeder });
 
   return (
     <article className="sv" style={accent} aria-label={species.common}>

@@ -40,6 +40,7 @@ function setData(counts) {
     SPECIES: counts,
     DEVICES: [DEVICE],
     SIGHTINGS: [],
+    SCOPED_SIGHTINGS: [],
   };
 }
 
@@ -109,7 +110,7 @@ describe("species list", () => {
     // Unknown is not a species, so it is not counted as one.
     expect(screen.getByText("2 at your feeders", { exact: false })).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /Needs a name/ }));
-    expect(go).toHaveBeenCalledWith("history", { species: UNKNOWN.id });
+    expect(go).toHaveBeenCalledWith("history", { species: UNKNOWN.id, device: null });
     unmount();
 
     setData([CARDINAL, FINCH]);
@@ -182,6 +183,20 @@ describe("species page", () => {
 
 describe("species scoped to one feeder", () => {
   const PORCH = { id: 11, name: "Dad's Porch" };
+
+  it("opens History on the picked feeder from All N and Needs a name", async () => {
+    setWide(true);
+    setData([CARDINAL, UNKNOWN]);
+    mockData.DEVICES = [DEVICE, PORCH];
+    mockFeeder = 11;
+    const go = vi.fn();
+    render(<SpeciesPage go={go} openSighting={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /^All 3,713/ }));
+    expect(go).toHaveBeenLastCalledWith("history", { species: CARDINAL.id, device: 11 });
+    await userEvent.click(screen.getByRole("button", { name: /Needs a name/ }));
+    expect(go).toHaveBeenLastCalledWith("history", { species: UNKNOWN.id, device: 11 });
+  });
 
   it("names the feeder and asks for its photos, visits and hours only", async () => {
     setWide(true);

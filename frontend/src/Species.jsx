@@ -48,12 +48,12 @@ function useMediaQuery(query) {
 function useLatestPhotos(rows, data, feeder) {
   const fromFeed = useMemo(() => {
     const by = new Map();
-    for (const s of data.SIGHTINGS) {
+    for (const s of data.SCOPED_SIGHTINGS) {
       if (feeder != null && s.device.id !== feeder) continue;
       if (s.hasImage && !by.has(s.species.id)) by.set(s.species.id, s);
     }
     return by;
-  }, [data.SIGHTINGS, feeder]);
+  }, [data.SCOPED_SIGHTINGS, feeder]);
   // Keyed "feeder:species", so another feeder's photo never stands in.
   const [looked, setLooked] = useState(() => new Map());
   const asked = useRef(new Set());
@@ -238,7 +238,7 @@ export function SpeciesPage({ go, openSighting }) {
       <ul className="sp-rows">
         {unknown && (
           <NeedsName s={unknown} photo={photoOf(unknown.id)}
-            onOpen={() => go("history", { species: unknown.id })} />
+            onOpen={() => go("history", { species: unknown.id, device: feeder })} />
         )}
         {sorted.map((s) => (
           <SpeciesRow key={s.id} s={s} photo={photoOf(s.id)} active={wide && shown?.id === s.id} onOpen={open} />

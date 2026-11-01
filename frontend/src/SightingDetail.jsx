@@ -524,7 +524,11 @@ export function SightingDetail({ s, onClose, onMove, onCorrected, backLabel = "B
   }, []);
   const accent = useSpeciesAccent(s?.species);
 
-  const sightings = data.SIGHTINGS || [];
+  // The scoped list when it holds this visit, so a quiet feeder's day is whole
+  // even when a busy one fills the full list. Else the full list, and past
+  // that the server, for a visit opened from History or Live.
+  const scoped = data.SCOPED_SIGHTINGS;
+  const sightings = (s && scoped?.some(x => x.id === s.id) ? scoped : data.SIGHTINGS) || [];
   const dayVisits = useDayVisits(s, sightings, data);
   const strip = useMemo(() => (s ? dayStrip(dayVisits, s) : []), [dayVisits, s]);
   const at = s ? strip.findIndex(x => x.id === s.id) : -1;

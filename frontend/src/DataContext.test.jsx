@@ -9,6 +9,7 @@ vi.mock("./data.js", () => ({
   fetchRaw: vi.fn(),
   mapAll: (raw) => raw,
   fetchAggregates: vi.fn(),
+  fetchScopedSightings: vi.fn(),
   applySighting: vi.fn(),
 }));
 

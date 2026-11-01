@@ -28,7 +28,7 @@ const MAPLE = { id: 1, name: "Backyard Maple", status: "online", lastSeen: "9s a
 const visit = (id, species, d) => ({ id, species, device: MAPLE, datetime: d, hasImage: false });
 
 function renderHome(sightings, { devices = [MAPLE], feeder = null, ...props } = {}) {
-  mockData = { SIGHTINGS: sightings, DEVICES: devices };
+  mockData = { SIGHTINGS: sightings, SCOPED_SIGHTINGS: sightings, DEVICES: devices };
   mockFeeder = feeder;
   const openSighting = vi.fn();
   const go = vi.fn();
@@ -131,7 +131,7 @@ describe("Home", () => {
     expect(start).toEqual(new Date(2026, 9, 28));
     expect(end).toEqual(new Date(new Date(2026, 9, 29).getTime() - 1));
     fireEvent.click(line);
-    expect(go).toHaveBeenCalledWith("history", { day: new Date(2026, 9, 28) });
+    expect(go).toHaveBeenCalledWith("history", { day: new Date(2026, 9, 28), device: null });
   });
 
   it("leaves the yesterday line out when yesterday had no visits", async () => {
@@ -155,7 +155,7 @@ describe("Home", () => {
   it("replaces the hero when a new sighting arrives", () => {
     const { rerender, openSighting, go } = renderHome(today);
     const jay = visit(14, JAY, new Date(2026, 9, 29, 19, 41, 40));
-    mockData = { SIGHTINGS: [jay, ...today], DEVICES: [MAPLE] };
+    mockData = { SIGHTINGS: [jay, ...today], SCOPED_SIGHTINGS: [jay, ...today], DEVICES: [MAPLE] };
     rerender(<Dashboard openSighting={openSighting} go={go} />);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Blue Jay");
     expect(screen.getByText("A visit just now.")).toBeInTheDocument();

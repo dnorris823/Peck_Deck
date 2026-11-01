@@ -9,13 +9,22 @@ import React, {
   createContext, useCallback, useContext, useEffect, useRef, useState,
 } from "react";
 import {
-  applySighting, fetchAggregates, fetchRaw, forgetSpeciesHours, mapAll, removeSighting,
-  replaceSighting,
+  applySighting, fetchAggregates, fetchRaw, fetchScopedSightings, forgetSpeciesHours, mapAll,
+  removeSighting, replaceSighting,
 } from "./data.js";
 import { openSightingStream } from "./events.js";
 import { readScope, saveScope, validScope } from "./feederScope.js";
 
 const Ctx = createContext(null);
+
+// `raw` with `fn` applied to both sighting lists. The same object when neither
+// changed.
+function rowsWith(raw, fn) {
+  const sightings = fn(raw.sightings);
+  const scopedSightings = raw.scopedSightings && fn(raw.scopedSightings);
+  if (sightings === raw.sightings && scopedSightings === raw.scopedSightings) return raw;
+  return { ...raw, sightings, scopedSightings };
+}
 
 export function DataProvider({ children, onAuthError }) {
   const [data, setData] = useState(null);
@@ -63,18 +72,32 @@ export function DataProvider({ children, onAuthError }) {
     saveScope(id);
   }, []);
 
-  // The aggregates for the current scope. If the scope changed while they
-  // loaded, the scoped fields are dropped, and the picker's own fetch brings
-  // the new ones.
-  const fetchScoped = useCallback(async (opts = {}) => {
+  // The aggregates for the current scope, and with `withSightings` the scoped
+  // sightings too. If the scope changed while they loaded, the scoped fields
+  // are dropped, and the picker's own fetch brings the new ones.
+  const fetchScoped = useCallback(async ({ withSightings = false, ...opts } = {}) => {
     const deviceId = feederRef.current;
-    const patch = await fetchAggregates({ ...opts, deviceId });
-    if (feederRef.current === deviceId) return patch;
-    const rest = { ...patch };
-    delete rest.counts;
-    delete rest.heatmap;
-    delete rest.dashboard;
-    return rest;
+    const [patch, scoped] = await Promise.all([
+      fetchAggregates({ ...opts, deviceId }),
+      withSightings ? fetchScopedSightings(deviceId) : undefined,
+    ]);
+    if (feederRef.current !== deviceId) {
+      const rest = { ...patch };
+      delete rest.counts;
+      delete rest.heatmap;
+      delete rest.dashboard;
+      return rest;
+    }
+    if (!withSightings) return patch;
+    // A visit that streamed in while the list loaded is in the full list
+    // already. Carry it over, or it would be lost until the next load.
+    let scopedSightings = scoped;
+    if (scoped) {
+      for (const row of rawRef.current?.sightings || []) {
+        if (row.device_id === deviceId) scopedSightings = applySighting(scopedSightings, row);
+      }
+    }
+    return { ...patch, scopedSightings };
   }, []);
 
   const commit = useCallback((raw) => {
@@ -93,7 +116,12 @@ export function DataProvider({ children, onAuthError }) {
       // The picker may also have moved while this loaded.
       const scope = validScope(feederRef.current, raw.devices);
       if (scope !== feederRef.current) setScope(scope);
-      if (scope !== asked) raw = { ...raw, ...(await fetchAggregates({ deviceId: scope })) };
+      if (scope !== asked) {
+        const [patch, scopedSightings] = await Promise.all([
+          fetchAggregates({ deviceId: scope }), fetchScopedSightings(scope),
+        ]);
+        raw = { ...raw, ...patch, scopedSightings };
+      }
       // A full load is fresh server truth, and every patched field was written
       // to the server before it was patched here — so the overrides are now at
       // best redundant and at worst masking someone else's change.
@@ -126,11 +154,15 @@ export function DataProvider({ children, onAuthError }) {
 
     const sightings = applySighting(raw.sightings, sighting);
     if (sightings === raw.sightings) return; // already had it (replay overlap)
+    // The scoped list takes only its own feeder's visits.
+    const inScope = raw.scopedSightings && sighting.device_id === feederRef.current;
+    const scopedSightings = inScope
+      ? applySighting(raw.scopedSightings, sighting) : raw.scopedSightings;
 
     // Paint the new visit immediately, then let the aggregates catch up. Waiting
     // for the refetch would put a network round trip between the bird arriving
     // and the feed showing it, which is the latency this whole change removes.
-    commit({ ...raw, sightings });
+    commit({ ...raw, sightings, scopedSightings });
 
     try {
       const known = raw.species.some((s) => s.id === sighting.species_id);
@@ -149,13 +181,14 @@ export function DataProvider({ children, onAuthError }) {
     const raw = rawRef.current;
     if (!raw) return;
 
-    const sightings = removeSighting(raw.sightings, id);
-    if (sightings === raw.sightings) return; // not held, or already dropped
+    const next = rowsWith(raw, (rows) => removeSighting(rows, id));
+    if (next === raw) return; // not held, or already dropped
 
-    commit({ ...raw, sightings });
+    commit(next);
 
     try {
-      commit({ ...rawRef.current, ...(await fetchScoped()) });
+      const patch = await fetchScoped();
+      commit({ ...rawRef.current, ...patch });
     } catch {
       // As for a new sighting: the feed is right, the counts catch up later.
     }
@@ -174,10 +207,12 @@ export function DataProvider({ children, onAuthError }) {
 
     // No new correction, such as the weather landing after the upload. No
     // count moves, so there is nothing to refetch.
-    const prior = raw.sightings.find((s) => s.id === sighting.id);
+    const swap = (r) => rowsWith(r, (rows) => replaceSighting(rows, sighting));
+    const prior = [...raw.sightings, ...(raw.scopedSightings || [])]
+      .find((s) => s.id === sighting.id);
     if (prior && prior.species_id === sighting.species_id
       && prior.corrected_at === sighting.corrected_at) {
-      commit({ ...raw, sightings: replaceSighting(raw.sightings, sighting) });
+      commit(swap(raw));
       return;
     }
     forgetSpeciesHours();
@@ -185,14 +220,14 @@ export function DataProvider({ children, onAuthError }) {
     const known = raw.species.some((s) => s.id === sighting.species_id);
     try {
       if (known) {
-        commit({ ...raw, sightings: replaceSighting(raw.sightings, sighting) });
-        commit({ ...rawRef.current, ...(await fetchScoped()) });
+        commit(swap(raw));
+        const patch = await fetchScoped();
+        commit({ ...rawRef.current, ...patch });
       } else {
         // mapAll drops a sighting it can't join to a species, which would also
         // close it in the detail view. So the species list comes first.
         const patch = await fetchScoped({ withSpecies: true });
-        const now = rawRef.current;
-        commit({ ...now, ...patch, sightings: replaceSighting(now.sightings, sighting) });
+        commit(swap({ ...rawRef.current, ...patch }));
       }
     } catch {
       // The known path already shows the new species. The other has nothing
@@ -218,14 +253,17 @@ export function DataProvider({ children, onAuthError }) {
     return stop;
   }, [applyStreamed, applyDeleted, applyUpdated, reload, onAuthError]);
 
-  // Pick the feeder scope, null for all. The sightings list covers every
-  // feeder already, so only the aggregates are fetched again.
+  // Pick the feeder scope, null for all. The full sightings list stays. The
+  // aggregates and the scoped sightings are fetched again.
   const setFeeder = useCallback(async (id) => {
     if (id === feederRef.current) return;
     setScope(id);
     if (!rawRef.current) return;
     try {
-      commit({ ...rawRef.current, ...(await fetchScoped()) });
+      // Awaited first. A spread before the await would read rawRef too early,
+      // and write back a list from before the fetch.
+      const patch = await fetchScoped({ withSightings: true });
+      commit({ ...rawRef.current, ...patch });
     } catch {
       // The counts would say the old feeder under the new name. A full load
       // either fixes them or shows the error.

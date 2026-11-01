@@ -151,11 +151,12 @@ function HomeEmpty({ hasFeeders, go }) {
 // the strip so the two sides of the desktop layout agree.
 export function Dashboard({ openSighting, go, selectedId = null }) {
   const { data, feeder } = useData();
-  const { SIGHTINGS, DEVICES } = data;
+  // The newest visits in the feeder scope, or on every feeder for all.
+  const { SCOPED_SIGHTINGS: SIGHTINGS, DEVICES } = data;
   const now = useNow();
   // Home is about birds. A squirrel visit stays in History but never takes the
-  // hero, the strip, or today's count. With the picker on one feeder, Home
-  // shows only that feeder's birds.
+  // hero, the strip, or today's count. The feeder filter here covers the
+  // moment after the picker moves, before that feeder's list arrives.
   const birds = SIGHTINGS.filter(s => isBirdSighting(s) && (feeder == null || s.device.id === feeder));
   // The stream inserts by capture time, so the first row is the newest bird.
   const hero = birds[0];
@@ -165,8 +166,7 @@ export function Dashboard({ openSighting, go, selectedId = null }) {
   if (!hero) return <HomeEmpty hasFeeders={DEVICES.length > 0} go={go} />;
 
   // Counted in local time from the loaded window. When every loaded row is from
-  // today, the window has cut the day short, so the count says "100+". The
-  // window covers every feeder, so one feeder's day may be cut short too.
+  // today, the window has cut the day short, so the count says "100+".
   const today = birds.filter(s => isToday(s.datetime, now));
   const capped = SIGHTINGS.length >= SIGHTING_WINDOW
     && SIGHTINGS.every(s => isToday(s.datetime, now));
@@ -228,7 +228,7 @@ export function Dashboard({ openSighting, go, selectedId = null }) {
           <Timeline visits={today} now={now} />
           {yday && (
             <YesterdayLine line={yday}
-              onOpen={() => go("history", { day: yesterdayBounds(now).start })} />
+              onOpen={() => go("history", { day: yesterdayBounds(now).start, device: feeder })} />
           )}
         </section>
       </div>
