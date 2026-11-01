@@ -61,3 +61,44 @@ class StorageResponse:
     # Age in days past which "Unknown" sightings are deleted. 0 means the
     # retention rule is off. Set by RETENTION_UNKNOWN_DAYS.
     retention_unknown_days: int
+
+
+@dataclass
+class FeederCompareRow:
+    device_id: int
+    name: str
+    # Bird visits in the last 7 days.
+    visits_week: int
+    # Distinct bird species since 1 January, local time.
+    species_year: int
+    # The local hour (0-23) with the most bird visits over the last 30 days.
+    # Null when the feeder had none.
+    busiest_hour: int | None
+
+
+@dataclass
+class FirstOfYear:
+    device_id: int
+    # The species' first visit at this feeder since 1 January, local time.
+    first_seen: str
+
+
+@dataclass
+class SpeciesCompareRow:
+    id: int
+    common_name: str
+    genus: str
+    species_name: str
+    palette: list[str]
+    # One entry per feeder that saw the species this year, earliest first. A
+    # species with one entry was seen at only that feeder.
+    firsts: list[FirstOfYear]
+
+
+@dataclass
+class CompareResponse:
+    # The local year that "this year" covers.
+    year: int
+    feeders: list[FeederCompareRow]
+    # Every bird species seen this year, newest first arrival first.
+    species: list[SpeciesCompareRow]

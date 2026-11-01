@@ -14,8 +14,12 @@ from ..config import settings
 from ..species.ebird import ebird_code
 from . import operations
 from .schemas import (
+    CompareResponse,
     DashboardResponse,
+    FeederCompareRow,
+    FirstOfYear,
     HourStatsResponse,
+    SpeciesCompareRow,
     SpeciesCountResponse,
     StorageResponse,
 )
@@ -168,6 +172,38 @@ class StatsController(Controller):
     ) -> list[list[int]]:
         """Bird visits per weekday and UTC hour, last 7 days. `device_id` scopes it."""
         return await operations.heatmap(db, request.state.user_id, device_id=device_id)
+
+    @get("/compare")
+    async def compare(
+        self,
+        request: Request,
+        db: NamedDependency[AsyncSession],
+        tz: FromQuery[str] = "UTC",
+    ) -> CompareResponse:
+        """Every feeder the caller can see, side by side.
+
+        Per feeder: bird visits in the last 7 days, bird species since 1 January
+        in `tz`, and the busiest local hour over the last 30 days. Per species
+        seen this year: its first visit at each feeder that saw it, newest
+        arrival first. A species with one entry in `firsts` was seen at only
+        that feeder. Feeders the caller cannot see are left out.
+        """
+        data = await operations.compare(db, request.state.user_id, tz=_zone_or_400(tz))
+        return CompareResponse(
+            year=data["year"],
+            feeders=[FeederCompareRow(**f) for f in data["feeders"]],
+            species=[
+                SpeciesCompareRow(
+                    id=r["species"].id,
+                    common_name=r["species"].common_name,
+                    genus=r["species"].genus,
+                    species_name=r["species"].species_name,
+                    palette=json.loads(r["species"].palette) if r["species"].palette else [],
+                    firsts=[FirstOfYear(**f) for f in r["firsts"]],
+                )
+                for r in data["species"]
+            ],
+        )
 
     @get("/storage")
     async def storage(self, db: NamedDependency[AsyncSession]) -> StorageResponse:

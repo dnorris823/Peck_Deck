@@ -108,6 +108,32 @@
         "title": "ClassifyForm",
         "type": "object"
       },
+      "CompareResponse": {
+        "properties": {
+          "feeders": {
+            "items": {
+              "$ref": "#/components/schemas/FeederCompareRow"
+            },
+            "type": "array"
+          },
+          "species": {
+            "items": {
+              "$ref": "#/components/schemas/SpeciesCompareRow"
+            },
+            "type": "array"
+          },
+          "year": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "feeders",
+          "species",
+          "year"
+        ],
+        "title": "CompareResponse",
+        "type": "object"
+      },
       "CorrectSpecies": {
         "properties": {
           "species_id": {
@@ -661,6 +687,57 @@
           "state"
         ],
         "title": "FeedStatus",
+        "type": "object"
+      },
+      "FeederCompareRow": {
+        "properties": {
+          "busiest_hour": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "device_id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "species_year": {
+            "type": "integer"
+          },
+          "visits_week": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "busiest_hour",
+          "device_id",
+          "name",
+          "species_year",
+          "visits_week"
+        ],
+        "title": "FeederCompareRow",
+        "type": "object"
+      },
+      "FirstOfYear": {
+        "properties": {
+          "device_id": {
+            "type": "integer"
+          },
+          "first_seen": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id",
+          "first_seen"
+        ],
+        "title": "FirstOfYear",
         "type": "object"
       },
       "HourStatsResponse": {
@@ -1516,6 +1593,44 @@
           "timestamp"
         ],
         "title": "SightingUploadForm",
+        "type": "object"
+      },
+      "SpeciesCompareRow": {
+        "properties": {
+          "common_name": {
+            "type": "string"
+          },
+          "firsts": {
+            "items": {
+              "$ref": "#/components/schemas/FirstOfYear"
+            },
+            "type": "array"
+          },
+          "genus": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer"
+          },
+          "palette": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "species_name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "common_name",
+          "firsts",
+          "genus",
+          "id",
+          "palette",
+          "species_name"
+        ],
+        "title": "SpeciesCompareRow",
         "type": "object"
       },
       "SpeciesCountResponse": {
@@ -5383,6 +5498,83 @@
           }
         ],
         "summary": "Animals"
+      }
+    },
+    "/stats/compare": {
+      "get": {
+        "deprecated": false,
+        "operationId": "StatsCompareCompare",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "UTC",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompareResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
+        "summary": "Compare"
       }
     },
     "/stats/dashboard": {
