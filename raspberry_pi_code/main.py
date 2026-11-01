@@ -45,11 +45,14 @@ def _build_trigger(config: Config, camera: CameraBase) -> TriggerBase:
             config.detector_model_path,
             config.camera_detection_threshold,
             num_threads=config.detector_threads,
+            class_ids=config.animal_class_ids,
         ),
         motion_threshold=config.camera_motion_threshold,
         quiet_gap_seconds=config.camera_visit_gap_seconds,
         analysis_fps=config.camera_analysis_fps,
         roi=config.camera_roi,
+        motion_capture=config.camera_motion_capture,
+        motion_capture_seconds=config.camera_motion_capture_seconds,
     )
 
 
@@ -204,7 +207,7 @@ async def _run() -> None:
             while True:
                 event = await trigger.next_event()
                 asyncio.create_task(
-                    pipeline.handle_trigger(event.box),
+                    pipeline.handle_trigger(event.box, trigger=event.trigger),
                     name="capture",
                 )
         finally:

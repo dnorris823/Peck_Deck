@@ -171,6 +171,15 @@ Full detail is in the linked docs. These are the ones that cause silent damage.
   silently. Detail in `docs/operations.md` under *Feed alerts*.
 - **Feed alerts count bird visits only**, through `is_bird_sighting()`. A
   squirrel at an empty feeder would otherwise hide "out".
+- **The trigger keeps one visit per group**, birds and everything else. One
+  shared `VisitTracker` would let a squirrel camping on the feeder hide every
+  bird beside it. The motion fallback sets no tick of its own. Only an analysed
+  frame does.
+- **Animal pushes have their own throttle**, keyed (user, feeder, group). A
+  squirrel must never start the bird throttle or a feed alert spell.
+- **A motion capture is the only capture the Pi may drop.** The camera never
+  said "bird", so it needs Tier 2 to name an animal or a bird. Tier 1 is never
+  asked, because it would name a bird in a swinging feeder.
 
 ## Health endpoints
 

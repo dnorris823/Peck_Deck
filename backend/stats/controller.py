@@ -7,6 +7,8 @@ from litestar.exceptions import HTTPException
 from litestar.params import FromQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..animals.controller import animal_stats
+from ..animals.schemas import AnimalStatsResponse
 from ..auth.guards import USER_JWT, user_guard
 from ..config import settings
 from ..species.ebird import ebird_code
@@ -116,6 +118,28 @@ class StatsController(Controller):
             species_id=species_id,
         )
         return HourStatsResponse(**data)
+
+    @get("/animals")
+    async def animals(
+        self,
+        request: Request,
+        db: NamedDependency[AsyncSession],
+        device_id: FromQuery[int],
+        from_date: FromQuery[str | None] = None,
+        to_date: FromQuery[str | None] = None,
+        tz: FromQuery[str] = "UTC",
+    ) -> AnimalStatsResponse:
+        """Animal visits per local day and group on one feeder, with its measures.
+
+        `from_date` and `to_date` are inclusive local dates in `tz`, 60 days to
+        today by default and 366 at most. Each day also has the bird count. Each
+        measure in range carries its effect: animal visits per camera-up hour in
+        the 14 days before it against the days after, up to 14, as a rate ratio
+        with a 95% interval. Offline hours are left out.
+        """
+        return await animal_stats(
+            request, db, device_id=device_id, from_date=from_date, to_date=to_date, tz=tz
+        )
 
     @get("/heatmap")
     async def heatmap(self, request: Request, db: NamedDependency[AsyncSession]) -> list[list[int]]:

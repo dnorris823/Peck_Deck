@@ -47,6 +47,8 @@ from .weather import schedule_weather
 
 logger = logging.getLogger("peckdeck.sightings")
 
+TRIGGERS = ("detector", "motion")
+
 
 _to_response = sighting_response
 
@@ -89,6 +91,9 @@ class SightingUploadForm:
     # "squirrel". Older Pi builds and bird sightings leave both out.
     kind: str = "bird"
     animal_group: str | None = None
+    # "detector", or "motion" for a capture from the motion fallback. Older Pi
+    # builds leave it out. Anything else stores null.
+    trigger: str | None = None
 
 
 def _upload_kind(form: SightingUploadForm) -> tuple[str, str | None]:
@@ -228,6 +233,7 @@ class SightingController(Controller):
             crop_box=parse_crop_box(data.crop_box),
             kind=kind,
             animal_group=animal_group,
+            trigger=data.trigger if data.trigger in TRIGGERS else None,
         )
         # Now, not the capture time: a delayed upload from the offline queue
         # still proves the station is up.

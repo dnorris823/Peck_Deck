@@ -8,6 +8,7 @@ from ..database.models import (
     Device,
     DeviceOutage,
     DeviceUser,
+    FeederMeasure,
     FeederRefill,
     FeedSpell,
     Sighting,
@@ -108,7 +109,7 @@ async def delete_device(db: AsyncSession, device_id: int, *, with_sightings: boo
         return count
     await db.execute(delete(Sighting).where(Sighting.device_id == device_id))
     await db.execute(delete(DeviceUser).where(DeviceUser.device_id == device_id))
-    for feed_table in (FeederRefill, FeedSpell, DeviceOutage):
+    for feed_table in (FeederRefill, FeedSpell, DeviceOutage, FeederMeasure):
         await db.execute(delete(feed_table).where(feed_table.device_id == device_id))
     await db.execute(delete(Device).where(Device.id == device_id))
     return count

@@ -270,8 +270,9 @@ more, which is `CAMERA_DETECTION_THRESHOLD`. "Any" is bird, cat, dog or bear.
 Across the degraded variants "any" falls to between 8.3% (`field_combo`) and
 38.9% (`off_center`). Half the clean photos score no class at 0.5 at all. So the
 bird-only trigger catches about one squirrel photo in six. Firing on bird, cat,
-dog and bear catches about one in three. A trigger that must see most squirrels
-needs the motion fallback, or a detector with an animal class.
+dog and bear catches about one in three. The trigger now fires on those four,
+`ANIMAL_CLASS_IDS`. A trigger that must see most squirrels needs the motion
+fallback, `CAMERA_MOTION_CAPTURE`, or a detector with an animal class.
 
 **Tier 2 names animals well, and never names a bird as one.** "Group ok" is the
 share where the best listed animal is in the right group, at any confidence. The

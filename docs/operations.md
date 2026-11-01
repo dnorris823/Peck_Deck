@@ -149,6 +149,58 @@ spell. A feeder needs 7 usable days of visits before the rule runs. The numbers
 are first guesses. Tune them in `backend/feed/rules.py` once the Pi is at the
 window.
 
+## Animal visits
+
+Tier 2 names the feeder mammals in `machine_learning/feeder_animals.csv`. The
+sighting's species has `kind = 'animal'` and an `animal_group`, such as
+`squirrel`. Every bird count leaves animal sightings out through
+`is_bird_sighting()`. The code is in `backend/animals/`.
+
+### Measures
+
+An owner logs what they did to keep animals off, such as "Baffle on the pole".
+The routes are `GET`, `POST`, `PATCH` and `DELETE /devices/{id}/measures`. Anyone
+who can see the feeder can list them. Only the feeder's owner or an owner-role
+user can change them. `PATCH` with `ended_at` ends a measure, and an empty
+`ended_at` puts it back in place.
+
+`GET /stats/animals?device_id=&from_date=&to_date=&tz=` returns animal visits per
+local day and group, the bird count for each day, and each measure in range with
+its effect:
+
+- Animal visits per group in the 14 days before `started_at`, and in the days
+  after, up to 14, or to `ended_at` if sooner.
+- Each count divided by the camera-up hours in its window. The hours a feeder
+  was offline come out, by the feed alerts' rule: each `device_outages` row, and
+  the time since `last_seen` while the feeder is offline now. The hours before
+  the feeder's first sighting come out too.
+- The after rate over the before rate, with a 95% interval. The log of the ratio
+  has a standard error of `sqrt(1/a + 1/b)`. With a zero count the interval is
+  null.
+- The bird rate over the same two windows. If birds fell by the same share, the
+  cause was weather or empty feed, not the measure.
+
+One feeder has no control group, and animal activity changes with the season.
+The Animals view says "after", never "because of".
+
+### Animal alerts
+
+Each user has a push switch per animal group in `user_preferences.animal_alerts`.
+Squirrel, raccoon, bear and cat are on by default. Chipmunk, rat, rabbit, opossum
+and deer are off. Animal alerts are push only. The throttle key is (user,
+feeder, group), with `animal_quiet_interval_seconds`, 1800 by default. It is
+apart from the bird throttle, so a squirrel never mutes a bird alert. It is
+apart from the feed alerts too, which count birds only. The push `tag` is
+`peckdeck-device-{id}-animal-{group}`, so a repeat replaces the last alert.
+
+### Species rows
+
+The migration `7a2d9e4b1c60` seeds one species row per feeder animal, so a
+person can correct a sighting to a squirrel before any squirrel upload exists.
+The backend keeps its own copy of the list in `backend/animals/groups.py`, for
+the dev seed and the tests, because the image holds only `backend/`. A test keeps
+it equal to the CSV.
+
 ## Database migrations
 
 Schema is versioned with Alembic (`backend/migrations/`). The API container runs

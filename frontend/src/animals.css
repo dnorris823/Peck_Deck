@@ -1,0 +1,16 @@
+/* Animals view: the stacked daily chart, its legend, and the measure cards. */
+.animals-section { display: grid; gap: 12px; margin-bottom: 20px; }
+.animals-chart { margin: 0; }
+.animals-chart svg { display: block; width: 100%; height: 180px; }
+.animals-marker { stroke: var(--fg); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.animals-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; font-size: 13px; }
+.animals-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.animals-legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.animals-legend .animals-legend-marker { width: 0; height: 12px; border-left: 1.5px dashed var(--fg); border-radius: 0; }
+.animals-table { border-collapse: collapse; font-size: 13px; }
+.animals-table th, .animals-table td { padding: 4px 10px; text-align: right; }
+.animals-table th:first-child, .animals-table td:first-child { text-align: left; }
+.animals-measure ul { margin: 8px 0; padding-left: 18px; }
+.animals-measure h3, .animals-add h3 { margin: 0; }
+.animals-add .card-pad { display: grid; gap: 10px; max-width: 420px; }
+.animal-alerts { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 4px 16px; }

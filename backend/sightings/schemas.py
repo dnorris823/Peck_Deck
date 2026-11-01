@@ -48,6 +48,8 @@ class SightingResponse:
     # The species the Pi named, set only when a re-check replaced it.
     provisional_species_id: int | None = None
     rechecked_at: str | None = None
+    # "detector" or "motion", what made the Pi capture. Null from older Pi builds.
+    trigger: str | None = None
 
 
 @dataclass
@@ -102,6 +104,7 @@ def sighting_response(s, has_image: bool | None = None) -> SightingResponse:
         tier2_recheck=s.tier2_recheck,
         provisional_species_id=s.provisional_species_id,
         rechecked_at=s.rechecked_at.isoformat() if s.rechecked_at else None,
+        trigger=s.trigger,
     )
 
 

@@ -26,7 +26,10 @@ when Tier 2 fails. `SETUP.md` §7 has the tier orders and how to turn Tier 3 on.
 - Pi code: capture, the tier chain, an offline queue and unattended device-token
   provisioning.
 - Animal visits. Tier 2 names a squirrel, raccoon or other feeder mammal, and the
-  sighting records as an animal, outside every bird count.
+  sighting records as an animal, outside every bird count. The trigger fires on
+  bird, cat, dog and bear, with a visit per group. An Animals view charts the
+  visits against the measures the owner logs, such as a baffle, and push alerts
+  go out per animal group.
 - Feed alerts. An hourly check warns a feeder's owner when the feed is probably
   low or out, and a "Refilled" button on the feeder card resets it.
 - CI with backend, frontend and integration tests.

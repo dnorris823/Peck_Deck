@@ -82,6 +82,7 @@ class BackendClient:
         crop_box: list[int] | None = None,
         delayed: bool = False,
         animal_group: str | None = None,
+        trigger: str | None = None,
     ) -> UploadOutcome:
         """Upload image + sighting metadata in a single multipart POST.
 
@@ -94,6 +95,8 @@ class BackendClient:
 
         ``animal_group`` marks an animal sighting. It sends ``kind=animal`` and
         the group. A bird sends neither, which the backend reads as a bird.
+
+        ``trigger`` is "detector" or "motion". None leaves it out.
 
         Returns an :class:`UploadOutcome`; it is falsy for every failure, so
         callers that only care whether it worked can still just test it.
@@ -120,6 +123,8 @@ class BackendClient:
                     if animal_group is not None:
                         form.add_field("kind", "animal")
                         form.add_field("animal_group", animal_group)
+                    if trigger is not None:
+                        form.add_field("trigger", trigger)
 
                     async with session.post(
                         f"{self._base}/sightings",

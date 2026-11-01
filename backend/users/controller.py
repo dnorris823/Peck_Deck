@@ -4,6 +4,7 @@ from litestar.exceptions import HTTPException, NotFoundException
 from litestar.params import FromPath
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ..animals.groups import GROUPS, resolved_alerts
 from ..auth.guards import USER_JWT, owner_guard, user_guard
 from ..auth.jwt_utils import create_user_token, verify_password
 from ..auth.rate_limit import login_rate_limiter
@@ -40,10 +41,16 @@ from .schemas import (
 _ALLOWED_ROLES = {"owner", "viewer"}
 
 
+# Animal pushes come at most once per this many seconds per feeder and group.
+ANIMAL_INTERVAL_RANGE = (60, 86400)
+
+
 def _prefs_response(prefs) -> PreferencesResponse:
     return PreferencesResponse(
         quiet_interval_seconds=prefs.quiet_interval_seconds,
         notify_new_species_only=prefs.notify_new_species_only,
+        animal_alerts=resolved_alerts(prefs.animal_alerts),
+        animal_quiet_interval_seconds=prefs.animal_quiet_interval_seconds or 1800,
     )
 
 
@@ -167,12 +174,28 @@ class UserController(Controller):
             raise HTTPException(
                 status_code=400, detail="quiet_interval_seconds must be 10–600"
             )
+        if data.animal_alerts is not None:
+            unknown = sorted(set(data.animal_alerts) - set(GROUPS))
+            if unknown or not all(isinstance(v, bool) for v in data.animal_alerts.values()):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"animal_alerts maps a group ({', '.join(GROUPS)}) to true or false",
+                )
+        low, high = ANIMAL_INTERVAL_RANGE
+        if data.animal_quiet_interval_seconds is not None and not (
+            low <= data.animal_quiet_interval_seconds <= high
+        ):
+            raise HTTPException(
+                status_code=400, detail=f"animal_quiet_interval_seconds must be {low}–{high}"
+            )
         prefs = await get_or_create_preferences(db, request.state.user_id)
         prefs = await update_preferences(
             db,
             prefs,
             quiet_interval_seconds=data.quiet_interval_seconds,
             notify_new_species_only=data.notify_new_species_only,
+            animal_alerts=data.animal_alerts,
+            animal_quiet_interval_seconds=data.animal_quiet_interval_seconds,
         )
         return _prefs_response(prefs)
 

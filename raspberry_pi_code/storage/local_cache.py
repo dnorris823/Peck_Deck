@@ -25,6 +25,8 @@ class QueuedSighting:
     # The animal group, such as "squirrel", for an animal sighting. None for a
     # bird, and for a row queued by an older build.
     animal_group: str | None = None
+    # "detector" or "motion". None for a row queued by an older build.
+    trigger: str | None = None
 
 
 class LocalCache:

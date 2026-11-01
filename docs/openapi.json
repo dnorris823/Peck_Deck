@@ -28,6 +28,72 @@
         "title": "AddDeviceUser",
         "type": "object"
       },
+      "AnimalDay": {
+        "properties": {
+          "animals": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "birds": {
+            "type": "integer"
+          },
+          "date": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "animals",
+          "birds",
+          "date"
+        ],
+        "title": "AnimalDay",
+        "type": "object"
+      },
+      "AnimalStatsResponse": {
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/AnimalDay"
+            },
+            "type": "array"
+          },
+          "device_id": {
+            "type": "integer"
+          },
+          "from_date": {
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "measures": {
+            "items": {
+              "$ref": "#/components/schemas/MeasureWithEffect"
+            },
+            "type": "array"
+          },
+          "to_date": {
+            "type": "string"
+          },
+          "tz": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "days",
+          "device_id",
+          "from_date",
+          "to_date",
+          "tz"
+        ],
+        "title": "AnimalStatsResponse",
+        "type": "object"
+      },
       "ClassifyForm": {
         "properties": {
           "image": {
@@ -52,6 +118,38 @@
           "species_id"
         ],
         "title": "CorrectSpecies",
+        "type": "object"
+      },
+      "CreateMeasure": {
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "note": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "started_at": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CreateMeasure",
         "type": "object"
       },
       "CreateSpecies": {
@@ -575,8 +673,163 @@
         "title": "LoginRequest",
         "type": "object"
       },
+      "MeasureEffectResponse": {
+        "properties": {
+          "after_end": {
+            "type": "string"
+          },
+          "after_hours": {
+            "type": "number"
+          },
+          "after_start": {
+            "type": "string"
+          },
+          "before_hours": {
+            "type": "number"
+          },
+          "before_start": {
+            "type": "string"
+          },
+          "birds": {
+            "$ref": "#/components/schemas/RateRatioResponse"
+          },
+          "complete": {
+            "type": "boolean"
+          },
+          "groups": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/RateRatioResponse"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "after_end",
+          "after_hours",
+          "after_start",
+          "before_hours",
+          "before_start",
+          "birds",
+          "complete",
+          "groups"
+        ],
+        "title": "MeasureEffectResponse",
+        "type": "object"
+      },
+      "MeasureResponse": {
+        "properties": {
+          "device_id": {
+            "type": "integer"
+          },
+          "ended_at": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "note": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "started_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id",
+          "ended_at",
+          "id",
+          "name",
+          "note",
+          "started_at"
+        ],
+        "title": "MeasureResponse",
+        "type": "object"
+      },
+      "MeasureWithEffect": {
+        "properties": {
+          "device_id": {
+            "type": "integer"
+          },
+          "effect": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/MeasureEffectResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ended_at": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "type": "integer"
+          },
+          "name": {
+            "type": "string"
+          },
+          "note": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "started_at": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "device_id",
+          "ended_at",
+          "id",
+          "name",
+          "note",
+          "started_at"
+        ],
+        "title": "MeasureWithEffect",
+        "type": "object"
+      },
       "PreferencesResponse": {
         "properties": {
+          "animal_alerts": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object"
+          },
+          "animal_quiet_interval_seconds": {
+            "default": 1800,
+            "type": "integer"
+          },
           "notify_new_species_only": {
             "type": "boolean"
           },
@@ -628,6 +881,77 @@
           "p256dh"
         ],
         "title": "PushKeys",
+        "type": "object"
+      },
+      "RateRatioResponse": {
+        "properties": {
+          "after": {
+            "type": "integer"
+          },
+          "after_rate": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "before": {
+            "type": "integer"
+          },
+          "before_rate": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "high": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "low": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ratio": {
+            "oneOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "after",
+          "after_rate",
+          "before",
+          "before_rate",
+          "high",
+          "low",
+          "ratio"
+        ],
+        "title": "RateRatioResponse",
         "type": "object"
       },
       "RegisterDevice": {
@@ -936,6 +1260,16 @@
               }
             ]
           },
+          "trigger": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "weather_conditions": {
             "oneOf": [
               {
@@ -1021,6 +1355,16 @@
           },
           "timestamp": {
             "type": "string"
+          },
+          "trigger": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -1524,6 +1868,53 @@
         "title": "UpdateDevice",
         "type": "object"
       },
+      "UpdateMeasure": {
+        "properties": {
+          "ended_at": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "note": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "started_at": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [],
+        "title": "UpdateMeasure",
+        "type": "object"
+      },
       "UpdatePassword": {
         "properties": {
           "current_password": {
@@ -1548,6 +1939,29 @@
       },
       "UpdatePreferences": {
         "properties": {
+          "animal_alerts": {
+            "oneOf": [
+              {
+                "additionalProperties": {
+                  "type": "boolean"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "animal_quiet_interval_seconds": {
+            "oneOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "notify_new_species_only": {
             "oneOf": [
               {
@@ -2436,6 +2850,332 @@
         "tags": [
           "devices"
         ]
+      }
+    },
+    "/devices/{device_id}/measures": {
+      "get": {
+        "deprecated": false,
+        "operationId": "DevicesDeviceIdMeasuresListAll",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MeasureResponse"
+                  },
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
+        "summary": "ListAll"
+      },
+      "post": {
+        "deprecated": false,
+        "operationId": "DevicesDeviceIdMeasuresCreate",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMeasure"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeasureResponse"
+                }
+              }
+            },
+            "description": "Document created, URL follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
+        "summary": "Create"
+      }
+    },
+    "/devices/{device_id}/measures/{measure_id}": {
+      "delete": {
+        "deprecated": false,
+        "operationId": "DevicesDeviceIdMeasuresMeasureIdRemove",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "measure_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Request fulfilled, nothing follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
+        "summary": "Remove"
+      },
+      "patch": {
+        "deprecated": false,
+        "operationId": "DevicesDeviceIdMeasuresMeasureIdUpdate",
+        "parameters": [
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "deprecated": false,
+            "in": "path",
+            "name": "measure_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMeasure"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeasureResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
+        "summary": "Update"
       }
     },
     "/devices/{device_id}/refills": {
@@ -4349,6 +5089,130 @@
           }
         ],
         "summary": "GetOne"
+      }
+    },
+    "/stats/animals": {
+      "get": {
+        "deprecated": false,
+        "operationId": "StatsAnimalsAnimals",
+        "parameters": [
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "from_date",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "to_date",
+            "required": false,
+            "schema": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          {
+            "allowEmptyValue": false,
+            "allowReserved": false,
+            "deprecated": false,
+            "in": "query",
+            "name": "tz",
+            "required": false,
+            "schema": {
+              "default": "UTC",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnimalStatsResponse"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
+        "summary": "Animals"
       }
     },
     "/stats/dashboard": {

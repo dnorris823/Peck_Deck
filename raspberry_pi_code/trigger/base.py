@@ -6,14 +6,18 @@ from ..bird_crop import Box
 
 @dataclass(frozen=True)
 class TriggerEvent:
-    """One bird visit.
+    """One visit, of a bird or another animal.
 
-    ``box`` is the bird the trigger saw, in fractions of the full frame. The
+    ``box`` is what the trigger saw, in fractions of the full frame. The
     pipeline crops the capture to it for the classifiers. None means no box.
+    ``class_id`` is the COCO class that fired, None for a motion capture.
+    ``trigger`` is "detector", or "motion" for the motion fallback.
     """
 
     time: float  # asyncio monotonic timestamp
     box: Box | None = None
+    class_id: int | None = None
+    trigger: str = "detector"
 
 
 

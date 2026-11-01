@@ -16,6 +16,7 @@ from .auth.guards import DEVICE_TOKEN, device_guard
 from .classification.claude import get_classifier
 from .config import settings
 from .database.connection import dispose_db, init_db, provide_db
+from .animals.controller import MeasureController
 from .devices.controller import DeviceController
 from .events.controller import EventController
 from .feed import monitor as feed_monitor
@@ -183,6 +184,7 @@ app = Litestar(
         classify,
         UserController,
         DeviceController,
+        MeasureController,
         LiveController,
         LiveHlsController,
         SpeciesController,

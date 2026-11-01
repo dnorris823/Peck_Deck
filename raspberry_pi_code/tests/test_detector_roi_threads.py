@@ -163,6 +163,9 @@ class RecordingDetector:
         self.shapes.append(rgb.shape)
         return Detection(0.9, None)
 
+    def detections(self, rgb):
+        return [self.detect(rgb)]
+
 
 class FullSizeCamera(FakeCamera):
     """FakeCamera with a full-size main stream."""
