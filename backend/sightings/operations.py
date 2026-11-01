@@ -83,6 +83,20 @@ async def get_image_bytes(db: AsyncSession, sighting_id: int, *, thumb: bool) ->
     return row[0], thumb and bool(row[1])
 
 
+async def species_for_names(db: AsyncSession, common_name: str, scientific_name: str):
+    """The species row for a tier's answer, created on first sight.
+
+    A tier gives "Genus species". An empty name, which the Pi sends for
+    "Unknown", files under the common name with species "sp.".
+    """
+    parts = scientific_name.strip().split()
+    genus = parts[0] if parts else common_name
+    species_name = parts[1] if len(parts) > 1 else "sp."
+    return await get_or_create_species(
+        db, common_name=common_name, genus=genus, species_name=species_name
+    )
+
+
 async def create_sighting(
     db: AsyncSession,
     *,
@@ -96,14 +110,10 @@ async def create_sighting(
     delayed: bool,
     tier_trace: list[dict] | None = None,
     thumbnail_data: bytes | None = None,
+    tier2_recheck: str | None = None,
+    crop_box: list[int] | None = None,
 ) -> Sighting:
-    parts = scientific_name.strip().split()
-    genus = parts[0] if parts else common_name
-    species_name = parts[1] if len(parts) > 1 else "sp."
-
-    species = await get_or_create_species(
-        db, common_name=common_name, genus=genus, species_name=species_name
-    )
+    species = await species_for_names(db, common_name, scientific_name)
 
     dt = datetime.fromisoformat(timestamp)
     if dt.tzinfo is None:
@@ -119,6 +129,8 @@ async def create_sighting(
         confidence_score=confidence_score,
         delayed=delayed,
         tier_trace=tier_trace,
+        tier2_recheck=tier2_recheck,
+        crop_box=crop_box,
     )
     db.add(sighting)
     await db.flush()

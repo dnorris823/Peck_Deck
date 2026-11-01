@@ -20,6 +20,7 @@ from ..events.hub import SightingDeleted, SightingsDeleted, SightingUpdated, sig
 from ..species.operations import get_species
 from . import export as export_ops
 from .aftercare import schedule_aftercare
+from .recheck import needs_recheck
 from .operations import (
     correct_species,
     create_sighting,
@@ -37,6 +38,7 @@ from .schemas import (
     DeletedCount,
     DeleteSightings,
     SightingResponse,
+    parse_crop_box,
     parse_tier_trace,
     sighting_response,
 )
@@ -80,6 +82,9 @@ class SightingUploadForm:
     delayed: str = "false"
     # JSON list of TierAttempt objects. Older Pi builds leave it out.
     tier_trace: str | None = None
+    # JSON [left, top, right, bottom], the pixel edges of the square the Pi
+    # classified. Left out when it classified the full frame.
+    crop_box: str | None = None
 
 
 class SightingController(Controller):
@@ -178,6 +183,7 @@ class SightingController(Controller):
         # Off the event loop, since a decode takes tens of milliseconds. It
         # returns None rather than raise, so a bad image never fails the upload.
         thumbnail = await asyncio.to_thread(make_thumbnail, image_bytes) if image_bytes else None
+        tier_trace = parse_tier_trace(data.tier_trace)
         sighting = await create_sighting(
             db,
             device_id=request.state.device_id,
@@ -188,17 +194,25 @@ class SightingController(Controller):
             classification_tier_used=data.classification_tier_used,
             image_data=image_bytes if image_bytes else None,
             delayed=data.delayed.lower() == "true",
-            tier_trace=parse_tier_trace(data.tier_trace),
+            tier_trace=tier_trace,
             thumbnail_data=thumbnail,
+            # Tier 2 gave no answer, so the 5080 re-checks it once it is back.
+            tier2_recheck=(
+                "pending"
+                if image_bytes and needs_recheck(tier_trace, data.classification_tier_used)
+                else None
+            ),
+            crop_box=parse_crop_box(data.crop_box),
         )
         # Now, not the capture time: a delayed upload from the offline queue
         # still proves the station is up.
         await mark_device_seen(db, request.state.device_id)
 
         logger.info(
-            "sighting %d created on device %d (tier=%s, confidence=%.2f, delayed=%s)",
+            "sighting %d created on device %d (tier=%s, confidence=%.2f, delayed=%s, "
+            "tier2_recheck=%s)",
             sighting.id, sighting.device_id, sighting.classification_tier_used,
-            sighting.confidence_score, sighting.delayed,
+            sighting.confidence_score, sighting.delayed, sighting.tier2_recheck,
         )
 
         # Notifications, species enrichment and the live stream.

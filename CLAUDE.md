@@ -84,6 +84,12 @@ is in `SETUP.md` §7.
 Pi uploads or queues it as "Unknown" with tier `none`. The camera already
 decided it was a bird.
 
+**The backend re-checks Tier 1 fallbacks on Tier 2.** An upload whose trace shows
+Tier 2 gave no answer is marked `tier2_recheck = "pending"`. A task in the API
+process sends it to the inference server once that answers, and Tier 2's answer
+replaces the species when it wins. `tier_trace` stays as the Pi wrote it, and a
+person's correction is never overwritten. Detail in `docs/operations.md`.
+
 **Thresholds are per tier, and measured.** `DEFAULT_TIER_THRESHOLDS` in
 `raspberry_pi_code/config.py` holds local 0.85, gpu 0.60, cloud 0.50. A single 0.5
 across all three accepted the wrong species 18.2% of the time on Tier 1, silently,

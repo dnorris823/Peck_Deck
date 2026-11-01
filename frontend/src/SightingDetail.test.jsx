@@ -219,6 +219,32 @@ describe("a corrected sighting", () => {
   });
 });
 
+describe("a GPU re-check", () => {
+  it("marks a sighting that waits for the GPU as provisional", () => {
+    render(<SightingDetail s={{ ...S, tier: "local", provisional: true }} onClose={vi.fn()} />);
+    expect(screen.getByText("Provisional, the GPU will re-check it")).toBeInTheDocument();
+    expect(screen.queryByText("Pi said")).not.toBeInTheDocument();
+  });
+
+  it("shows the Pi's guess next to the GPU's answer", () => {
+    const rechecked = {
+      ...S, species: FINCH, provisionalSpecies: JAY, provisional: false,
+      recheckedAt: new Date(2026, 9, 31, 9),
+    };
+    render(<SightingDetail s={rechecked} onClose={vi.fn()} />);
+    expect(screen.getByRole("heading", { name: "House Finch" })).toBeInTheDocument();
+    expect(screen.getByText("Pi said")).toBeInTheDocument();
+    expect(screen.getByText("Blue Jay")).toBeInTheDocument();
+    expect(screen.getByText("GPU re-check")).toBeInTheDocument();
+    expect(screen.queryByText(/Provisional/)).not.toBeInTheDocument();
+  });
+
+  it("says no name when the Pi had none", () => {
+    render(<SightingDetail s={{ ...S, species: FINCH, provisionalSpecies: UNKNOWN }} onClose={vi.fn()} />);
+    expect(screen.getByText("No name")).toBeInTheDocument();
+  });
+});
+
 describe("pickerOptions", () => {
   it("leaves out placeholders, puts the most seen first, then A to Z", () => {
     const opts = pickerOptions(species, [{ id: 3, count: 5 }], "");

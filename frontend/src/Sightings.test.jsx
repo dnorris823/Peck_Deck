@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { dayBounds, rangeCutoff } from "./Sightings.jsx";
+import React from "react";
+import { render, screen } from "@testing-library/react";
+import { SightingTile, dayBounds, rangeCutoff } from "./Sightings.jsx";
 
 // Fixed reference: 2026-07-19 15:30 local time.
 const NOW = new Date(2026, 6, 19, 15, 30, 0).getTime();
@@ -42,5 +44,20 @@ describe("dayBounds", () => {
     const [from, to] = dayBounds(new Date(2026, 6, 18, 17, 24));
     expect(from).toBe(new Date(2026, 6, 18).getTime());
     expect(to).toBe(new Date(2026, 6, 19).getTime());
+  });
+});
+
+describe("SightingTile", () => {
+  const tile = {
+    id: 1, species: { id: 1, common: "House Finch", palette: [], silhouette: "songbird" },
+    device: { id: 4, name: "Window" }, datetime: new Date(2026, 9, 31, 9, 15),
+    confidence: 0.9, tier: "local", hasImage: false,
+  };
+
+  it("marks a sighting that waits for the GPU as provisional", () => {
+    const { rerender } = render(<SightingTile s={tile} onClick={() => {}} />);
+    expect(screen.queryByText(/provisional/)).not.toBeInTheDocument();
+    rerender(<SightingTile s={{ ...tile, provisional: true }} onClick={() => {}} />);
+    expect(screen.getByText("Pi · provisional")).toBeInTheDocument();
   });
 });

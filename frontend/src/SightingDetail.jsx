@@ -605,6 +605,24 @@ export function SightingDetail({ s, onClose, onMove, onCorrected, backLabel = "B
               <dd>{isPlaceholder(tierSaid) ? "No name" : tierSaid.common}</dd>
             </div>
           )}
+          {s.provisional && (
+            <div>
+              <dt>Status</dt>
+              <dd>Provisional, the GPU will re-check it</dd>
+            </div>
+          )}
+          {s.provisionalSpecies && (
+            <div>
+              <dt>Pi said</dt>
+              <dd>{isPlaceholder(s.provisionalSpecies) ? "No name" : s.provisionalSpecies.common}</dd>
+            </div>
+          )}
+          {s.provisionalSpecies && s.recheckedAt && (
+            <div>
+              <dt>GPU re-check</dt>
+              <dd>{fmtDateLabel(s.recheckedAt)}</dd>
+            </div>
+          )}
           <div>
             <dt>Confidence</dt>
             <dd><ConfidenceBar s={s} /></dd>

@@ -42,6 +42,12 @@ class SightingResponse:
     original_species_id: int | None = None
     corrected_by: int | None = None
     corrected_at: str | None = None
+    # "pending" while the species is the Pi's fallback and waits for the GPU
+    # tier, "done" once the backend asked it. Null when Tier 2 answered live.
+    tier2_recheck: str | None = None
+    # The species the Pi named, set only when a re-check replaced it.
+    provisional_species_id: int | None = None
+    rechecked_at: str | None = None
 
 
 @dataclass
@@ -93,6 +99,9 @@ def sighting_response(s, has_image: bool | None = None) -> SightingResponse:
         original_species_id=s.original_species_id,
         corrected_by=s.corrected_by,
         corrected_at=s.corrected_at.isoformat() if s.corrected_at else None,
+        tier2_recheck=s.tier2_recheck,
+        provisional_species_id=s.provisional_species_id,
+        rechecked_at=s.rechecked_at.isoformat() if s.rechecked_at else None,
     )
 
 
@@ -111,6 +120,30 @@ def parse_tier_trace(raw: str | None) -> list[dict] | None:
         return [_attempt(e) for e in entries]
     except (ValueError, TypeError, KeyError) as exc:
         logger.warning("Ignoring a malformed tier_trace (%s): %.200s", exc, raw)
+        return None
+
+
+def parse_crop_box(raw: str | None) -> list[int] | None:
+    """Read the upload's ``crop_box`` field, or None if it is absent or bad.
+
+    The field is a JSON list of pixel edges, ``[left, top, right, bottom]``. A
+    bad box stores null and keeps the sighting, like a bad trace. The re-check
+    then classifies the full frame.
+    """
+    if raw is None or raw == "":
+        return None
+    try:
+        box = json.loads(raw)
+        if not isinstance(box, list) or len(box) != 4:
+            raise ValueError("not a list of four")
+        if any(isinstance(v, bool) or not isinstance(v, int) for v in box):
+            raise ValueError("not whole numbers")
+        left, top, right, bottom = box
+        if left < 0 or top < 0 or right <= left or bottom <= top:
+            raise ValueError("edges out of order")
+        return box
+    except ValueError as exc:
+        logger.warning("Ignoring a malformed crop_box (%s): %.200s", exc, raw)
         return None
 
 

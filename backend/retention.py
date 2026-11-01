@@ -8,14 +8,15 @@ worth removing on a timer.
 ``RETENTION_UNKNOWN_DAYS`` sets the age in days. 0 turns the rule off, and 0 is
 the default. When on, the API process runs the rule once at startup and then
 every 24 hours. A sighting a person corrected to a real species no longer
-points at "Unknown", so the rule never touches it.
+points at "Unknown", so the rule never touches it. Nor does it touch a sighting
+waiting for the Tier 2 re-check, which may still name the bird.
 """
 import asyncio
 import contextlib
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from .database.connection import get_session_factory
@@ -45,7 +46,11 @@ async def delete_old_unknown(
     unknown = select(Species.id).where(Species.common_name == UNKNOWN_COMMON_NAME)
     result = await db.execute(
         delete(Sighting)
-        .where(Sighting.species_id.in_(unknown), Sighting.datetime < cutoff)
+        .where(
+            Sighting.species_id.in_(unknown),
+            Sighting.datetime < cutoff,
+            or_(Sighting.tier2_recheck.is_(None), Sighting.tier2_recheck != "pending"),
+        )
         .execution_options(synchronize_session=False)
     )
     return result.rowcount or 0

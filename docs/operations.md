@@ -43,7 +43,8 @@ number.
 One optional rule exists: delete "Unknown" sightings older than N days. An
 Unknown sighting is one that no tier could name, so the Pi uploaded it under the
 "Unknown" species with tier `none`. A sighting a person corrected to a real
-species no longer points at "Unknown", so the rule skips it.
+species no longer points at "Unknown", so the rule skips it. So is a sighting
+still waiting for the Tier 2 re-check, because the GPU may yet name it.
 
 | Env var | Default | Effect |
 |---|---|---|
@@ -66,6 +67,39 @@ restart the container:
 ```bash
 RETENTION_UNKNOWN_DAYS=30
 ```
+
+## Tier 2 re-check
+
+When the inference server is off, the Pi falls back to Tier 1 and the sighting
+appears at once, marked provisional. The API process then re-checks it on the
+GPU once the server answers again. The code is in `backend/sightings/recheck.py`.
+
+| Env var | Default | Effect |
+|---|---|---|
+| `INFERENCE_SERVER_URL` | `http://host.docker.internal:8001` | Where the API reaches the inference server. The default reaches the host from the `api` container. |
+| `TIER2_RECHECK_INTERVAL_SECONDS` | `60` | How often the task looks for waiting sightings and calls `GET /health`. `0` turns the re-check off. A negative value refuses to start. |
+
+- The upload marks a sighting pending when its trace shows Tier 2 `failed`, or
+  shows every tier `not_run` with tier `none`. A sighting with no trace, or
+  with no Tier 2 entry, is never re-checked.
+- Sightings created before this change are never re-checked. Their
+  `tier2_recheck` is null.
+- A pass sends pending captures to `POST /classify` one at a time, oldest first.
+  It sends the square the Pi classified, from the upload's `crop_box`, or the
+  full frame without one.
+- Tier 2 replaces the species when it meets the `gpu` threshold from the
+  sighting's trace. Below it, the answer closer to its own tier's bar wins.
+  `provisional_species_id` keeps the Pi's species.
+- A connection error, a timeout or a 5xx ends the pass, and the rows stay
+  pending. A 4xx marks that one row done with no change.
+- A sighting a person corrected keeps their species.
+- `tier_trace` stays as the Pi wrote it, so the Tier 2 warning still sees the
+  outage.
+- A re-check sends no push. Open tabs update over SSE.
+- The task assumes one API process. Two would re-check a row twice.
+
+Each pass that finds the server logs `tier2 recheck: server is up, re-checking
+N sightings`, then one line per sighting.
 
 ## Database migrations
 

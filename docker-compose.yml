@@ -26,6 +26,10 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # The Tier 2 re-check calls the bare-metal inference server on the host.
+    # Docker Desktop defines this name already. Linux Docker needs the mapping.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     restart: unless-stopped
     # /ready (not /health) — it confirms the database is reachable AND the
     # schema is migrated, so the container is only reported healthy once it can

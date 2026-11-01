@@ -24,6 +24,7 @@ from .notifications.controller import PushController
 from .observability import RequestContextMiddleware, configure_logging
 from . import retention
 from .readiness import check_readiness
+from .sightings import recheck
 from .sightings.controller import SightingController
 from .species.controller import SpeciesController
 from .stats.controller import StatsController
@@ -161,9 +162,11 @@ async def on_startup(app: Litestar) -> None:
     # starts (see backend/entrypoint.sh and scripts/migrate.sh).
     init_db(settings.DATABASE_URL)
     retention.start(settings.RETENTION_UNKNOWN_DAYS)
+    recheck.start(settings.TIER2_RECHECK_INTERVAL_SECONDS, settings.INFERENCE_SERVER_URL)
 
 
 async def on_shutdown(app: Litestar) -> None:
+    await recheck.stop()
     await retention.stop()
     await dispose_db()
 
