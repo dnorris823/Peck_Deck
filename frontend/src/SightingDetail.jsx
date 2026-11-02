@@ -539,16 +539,21 @@ export function SightingDetail({ s, onClose, onMove, onCorrected, backLabel = "B
 
   // Arrow keys walk the strip, left toward newer as it is drawn. Not while a
   // form control has focus, since the panel sits beside the History filters.
+  // The listener reads `step` through a ref set during render. React commits
+  // a new strip before it runs effects, so a listener re-bound in an effect
+  // would walk the old strip for a key pressed in between.
+  const stepRef = useRef(step);
+  stepRef.current = step;
   useEffect(() => {
     function onKey(e) {
       if (e.altKey || e.ctrlKey || e.metaKey || pickingRef.current) return;
       if (e.target.closest?.("input, select, textarea")) return;
-      if (e.key === "ArrowLeft") step(-1);
-      else if (e.key === "ArrowRight") step(1);
+      if (e.key === "ArrowLeft") stepRef.current(-1);
+      else if (e.key === "ArrowRight") stepRef.current(1);
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [step]);
+  }, []);
 
   // A horizontal swipe on the photo does the same. Mostly-vertical drags are
   // left alone so the view still scrolls.
