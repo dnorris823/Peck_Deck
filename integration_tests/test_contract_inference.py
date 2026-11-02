@@ -127,3 +127,67 @@ def test_gpu_server_health_reports_model_ready(monkeypatch):
     assert body["status"] == "ok"
     assert body["model_ready"] is True
     assert body["state"] == "ready"
+
+
+# ── The backend's Tier 2 switch ↔ the inference server ───────────────────────
+# The backend relays the owner's switch to POST /pause and /resume with the
+# shared INFERENCE_CONTROL_TOKEN. The server refuses without a match, and
+# refuses both routes when it has no token of its own.
+
+_CONTROL_TOKEN = "contract-control-token"
+
+
+class _PausableClassifier(_FakeClassifier):
+    def unload(self) -> None:
+        pass
+
+
+def _switch_server(monkeypatch, token):
+    monkeypatch.setattr(inf_main, "BirdClassifier", _PausableClassifier)
+    monkeypatch.setattr(inf_main.settings, "GAME_PAUSE_ENABLED", False)
+    monkeypatch.setattr(inf_main.settings, "INFERENCE_CONTROL_TOKEN", token)
+    return run_server(inf_main.app)
+
+
+def test_backend_relay_pauses_with_the_matching_token(monkeypatch):
+    from backend.sightings.recheck import InferenceClient
+
+    with _switch_server(monkeypatch, _CONTROL_TOKEN) as base_url:
+        client = InferenceClient(base_url)
+        body = asyncio.run(client.set_paused(True, _CONTROL_TOKEN))
+        healthy = asyncio.run(client.healthy())
+
+    assert body["state"] == "paused_manual"
+    assert body["control"] is True
+    # A paused server holds the re-check.
+    assert healthy is False
+
+
+def test_backend_relay_is_refused_with_a_wrong_token(monkeypatch):
+    import pytest
+
+    from backend.sightings.recheck import InferenceClient, SwitchRefused
+
+    with _switch_server(monkeypatch, _CONTROL_TOKEN) as base_url:
+        client = InferenceClient(base_url)
+        with pytest.raises(SwitchRefused) as exc:
+            asyncio.run(client.set_paused(True, "not-the-token"))
+        state = asyncio.run(client.status())["state"]
+
+    assert exc.value.status == 403
+    assert state == "ready"
+
+
+def test_server_without_a_token_refuses_the_switch(monkeypatch):
+    import pytest
+
+    from backend.sightings.recheck import InferenceClient, SwitchRefused
+
+    with _switch_server(monkeypatch, "") as base_url:
+        client = InferenceClient(base_url)
+        with pytest.raises(SwitchRefused) as exc:
+            asyncio.run(client.set_paused(False, _CONTROL_TOKEN))
+        body = asyncio.run(client.status())
+
+    assert exc.value.status == 503
+    assert body["control"] is False

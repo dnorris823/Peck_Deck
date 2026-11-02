@@ -9,7 +9,9 @@ export function Tier2Switch({ tier2, isOwner }) {
   const state = status?.state;
   // Loading counts as on, so the switch does not flick back while it loads.
   const on = state === "ready" || state === "loading" || state === "failed";
-  const canSwitch = isOwner && state != null && state !== "offline";
+  // Why the switch cannot work, such as a control token that is not set.
+  const switchOff = status?.switch_off ?? null;
+  const canSwitch = isOwner && state != null && state !== "offline" && !switchOff;
 
   async function flip() {
     setBusy(true);
@@ -25,6 +27,7 @@ export function Tier2Switch({ tier2, isOwner }) {
           <div className={`toggle-row-sub${isTier2Paused(state) ? " tier2-paused" : ""}`} role="status">
             {tier2Label(state)}
           </div>
+          {isOwner && switchOff && <div className="toggle-row-sub">{switchOff}</div>}
           {error && <div className="toggle-row-sub tier2-error" role="alert">{error}</div>}
         </div>
         {isOwner && (

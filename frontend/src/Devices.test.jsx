@@ -150,6 +150,19 @@ describe("Tier 2 switch", () => {
     expect(setTier2Paused).toHaveBeenCalledWith(true);
   });
 
+  it("tells the owner why the switch is off when a control token is missing", async () => {
+    vi.mocked(fetchTier2).mockResolvedValue({
+      state: "ready", game_pause: true,
+      switch_off: "INFERENCE_CONTROL_TOKEN is not set on the GPU server, so the switch is off.",
+    });
+    mockData = { SIGHTINGS: [], USERS: [], DEVICES: devices, ME: { id: 1, role: "owner" } };
+    render(<DevicesPage />);
+    expect(await screen.findByText(
+      "INFERENCE_CONTROL_TOKEN is not set on the GPU server, so the switch is off.",
+    )).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tier 2 on the gaming PC" })).toBeDisabled();
+  });
+
   it("has no switch to flip while the gaming PC is not answering", async () => {
     vi.mocked(fetchTier2).mockResolvedValue({ state: "offline", game_pause: false });
     mockData = { SIGHTINGS: [], USERS: [], DEVICES: devices, ME: { id: 1, role: "owner" } };

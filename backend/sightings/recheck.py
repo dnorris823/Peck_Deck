@@ -160,6 +160,15 @@ class ImageRejected(Exception):
     """The server refused this one image with a 4xx."""
 
 
+class SwitchRefused(Exception):
+    """The server refused ``/pause`` or ``/resume``. ``detail`` says why."""
+
+    def __init__(self, status: int, detail: str):
+        super().__init__(detail)
+        self.status = status
+        self.detail = detail
+
+
 @dataclass(frozen=True)
 class AnimalAnswer:
     """The ``animal`` field of ``POST /classify``, a row of feeder_animals.csv."""
@@ -239,17 +248,27 @@ class InferenceClient:
             return False
         return bool(body.get("model_ready", True)) and body.get("state", "ready") == "ready"
 
-    async def set_paused(self, paused: bool) -> dict | None:
-        """``POST /pause`` or ``POST /resume``. The new status, or None if down."""
+    async def set_paused(self, paused: bool, token: str) -> dict | None:
+        """``POST /pause`` or ``POST /resume`` with the control token.
+
+        Returns the new status, or None when the server does not answer.
+        Raises ``SwitchRefused`` with the server's reason when it answers with
+        anything but 200, such as a token that does not match.
+        """
         path = "/pause" if paused else "/resume"
+        headers = {"Authorization": f"Bearer {token}"}
         try:
             timeout = aiohttp.ClientTimeout(total=HEALTH_TIMEOUT_SECONDS)
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.post(f"{self._base}{path}") as resp:
+                async with session.post(f"{self._base}{path}", headers=headers) as resp:
+                    try:
+                        body = await resp.json(content_type=None)
+                    except ValueError:
+                        body = None
                     if resp.status != 200:
-                        return None
-                    body = await resp.json()
-        except (aiohttp.ClientError, asyncio.TimeoutError, ValueError):
+                        detail = body.get("detail") if isinstance(body, dict) else None
+                        raise SwitchRefused(resp.status, str(detail or f"HTTP {resp.status}"))
+        except (aiohttp.ClientError, asyncio.TimeoutError):
             return None
         return body if isinstance(body, dict) else None
 

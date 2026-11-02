@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import hmac
 import logging
 from collections.abc import Callable
 from contextlib import asynccontextmanager
@@ -7,7 +8,7 @@ from dataclasses import asdict
 from typing import Annotated
 
 import uvicorn
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
 
 from .classifier import BirdClassifier
 from .config import settings
@@ -111,7 +112,28 @@ def _status() -> dict:
         "model_ready": state == READY,
         "state": state,
         "game_pause": _watching,
+        # Whether INFERENCE_CONTROL_TOKEN is set, so /pause and /resume work.
+        "control": bool(settings.INFERENCE_CONTROL_TOKEN),
     }
+
+
+def _require_control(authorization: str | None) -> None:
+    """Refuse /pause and /resume without the shared control token.
+
+    Fails closed. With no token set here, both routes refuse, because the
+    server listens on every interface and the tailnet reaches this PC.
+    """
+    expected = settings.INFERENCE_CONTROL_TOKEN
+    if not expected:
+        raise HTTPException(
+            status_code=503,
+            detail="INFERENCE_CONTROL_TOKEN is not set on the GPU server",
+        )
+    scheme, _, given = (authorization or "").partition(" ")
+    if scheme.lower() != "bearer" or not hmac.compare_digest(
+        given.strip().encode(), expected.encode()
+    ):
+        raise HTTPException(status_code=403, detail="Wrong or missing control token")
 
 
 @app.get("/health")
@@ -120,21 +142,24 @@ def health() -> dict:
     return _status()
 
 
-# async, so they run on the event loop with the model and its load task.
+# async, so they run on the event loop with the model and its load task. Both
+# need ``Authorization: Bearer <INFERENCE_CONTROL_TOKEN>``.
 @app.post("/pause")
-async def pause() -> dict:
+async def pause(authorization: Annotated[str | None, Header()] = None) -> dict:
     """Unload the model until ``POST /resume``. The game watcher never resumes it."""
+    _require_control(authorization)
     if _model is not None:
         _model.pause(PAUSED_MANUAL)
     return _status()
 
 
 @app.post("/resume")
-async def resume() -> dict:
+async def resume(authorization: Annotated[str | None, Header()] = None) -> dict:
     """Load the model. Returns at once, usually with state ``loading``.
 
     During a game this holds off the game pause until the GPU goes quiet.
     """
+    _require_control(authorization)
     if _model is not None:
         _model.resume(manual=True)
     return _status()

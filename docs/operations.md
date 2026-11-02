@@ -150,7 +150,7 @@ Without it the server logs `NVML not available` and never pauses itself.
 
 **The owner's switch.** The Feeders page has a Tier 2 switch. The backend relays
 it through `PUT /tier2`, owner only, to `POST /pause` or `POST /resume` on the
-inference server. `GET /tier2` reads the state for any signed-in user, and says
+inference server, with the control token below. `GET /tier2` reads the state for any signed-in user, and says
 `offline` when the server does not answer.
 
 - Turning Tier 2 off sets `paused_manual`. The server stays paused after the
@@ -167,8 +167,32 @@ as it does when the server is off. A bird the camera detected is never dropped.
 Home and the feeder card say "Tier 2 paused for gaming" in place of the Tier 2
 down warning.
 
-The control endpoints have no auth, like `POST /classify`. Anyone on the LAN can
-pause Tier 2.
+**The switch needs a shared token.** The inference server listens on every
+interface, and the tailnet reaches this PC. So `POST /pause` and `POST /resume`
+need `Authorization: Bearer <INFERENCE_CONTROL_TOKEN>`. The backend sends it on
+the relay. `GET /health` and `POST /classify` need no token.
+
+| Env var | Read by | Effect |
+|---|---|---|
+| `INFERENCE_CONTROL_TOKEN` | the inference server | The token `/pause` and `/resume` accept. Empty refuses both with 503. A wrong or missing header gets 403. |
+| `INFERENCE_CONTROL_TOKEN` | the API | The token the relay sends. Empty turns the switch off. |
+
+Put one line in the root `.env`. The `api` container reads it through
+`env_file`, and the inference server loads it from the repo root, where it
+runs. Then restart both:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+# then, in the root .env:
+INFERENCE_CONTROL_TOKEN=<the value it printed>
+```
+
+The setup fails closed. With either side unset, the Feeders page greys out the
+switch and names the side. `GET /tier2` carries the reason as `switch_off`, from
+the API's own setting and the server's `control` flag in `GET /health`. A token
+set on both sides that does not match shows when the owner flips the switch.
+The API answers 502 with the server's reason, never 401 or 403. The web app
+reads 401 as "signed out" and 403 as "viewer".
 
 ## Feed alerts
 

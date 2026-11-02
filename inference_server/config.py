@@ -36,6 +36,10 @@ class Settings:
     IMAGE_SIZE: int = int(os.getenv("IMAGE_SIZE", "380"))
     # "cuda", "cuda:0", or "cpu"
     DEVICE: str = os.getenv("DEVICE", "cuda")
+    # Shared with the backend. POST /pause and /resume refuse without it, and
+    # refuse everything when it is empty. Put it in the root .env, which the
+    # api container reads too.
+    INFERENCE_CONTROL_TOKEN: str = os.getenv("INFERENCE_CONTROL_TOKEN", "").strip()
     # Unload the model while a game runs. See inference_server/gaming.py.
     GAME_PAUSE_ENABLED: bool = os.getenv("GAME_PAUSE_ENABLED", "true").lower() in ("1", "true", "yes")
     # Pause when mean GPU use over GAME_PAUSE_AFTER_SECONDS reaches this percent.

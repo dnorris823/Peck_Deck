@@ -1,15 +1,15 @@
 """The game pause, with a fake classifier, a fake clock and fake GPU readings.
 
-No torch and no NVML. ``Tier2Model`` loads through ``asyncio.to_thread``, so
+No torch, no NVML and no FastAPI, so the backend CI job runs it. The routes
+are in test_routes.py. ``Tier2Model`` loads through ``asyncio.to_thread``, so
 the model tests run on an event loop.
 """
 import asyncio
 import time
 
 import pytest
-from fastapi.testclient import TestClient
 
-from inference_server import gaming, main
+from inference_server import gaming
 from inference_server.classifier import Prediction
 from inference_server.gaming import (
     LOADING,
@@ -237,54 +237,3 @@ def test_bad_thresholds_refuse_to_start():
 
 def test_a_cpu_device_has_no_reader():
     assert gaming.nvml_reader("cpu") is None
-
-
-# ── The endpoints ─────────────────────────────────────────────────────────────
-
-
-@pytest.fixture
-def client(monkeypatch):
-    monkeypatch.setattr(main, "_load_classifier", FakeClassifier)
-    monkeypatch.setattr(main.settings, "GAME_PAUSE_ENABLED", False)
-    with TestClient(main.app) as c:
-        wait_for(c, READY)
-        yield c
-
-
-def wait_for(c, state):
-    for _ in range(200):
-        if c.get("/health").json()["state"] == state:
-            return
-        time.sleep(0.01)
-    raise AssertionError(f"state never became {state}")
-
-
-def classify(c):
-    return c.post("/classify", files={"image": ("b.jpg", b"jpeg", "image/jpeg")})
-
-
-def test_health_reports_the_state(client):
-    body = client.get("/health").json()
-    assert body == {"status": "ok", "model_ready": True, "state": READY, "game_pause": False}
-
-
-def test_pause_returns_503_with_the_reason_and_resume_answers_again(client):
-    assert classify(client).status_code == 200
-
-    body = client.post("/pause").json()
-    assert body["state"] == PAUSED_MANUAL
-    assert body["model_ready"] is False
-    resp = classify(client)
-    assert resp.status_code == 503
-    assert resp.json()["detail"] == "Tier 2 is paused by the owner"
-
-    assert client.post("/resume").json()["state"] in (LOADING, READY)
-    wait_for(client, READY)
-    assert classify(client).status_code == 200
-
-
-def test_a_game_pause_says_so(client):
-    main._model.pause(PAUSED_GAME)
-    resp = classify(client)
-    assert resp.status_code == 503
-    assert resp.json()["detail"] == "Tier 2 is paused while a game runs"
