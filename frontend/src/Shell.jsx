@@ -13,6 +13,7 @@ export const NAV = [
   { id: "history", label: "History", icon: "feather" },
   { id: "feeders", label: "Feeders", icon: "device" },
   { id: "animals", label: "Animals", icon: "paw", more: true, scoped: true },
+  { id: "compare", label: "Compare", icon: "compare", more: true, multi: true },
   { id: "users", label: "Users", icon: "users", more: true, owner: true },
   { id: "settings", label: "Settings", icon: "gear", more: true },
 ];
@@ -20,9 +21,9 @@ export const NAV = [
 export const TABS = NAV.filter(n => !n.more);
 const MORE = NAV.filter(n => n.more);
 
-// Users is owner only. GET /users refuses a viewer.
-export function moreFor(me) {
-  return MORE.filter(n => !n.owner || me.role === "owner");
+// Users is owner only. GET /users refuses a viewer. Compare needs two feeders.
+export function moreFor(me, devices = []) {
+  return MORE.filter(n => (!n.owner || me.role === "owner") && (!n.multi || devices.length > 1));
 }
 
 /** The route to show: `route`, unless `me` may not open it. */
@@ -165,7 +166,7 @@ export function MoreMenu({ route, setRoute, onLogout, onClose }) {
             <div className="foot-role">{me.role}</div>
           </div>
         </div>
-        {moreFor(me).map(n => (
+        {moreFor(me, data.DEVICES).map(n => (
           <button key={n.id} role="menuitem" className={`more-item ${route === n.id ? "active" : ""}`}
             aria-current={route === n.id ? "page" : undefined} onClick={() => setRoute(n.id)}>
             <Icon name={n.icon} />

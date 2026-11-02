@@ -149,6 +149,13 @@ describe("owner-only screens", () => {
     expect(moreFor({ role: "owner" }).map(n => n.id)).toEqual(["animals", "users", "settings"]);
   });
 
+  it("offers Compare only to a user who sees two or more feeders", () => {
+    const one = [{ id: 1 }];
+    const two = [{ id: 1 }, { id: 2 }];
+    expect(moreFor({ role: "viewer" }, one).map(n => n.id)).not.toContain("compare");
+    expect(moreFor({ role: "viewer" }, two).map(n => n.id)).toEqual(["animals", "compare", "settings"]);
+  });
+
   it("sends a viewer who asks for Users to Latest", () => {
     expect(allowedRoute("users", { role: "viewer" })).toBe("latest");
     expect(allowedRoute("users", { role: "owner" })).toBe("users");
