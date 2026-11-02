@@ -52,6 +52,10 @@ class Settings:
     INFERENCE_SERVER_URL: str = os.getenv(
         "INFERENCE_SERVER_URL", "http://host.docker.internal:8001"
     )
+    # Shared with the inference server, which refuses POST /pause and /resume
+    # without it. Empty turns the owner's Tier 2 switch off. Both services read
+    # the root .env. See backend/classification/tier2.py.
+    INFERENCE_CONTROL_TOKEN: str = os.getenv("INFERENCE_CONTROL_TOKEN", "").strip()
     # How often the re-check asks whether the server is back, while sightings
     # wait for it. 0 turns the re-check off.
     TIER2_RECHECK_INTERVAL_SECONDS: int = int(

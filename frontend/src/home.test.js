@@ -57,6 +57,11 @@ describe("statusLine", () => {
     expect(statusLine(visit("Blue Jay", at(17, 24, 28)), [], { now: NOW, tier2Down: true }).warning)
       .toBe("The gaming PC has stopped naming birds, so names may be rougher until it is back.");
   });
+
+  it("says Tier 2 is paused for gaming instead of the down warning", () => {
+    const line = statusLine(visit("Blue Jay", at(17, 24, 28)), [], { now: NOW, tier2Down: true, tier2Paused: true });
+    expect(line.warning).toBe("Tier 2 paused for gaming.");
+  });
 });
 
 describe("timelinePos", () => {

@@ -194,6 +194,24 @@ class BirdClassifier:
             logger.exception("Failed to load model '%s'", self._model_name)
             return False
 
+    def unload(self) -> None:
+        """Drop the model and hand its VRAM back to the driver.
+
+        ``empty_cache`` returns the blocks torch had cached. The CUDA context
+        itself stays, a few hundred MB, until the process exits.
+        """
+        self._model = None
+        self._transform = None
+        if not _TORCH_AVAILABLE:
+            return
+        import gc
+
+        import torch
+
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
     def _hub_label_names(self) -> list[str] | None:
         """Scientific names for each output index, if the checkpoint ships them.
 
