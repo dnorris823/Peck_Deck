@@ -1,6 +1,10 @@
 // Species: the list of every bird the feeders have caught, and one species'
 // page. On a phone the page replaces the list. On a wide screen they sit side
 // by side and the page shows the top row until you pick another.
+//
+// The year picker turns the list into the year list, and "All time" is the life
+// list. They live here rather than on a page of their own, because they are
+// this same list with a date range: same rows, photos, feeder scope and page.
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { BirdPlate } from "./BirdPlate.jsx";
 import { Icon } from "./Icon.jsx";
@@ -9,7 +13,7 @@ import { Modal, TextInput, FormNote } from "./Modal.jsx";
 import { Empty } from "./Empty.jsx";
 import { SightingImage } from "./SightingImage.jsx";
 import { SpeciesView } from "./SpeciesView.jsx";
-import { createSpecies } from "./data.js";
+import { createSpecies, fetchLifeList } from "./data.js";
 import { useSpeciesAccent } from "./accent.js";
 import { fetchSpeciesSightings, fmtSeen, fmtSince, isUnknown, usualTime } from "./speciesData.js";
 import "./species.css";
@@ -17,15 +21,34 @@ import "./species.css";
 // Matches the side-by-side breakpoint in species.css.
 const WIDE = "(min-width: 900px)";
 
-const ORDERS = [["recent", "Recent"], ["count", "Most seen"], ["name", "A to Z"]];
+const ORDERS = [["recent", "Recent"], ["count", "Most seen"], ["first", "First seen"], ["name", "A to Z"]];
 
 export function sortSpecies(list, order) {
   const time = (s) => s.lastSeenAt?.getTime() ?? 0;
+  const first = (s) => s.firstSeenAt?.getTime() ?? 0;
   return [...list].sort((a, b) => {
     if (order === "count") return b.count - a.count || a.common.localeCompare(b.common);
     if (order === "name") return a.common.localeCompare(b.common);
+    if (order === "first") return first(b) - first(a) || a.common.localeCompare(b.common);
     return time(b) - time(a);
   });
+}
+
+// The life list (`year` null) or one year's, for the picked feeder. It reloads
+// when the species counts change, so a streamed sighting shows up here too.
+// `rows` is null while the asked year and feeder load. `years` keeps the last
+// answer meanwhile, so the picker does not flicker.
+function useLifeList(year, feeder, counts) {
+  const key = `${year}:${feeder}`;
+  const [state, setState] = useState({ key: null, years: [], rows: [] });
+  useEffect(() => {
+    let live = true;
+    fetchLifeList(year, feeder)
+      .then((res) => { if (live) setState({ key, ...res }); })
+      .catch(() => { if (live) setState((s) => ({ ...s, key, rows: [], failed: true })); });
+    return () => { live = false; };
+  }, [key, year, feeder, counts]);
+  return state.key === key ? state : { ...state, rows: null, failed: false };
 }
 
 function useMediaQuery(query) {
@@ -84,19 +107,24 @@ function Thumb({ species, photo }) {
   );
 }
 
-function SpeciesRow({ s, photo, active, onOpen }) {
+function SpeciesRow({ s, photo, active, onOpen, firstMeta, newLabel }) {
   const accent = useSpeciesAccent(s);
   const when = usualTime(s.peakHours);
+  const visits = <><span className="tnum">{s.count.toLocaleString()}</span> {s.count === 1 ? "visit" : "visits"}</>;
   return (
     <li>
       <button className={`sp-row ${active ? "on" : ""}`} onClick={() => onOpen(s)}
         aria-current={active ? "true" : undefined} style={accent}>
         <Thumb species={s} photo={photo} />
         <span className="sp-text">
-          <span className="sp-name">{s.common}</span>
+          <span className="sp-name">
+            {s.common}
+            {s.isNew && <span className="sp-new" title={newLabel}>New</span>}
+          </span>
           <span className="sp-meta">
-            {fmtSeen(s.lastSeenAt)} · <span className="tnum">{s.count.toLocaleString()}</span>{" "}
-            {s.count === 1 ? "visit" : "visits"}
+            {firstMeta
+              ? <>First seen {fmtSince(s.firstSeenAt)}{s.firstFeeder ? ` at ${s.firstFeeder}` : ""} · {visits}</>
+              : <>{fmtSeen(s.lastSeenAt)} · {visits}</>}
           </span>
         </span>
         {when && (
@@ -175,19 +203,39 @@ export function SpeciesPage({ go, openSighting }) {
   const { data, reload, feeder } = useData();
   const wide = useMediaQuery(WIDE);
   const [order, setOrder] = useState("recent");
+  const [year, setYear] = useState(null);
   const [openId, setOpenId] = useState(null);
   const [adding, setAdding] = useState(false);
   const listScroll = useRef(0);
 
-  const unknown = data.SPECIES_COUNTS.find(isUnknown);
+  const life = useLifeList(year, feeder, data.SPECIES_COUNTS);
+  // "Unknown" names no species, so it has no year and stays off a year list.
+  const unknown = year == null ? data.SPECIES_COUNTS.find(isUnknown) : null;
   const named = useMemo(() => data.SPECIES_COUNTS.filter((s) => !isUnknown(s)), [data.SPECIES_COUNTS]);
-  const sorted = useMemo(() => sortSpecies(named, order), [named, order]);
+  // All time keeps the live counts and takes the first feeder and "new" from
+  // the life list. A year takes its rows from the year list.
+  const listed = useMemo(() => {
+    if (year != null) return life.rows || [];
+    const byId = new Map((life.rows || []).map((r) => [r.id, r]));
+    return named.map((s) => {
+      const l = byId.get(s.id);
+      return l ? { ...s, firstFeeder: l.firstFeeder, isNew: l.isNew } : s;
+    });
+  }, [year, named, life.rows]);
+  const sorted = useMemo(() => sortSpecies(listed, order), [listed, order]);
   const photoRows = useMemo(() => (unknown ? [unknown, ...sorted] : sorted), [unknown, sorted]);
   const photoOf = useLatestPhotos(photoRows, data, feeder);
   const where = data.DEVICES.find((d) => d.id === feeder)?.name ?? "your feeders";
+  // A year the picked feeder never saw stays in the picker, so the choice holds.
+  const years = year == null || life.years.includes(year) ? life.years : [year, ...life.years];
+  const newCount = listed.filter((s) => s.isNew).length;
+  const thisYear = new Date().getFullYear();
+  const newIn = year == null || year === thisYear ? "this year" : `in ${year}`;
 
   const since = named.reduce((min, s) => (s.firstSeenAt && (!min || s.firstSeenAt < min) ? s.firstSeenAt : min), null);
-  const shown = named.find((s) => s.id === openId) ?? (wide ? sorted[0] : null);
+  // The species page always covers all time, so a year row opens the same page.
+  const pick = (id) => named.find((s) => s.id === id) ?? listed.find((s) => s.id === id) ?? null;
+  const shown = (openId != null && pick(openId)) || (wide && sorted[0] ? pick(sorted[0].id) : null);
 
   function open(s) {
     if (!wide) listScroll.current = window.scrollY || 0;
@@ -222,13 +270,25 @@ export function SpeciesPage({ go, openSighting }) {
         <div>
           <h1 className="sp-title">Species</h1>
           <p className="sp-sub">
-            {named.length.toLocaleString()} at {where}{since ? ` since ${fmtSince(since)}` : ""}
+            {year == null
+              ? <>{named.length.toLocaleString()} at {where}{since ? ` since ${fmtSince(since)}` : ""}</>
+              : life.rows == null
+                ? <>Loading {year}…</>
+                : <>{listed.length.toLocaleString()} at {where} in {year}</>}
+            {newCount > 0 && <> · {newCount.toLocaleString()} new {newIn}</>}
           </p>
         </div>
         <button className="icon-btn sp-add" onClick={() => setAdding(true)} aria-label="Add a species" title="Add a species">
           <Icon name="plus" className="" />
         </button>
       </div>
+      {years.length > 0 && (
+        <select className="toolbar-select sp-year" aria-label="Year" value={year ?? "all"}
+          onChange={(e) => setYear(e.target.value === "all" ? null : Number(e.target.value))}>
+          <option value="all">All time</option>
+          {years.map((y) => <option key={y} value={y}>{y}</option>)}
+        </select>
+      )}
       <div className="segmented sp-sort" role="group" aria-label="Sort species">
         {ORDERS.map(([id, label]) => (
           <button key={id} className={order === id ? "active" : ""} aria-pressed={order === id}
@@ -241,9 +301,15 @@ export function SpeciesPage({ go, openSighting }) {
             onOpen={() => go("history", { species: unknown.id, device: feeder })} />
         )}
         {sorted.map((s) => (
-          <SpeciesRow key={s.id} s={s} photo={photoOf(s.id)} active={wide && shown?.id === s.id} onOpen={open} />
+          <SpeciesRow key={s.id} s={s} photo={photoOf(s.id)} active={wide && shown?.id === s.id} onOpen={open}
+            firstMeta={year != null || order === "first"} newLabel={`First seen ${newIn}`} />
         ))}
       </ul>
+      {year != null && life.rows != null && sorted.length === 0 && (
+        <p className="sp-sub sp-none">
+          {life.failed ? `The ${year} list did not load.` : `No birds at ${where} in ${year}.`}
+        </p>
+      )}
     </nav>
   );
 

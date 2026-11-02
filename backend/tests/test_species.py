@@ -50,3 +50,13 @@ def test_species_response_carries_ebird_code(client, owner_headers):
     # The fixture species have made-up names, so they have no code.
     res = client.get(f"/species/{IDS['spA_id']}", headers=owner_headers)
     assert res.json()["ebird_code"] is None
+
+
+def test_unknown_is_matched_the_same_way_in_python_and_sql():
+    """is_unknown_name() and names_a_species() share one rule: trimmed, any case."""
+    from backend.species.operations import UNKNOWN, is_unknown_name, names_a_species
+
+    assert is_unknown_name(" UNKNOWN ") and is_unknown_name("Unknown")
+    assert not is_unknown_name("Unknown Warbler")
+    sql = str(names_a_species().compile(compile_kwargs={"literal_binds": True})).lower()
+    assert "lower(trim(species.common_name))" in sql and f"'{UNKNOWN}'" in sql

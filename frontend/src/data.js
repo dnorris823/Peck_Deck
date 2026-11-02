@@ -207,6 +207,25 @@ export async function fetchSpeciesCountsBetween(start, end, deviceId = null) {
   return rows.map(r => ({ id: r.id, common: r.common_name, count: r.count }));
 }
 
+/**
+ * The life list (`year` null) or one year's list, as `{ years, rows }`. Each row
+ * is a species count row plus `firstFeeder` and `isNew`, first seen in that year
+ * ever. Birds only, never "Unknown". `years` has a bird sighting each, newest first.
+ */
+export async function fetchLifeList(year = null, deviceId = null, zone = browserZone()) {
+  const params = new URLSearchParams({ tz: zone });
+  if (year != null) params.set("year", String(year));
+  const body = await apiGet(withScope(`/stats/life-list?${params}`, deviceId));
+  return {
+    years: body.years,
+    rows: body.species.map(s => ({
+      ...mapSpeciesCount(s),
+      firstFeeder: s.first_feeder_name ?? null,
+      isNew: !!s.new_in_year,
+    })),
+  };
+}
+
 // ── Loader ────────────────────────────────────────────────────────────────
 // Fetch and mapping are separate so a streamed sighting can patch the *raw*
 // payloads and re-map them through this same function. Mapping is not

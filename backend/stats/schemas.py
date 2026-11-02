@@ -27,6 +27,26 @@ class SpeciesCountResponse:
 
 
 @dataclass
+class LifeListSpecies(SpeciesCountResponse):
+    # The feeder of the first sighting in the chosen year, or ever.
+    first_feeder_id: int | None = None
+    first_feeder_name: str | None = None
+    # The species' first sighting ever, in this scope, falls in the chosen
+    # year. For the life list, in the current year.
+    new_in_year: bool = False
+
+
+@dataclass
+class LifeListResponse:
+    # The chosen year, or null for the life list.
+    year: int | None
+    # Local years with a bird sighting in this scope, newest first.
+    years: list[int]
+    # Newest first sighting first. Birds only, never "Unknown".
+    species: list[LifeListSpecies]
+
+
+@dataclass
 class HourStatsResponse:
     # Visits per local hour, index 0 is midnight to 1 am. Always 24 entries.
     counts: list[int]
