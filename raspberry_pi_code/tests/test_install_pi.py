@@ -108,6 +108,7 @@ def pi(tmp_path):
     (repo / "raspberry_pi_code").mkdir()
     shutil.copy(SCRIPT, repo / "scripts" / "install_pi.sh")
     shutil.copy(ROOT / "raspberry_pi_code" / ".env.example", repo / "raspberry_pi_code" / ".env.example")
+    shutil.copytree(ROOT / "deploy" / "systemd", repo / "deploy" / "systemd")
 
     stubs = tmp_path / "stubs"
     stubs.mkdir()
@@ -141,6 +142,7 @@ def pi(tmp_path):
 
     class Pi:
         root = tmp_path
+        repo_dir = repo
         pi_env = repo / "raspberry_pi_code" / ".env"
         etc = tmp_path / "etc"
         units = tmp_path / "units"
@@ -206,7 +208,7 @@ def test_fresh_install_writes_every_file(pi):
 
 def test_units_run_as_the_installing_user_from_the_repo(pi):
     _ok(pi.run(FRESH_ANSWERS))
-    user = subprocess.run([BASH, "-c", "id -un"], capture_output=True, text=True).stdout.strip()
+    user = _user()
 
     service = (pi.units / "peck-deck.service").read_text()
     assert f"User={user}\n" in service
@@ -224,6 +226,22 @@ def test_units_run_as_the_installing_user_from_the_repo(pi):
     assert "systemctl daemon-reload" in calls
     assert "systemctl enable peck-deck mediamtx" in calls
     assert "systemctl restart peck-deck mediamtx" in calls
+
+
+def _user():
+    return subprocess.run([BASH, "-c", "id -un"], capture_output=True, text=True).stdout.strip()
+
+
+@pytest.mark.parametrize("unit", ["peck-deck.service", "mediamtx.service"])
+def test_installed_unit_is_the_rendered_template(pi, unit):
+    _ok(pi.run(FRESH_ANSWERS))
+    template = (ROOT / "deploy" / "systemd" / unit).read_text()
+    assert "@USER@" in template and "@REPO@" in template
+    repo = subprocess.run(
+        [BASH, "-c", 'cd "$1" && pwd', "_", pi.repo_dir.as_posix()], capture_output=True, text=True,
+    ).stdout.strip()
+    expected = template.replace("@USER@", _user()).replace("@REPO@", repo)
+    assert (pi.units / unit).read_text() == expected
 
 
 def test_provisioning_gets_credentials_from_the_environment(pi):

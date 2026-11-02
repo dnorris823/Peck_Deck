@@ -1,0 +1,33 @@
+# Template for /etc/systemd/system/peck-deck.service. scripts/install_pi.sh
+# fills in @USER@, the user the service runs as, and @REPO@, the clone path.
+# SETUP.md section 9 has the same step by hand.
+[Unit]
+Description=Peck Deck Pi Service
+After=network-online.target
+Wants=network-online.target
+# A refused token makes the service exit non-zero, which re-runs the pre-step,
+# which may fail the same way. Without these two lines that is a tight crash
+# loop on systemd's defaults.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+User=@USER@
+WorkingDirectory=@REPO@
+# Credentials for the pre-step. The file is root-owned 0600. systemd reads it
+# before it drops to User=, so that user never needs to read it. The leading -
+# lets the service start without the file.
+EnvironmentFile=-/etc/peck_deck/owner.env
+# Fetch the device token on every start. Keep the leading -. A Pi that boots
+# while the gaming PC is off must still start and capture into the offline
+# queue, which is what the queue is for.
+ExecStartPre=-@REPO@/.venv/bin/python scripts/provision_device.py
+ExecStart=@REPO@/.venv/bin/python -m raspberry_pi_code.main
+Restart=on-failure
+RestartSec=10
+# Creates /run/peck-deck, owned by User=, for the live video demand socket.
+# systemd removes it when the service stops.
+RuntimeDirectory=peck-deck
+
+[Install]
+WantedBy=multi-user.target

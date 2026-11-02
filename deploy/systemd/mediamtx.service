@@ -1,0 +1,22 @@
+# Template for /etc/systemd/system/mediamtx.service. scripts/install_pi.sh
+# fills in @USER@, the user the service runs as, and @REPO@, the clone path.
+# SETUP.md section 9 has the same step by hand.
+[Unit]
+Description=MediaMTX live video for Peck Deck
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+# The same user as peck-deck, so live_demand can open the demand socket.
+User=@USER@
+# runOnDemand in the config runs .venv/bin/python from here.
+WorkingDirectory=@REPO@
+# Read credentials and addresses. Root-owned 0600. No leading -. Without the
+# file the unit fails, rather than run with no reader able to log in.
+EnvironmentFile=/etc/peck_deck/mediamtx.env
+ExecStart=/opt/mediamtx/mediamtx @REPO@/raspberry_pi_code/live/mediamtx.yml
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

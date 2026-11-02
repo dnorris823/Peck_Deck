@@ -25,7 +25,8 @@ MEDIAMTX_VERSION=v1.21.3
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 PI_ENV=$REPO/raspberry_pi_code/.env
 VENV=$REPO/.venv
-# The tests point these at a temp dir, so the script runs off a Pi.
+# The tests point these at a temp dir, so the script runs off a Pi. The unit
+# templates in deploy/systemd name the real paths, whatever these say.
 ETC_DIR=${PECK_ETC_DIR:-/etc/peck_deck}
 UNIT_DIR=${PECK_UNIT_DIR:-/etc/systemd/system}
 MEDIAMTX_DIR=${PECK_MEDIAMTX_DIR:-/opt/mediamtx}
@@ -128,6 +129,20 @@ install_root_file() {
     info "wrote $dest"
   fi
   return 0
+}
+
+# Print a unit template from deploy/systemd with @USER@ and @REPO@ filled in.
+# The quotes keep a & in a path literal, since bash 5.2 expands it otherwise.
+render_unit() {
+  local text
+  text=$(<"$1")
+  text=${text//@USER@/"$SERVICE_USER"}
+  text=${text//@REPO@/"$REPO"}
+  if [[ $text =~ @[A-Z_]+@ ]]; then
+    die "$1 has a placeholder this script does not fill: ${BASH_REMATCH[0]}"
+  fi
+  printf '%s
+' "$text"
 }
 
 # --- Prompts ----------------------------------------------------------------
@@ -454,57 +469,9 @@ fi
 
 say "systemd units"
 SERVICE_USER=$(id -un)
-cat >"$WORK/peck-deck.service" <<EOF
-# Written by scripts/install_pi.sh. SETUP.md section 9 explains each line.
-[Unit]
-Description=Peck Deck Pi Service
-After=network-online.target
-Wants=network-online.target
-# A refused token makes the service exit non-zero, which re-runs the pre-step.
-# These bound that restart loop.
-StartLimitIntervalSec=300
-StartLimitBurst=5
-
-[Service]
-User=$SERVICE_USER
-WorkingDirectory=$REPO
-# Root-only credentials for the pre-step. systemd reads them before it drops
-# to User=. The leading - lets the service start without the file.
-EnvironmentFile=-$ETC_DIR/owner.env
-# Fetch the device token on every start. The leading - lets the Pi start and
-# queue sightings while the gaming PC is off.
-ExecStartPre=-$VENV/bin/python scripts/provision_device.py
-ExecStart=$VENV/bin/python -m raspberry_pi_code.main
-Restart=on-failure
-RestartSec=10
-# /run/peck-deck, for the live video demand socket.
-RuntimeDirectory=peck-deck
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-cat >"$WORK/mediamtx.service" <<EOF
-# Written by scripts/install_pi.sh. SETUP.md section 9 explains each line.
-[Unit]
-Description=MediaMTX live video for Peck Deck
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-# The same user as peck-deck, so live_demand can open the demand socket.
-User=$SERVICE_USER
-WorkingDirectory=$REPO
-# No leading -. Without the file, the unit fails rather than run with no
-# reader able to log in.
-EnvironmentFile=$ETC_DIR/mediamtx.env
-ExecStart=$MEDIAMTX_DIR/mediamtx $REPO/raspberry_pi_code/live/mediamtx.yml
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-EOF
+for unit in peck-deck.service mediamtx.service; do
+  render_unit "$REPO/deploy/systemd/$unit" >"$WORK/$unit"
+done
 
 UNITS_CHANGED=0
 for unit in peck-deck.service mediamtx.service; do
