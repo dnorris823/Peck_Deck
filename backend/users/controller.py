@@ -8,6 +8,8 @@ from ..animals.groups import GROUPS, resolved_alerts
 from ..auth.guards import USER_JWT, owner_guard, user_guard
 from ..auth.jwt_utils import create_user_token, verify_password
 from ..auth.rate_limit import login_rate_limiter
+from ..notifications.digest import parse_time
+from ..stats.operations import parse_zone
 from .operations import (
     authenticate,
     create_user,
@@ -54,6 +56,10 @@ def _prefs_response(prefs) -> PreferencesResponse:
         notify_first_this_year=prefs.notify_first_this_year,
         animal_alerts=resolved_alerts(prefs.animal_alerts),
         animal_quiet_interval_seconds=prefs.animal_quiet_interval_seconds or 1800,
+        time_zone=prefs.time_zone,
+        digest_push=bool(prefs.digest_push),
+        digest_push_time=prefs.digest_push_time or "19:00",
+        digest_email=bool(prefs.digest_email),
     )
 
 
@@ -191,6 +197,13 @@ class UserController(Controller):
             raise HTTPException(
                 status_code=400, detail=f"animal_quiet_interval_seconds must be {low}–{high}"
             )
+        if data.time_zone is not None:
+            try:
+                parse_zone(data.time_zone)
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc))
+        if data.digest_push_time is not None and parse_time(data.digest_push_time) is None:
+            raise HTTPException(status_code=400, detail="digest_push_time must be HH:MM, between 00:00 and 23:59")
         prefs = await get_or_create_preferences(db, request.state.user_id)
         prefs = await update_preferences(
             db,
@@ -204,6 +217,12 @@ class UserController(Controller):
             },
             animal_alerts=data.animal_alerts,
             animal_quiet_interval_seconds=data.animal_quiet_interval_seconds,
+            digests={
+                "time_zone": data.time_zone,
+                "digest_push": data.digest_push,
+                "digest_push_time": data.digest_push_time,
+                "digest_email": data.digest_email,
+            },
         )
         return _prefs_response(prefs)
 
