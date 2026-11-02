@@ -3,6 +3,7 @@
 # "bad interpreter: /usr/bin/env sh^M" — which would only show up at runtime,
 # after a successful build.
 *.sh            text eol=lf
+*.service       text eol=lf
 Dockerfile      text eol=lf
 *.mako          text eol=lf
 entrypoint.sh   text eol=lf

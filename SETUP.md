@@ -3,6 +3,11 @@
 Manual steps required before `raspberry_pi_code` runs end-to-end.
 Work through these in order — later sections depend on earlier ones.
 
+`scripts/install_pi.sh` does §1, §2, §4, §5, §6, §9 and the MediaMTX install in
+§11 in one run, and is safe to run twice. `docs/feeder-onboarding.md` says when
+to run it. This file is the reference for each step, and the way to do one by
+hand.
+
 ---
 
 ## 1. Environment file
@@ -212,6 +217,9 @@ capture.
 ## 8. Network
 
 - [ ] Pi connected to home WiFi (run `sudo raspi-config` → System → Wireless LAN).
+- [ ] For a feeder at another house, `scripts/install_pi.sh` saves that house's
+      Wi-Fi and a rescue phone hotspot. See *When their Wi-Fi changes* in
+      `docs/feeder-onboarding.md`.
 - [ ] Gaming PC and Pi are on the same subnet.
 - [ ] The gaming PC has a fixed LAN address, so the Pi's `.env` never goes stale. Set a DHCP
       reservation on the router. On the eero, use the eero app: Settings → Network settings →
@@ -242,65 +250,21 @@ From the project root on the Pi (with `.venv` active):
 python -m raspberry_pi_code.main
 ```
 
-**To run as a systemd service** (auto-start on boot):
+**To run as a systemd service** (auto-start on boot), install the two units in
+`deploy/systemd/`. `peck-deck.service` runs the Pi service. `mediamtx.service`
+serves live video, as the same user, so its `live_demand` helper can open the
+demand socket. Install MediaMTX as in §11 first. Each file's comments explain
+its lines.
 
-```ini
-# /etc/systemd/system/peck-deck.service
-[Unit]
-Description=Peck Deck Pi Service
-After=network-online.target
-Wants=network-online.target
-# Bound the restart loop explicitly. A refused token makes the service exit
-# non-zero, which re-runs the pre-step, which may fail the same way — without
-# these it is a tight crash loop on systemd's defaults.
-StartLimitIntervalSec=300
-StartLimitBurst=5
+They are templates. `@USER@` is the user the service runs as, and `@REPO@` is
+the clone path. `scripts/install_pi.sh` fills them in and installs them. By
+hand, from the project root:
 
-[Service]
-User=pi
-WorkingDirectory=/home/pi/peck_deck
-# Owner credentials for the pre-step. Root-owned 0600 — systemd reads it before
-# dropping to User=pi, so the pi user never needs to be able to read it. The
-# leading `-` means a missing file does not block startup.
-EnvironmentFile=-/etc/peck_deck/owner.env
-# Re-provision the device token on every start. The leading `-` is load-bearing:
-# a Pi booting while the gaming PC is off must still start and capture into the
-# offline queue, which is the queue's whole purpose.
-ExecStartPre=-/home/pi/peck_deck/.venv/bin/python scripts/provision_device.py
-ExecStart=/home/pi/peck_deck/.venv/bin/python -m raspberry_pi_code.main
-Restart=on-failure
-RestartSec=10
-# Creates /run/peck-deck, owned by User=, for the live video demand socket.
-# systemd removes it when the service stops.
-RuntimeDirectory=peck-deck
-
-[Install]
-WantedBy=multi-user.target
-```
-
-MediaMTX serves live video. It runs as the same user as `peck-deck`, so its
-`live_demand` helper can open the demand socket. Install it as in §11 first.
-
-```ini
-# /etc/systemd/system/mediamtx.service
-[Unit]
-Description=MediaMTX live video for Peck Deck
-After=network-online.target
-Wants=network-online.target
-
-[Service]
-User=pi
-# runOnDemand in the config runs .venv/bin/python from here.
-WorkingDirectory=/home/pi/peck_deck
-# Read credentials and addresses. Root-owned 0600. No leading `-`: without
-# the file the unit fails, rather than run with no reader able to log in.
-EnvironmentFile=/etc/peck_deck/mediamtx.env
-ExecStart=/opt/mediamtx/mediamtx /home/pi/peck_deck/raspberry_pi_code/live/mediamtx.yml
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
+```bash
+for unit in peck-deck mediamtx; do
+  sed -e "s|@USER@|$(id -un)|g" -e "s|@REPO@|$(pwd)|g" deploy/systemd/$unit.service     | sudo tee /etc/systemd/system/$unit.service >/dev/null
+done
+sudo systemctl daemon-reload
 ```
 
 The credential file the pre-step reads:

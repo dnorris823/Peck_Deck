@@ -1232,6 +1232,18 @@
             "default": 1800,
             "type": "integer"
           },
+          "digest_email": {
+            "default": false,
+            "type": "boolean"
+          },
+          "digest_push": {
+            "default": false,
+            "type": "boolean"
+          },
+          "digest_push_time": {
+            "default": "19:00",
+            "type": "string"
+          },
           "notify_first_at_feeder": {
             "default": true,
             "type": "boolean"
@@ -1249,6 +1261,16 @@
           },
           "quiet_interval_seconds": {
             "type": "integer"
+          },
+          "time_zone": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2174,6 +2196,44 @@
         "title": "SubscriptionResponse",
         "type": "object"
       },
+      "Tier2Status": {
+        "properties": {
+          "game_pause": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          },
+          "switch_off": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "game_pause",
+          "state"
+        ],
+        "title": "Tier2Status",
+        "type": "object"
+      },
+      "Tier2Switch": {
+        "properties": {
+          "paused": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "paused"
+        ],
+        "title": "Tier2Switch",
+        "type": "object"
+      },
       "TierAttempt": {
         "properties": {
           "confidence": {
@@ -2418,6 +2478,36 @@
               }
             ]
           },
+          "digest_email": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "digest_push": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "digest_push_time": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "notify_first_at_feeder": {
             "oneOf": [
               {
@@ -2462,6 +2552,16 @@
             "oneOf": [
               {
                 "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "time_zone": {
+            "oneOf": [
+              {
+                "type": "string"
               },
               {
                 "type": "null"
@@ -6351,6 +6451,108 @@
           }
         ],
         "summary": "Storage"
+      }
+    },
+    "/tier2": {
+      "get": {
+        "deprecated": false,
+        "operationId": "Tier2GetStatus",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tier2Status"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          }
+        },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
+        "summary": "GetStatus",
+        "tags": [
+          "ops"
+        ]
+      },
+      "put": {
+        "deprecated": false,
+        "operationId": "Tier2SetPaused",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Tier2Switch"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Tier2Status"
+                }
+              }
+            },
+            "description": "Request fulfilled, document follows",
+            "headers": {}
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "description": "Validation Exception",
+                  "examples": [
+                    {
+                      "detail": "Bad Request",
+                      "extra": {},
+                      "status_code": 400
+                    }
+                  ],
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "extra": {
+                      "additionalProperties": {},
+                      "type": [
+                        "null",
+                        "object",
+                        "array"
+                      ]
+                    },
+                    "status_code": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "detail",
+                    "status_code"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Bad request syntax or unsupported method"
+          }
+        },
+        "security": [
+          {
+            "UserJWT": []
+          }
+        ],
+        "summary": "SetPaused",
+        "tags": [
+          "ops"
+        ]
       }
     },
     "/users": {

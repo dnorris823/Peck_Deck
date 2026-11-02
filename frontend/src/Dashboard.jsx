@@ -11,6 +11,7 @@ import {
   DAY_END_HOUR, DAY_START_HOUR, RECENT_BELOW, RECENT_COUNT, fmtClock, heroWhen, isToday, isUnknown,
   statusLine, stripLabel, timelinePos, yesterdayBounds, yesterdayLine,
 } from "./home.js";
+import { isTier2Paused, useTier2 } from "./tier2.js";
 import "./home.css";
 
 // The quiet line and the timeline's "now" mark move with the clock, not only
@@ -162,6 +163,7 @@ export function Dashboard({ openSighting, go, selectedId = null }) {
   const hero = birds[0];
   const accent = useSpeciesAccent(hero?.species);
   const yesterday = useYesterday(birds, now, feeder);
+  const tier2 = useTier2();
 
   if (!hero) return <HomeEmpty hasFeeders={DEVICES.length > 0} go={go} />;
 
@@ -176,7 +178,8 @@ export function Dashboard({ openSighting, go, selectedId = null }) {
   const strip = recent ? birds.slice(1, 1 + RECENT_COUNT) : today.slice(1);
   const yday = yesterday && yesterdayLine(yesterday);
   const tier2Down = DEVICES.some(d => (feeder == null || d.id === feeder) && d.tierMix?.tier2Down);
-  const { quiet, count, warning } = statusLine(hero, today, { now, capped, tier2Down });
+  const tier2Paused = isTier2Paused(tier2.status?.state);
+  const { quiet, count, warning } = statusLine(hero, today, { now, capped, tier2Down, tier2Paused });
 
   return (
     <div className="home" style={accent}>
