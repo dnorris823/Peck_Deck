@@ -117,6 +117,7 @@ or out. The code is in `backend/feed/`.
 | Env var | Default | Effect |
 |---|---|---|
 | `FEED_ALERTS_ENABLED` | `true` | `false` starts no task and sends no feed alerts. |
+| `DIGESTS_ENABLED` | `true` | `false` starts no digest task. See `docs/pwa-and-web-push.md` under *Digests*. |
 
 Visits are bird sightings only, through `is_bird_sighting()`. "Unknown" captures
 count, because their species row is a bird. Animal visits do not. A squirrel that

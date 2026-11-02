@@ -954,6 +954,18 @@
             "default": 1800,
             "type": "integer"
           },
+          "digest_email": {
+            "default": false,
+            "type": "boolean"
+          },
+          "digest_push": {
+            "default": false,
+            "type": "boolean"
+          },
+          "digest_push_time": {
+            "default": "19:00",
+            "type": "string"
+          },
           "notify_first_at_feeder": {
             "default": true,
             "type": "boolean"
@@ -971,6 +983,16 @@
           },
           "quiet_interval_seconds": {
             "type": "integer"
+          },
+          "time_zone": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -2102,6 +2124,36 @@
               }
             ]
           },
+          "digest_email": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "digest_push": {
+            "oneOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "digest_push_time": {
+            "oneOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "notify_first_at_feeder": {
             "oneOf": [
               {
@@ -2146,6 +2198,16 @@
             "oneOf": [
               {
                 "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "time_zone": {
+            "oneOf": [
+              {
+                "type": "string"
               },
               {
                 "type": "null"
