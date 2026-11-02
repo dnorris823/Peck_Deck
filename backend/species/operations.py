@@ -1,6 +1,6 @@
 import json
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.models import Sighting, Species
@@ -16,6 +16,28 @@ def is_bird_sighting():
     species, a visit, or a busy hour.
     """
     return Sighting.species_id.in_(select(Species.id).where(Species.kind == BIRD))
+
+
+# The species the Pi files a capture under when no tier names it. It is a bird
+# row, because the camera decided it was a bird, so is_bird_sighting() keeps it.
+UNKNOWN = "unknown"
+
+
+def is_unknown_name(common_name: str) -> bool:
+    """Whether a species with this common name is "Unknown". names_a_species() in Python."""
+    return common_name.strip().lower() == UNKNOWN
+
+
+def names_a_species():
+    """A WHERE clause that drops sightings filed under "Unknown".
+
+    Visits still count "Unknown": it was a bird at the feeder, so the visit
+    counts, the busy hours and the feed check keep it. Species counts never do,
+    because it names no species. A life list, a species total or a "new
+    species" check pairs this with is_bird_sighting().
+    """
+    unknown = select(Species.id).where(func.lower(func.trim(Species.common_name)) == UNKNOWN)
+    return Sighting.species_id.not_in(unknown)
 
 
 async def get_species(db: AsyncSession, species_id: int) -> Species | None:

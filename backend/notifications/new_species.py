@@ -39,7 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
 from ..database.models import Device, DeviceUser, Sighting, Species, UserPreferences
-from ..species.operations import BIRD, is_bird_sighting
+from ..species.operations import BIRD, is_bird_sighting, is_unknown_name
 
 FIRST_EVER = "first_ever"
 FIRST_AT_FEEDER = "first_at_feeder"
@@ -53,7 +53,6 @@ FIRST_EVER_MIN_CONFIDENCE = 0.70
 # backend/sightings/recheck.py PENDING. Not imported, because the re-check
 # imports this package.
 _PENDING = "pending"
-_UNKNOWN = "unknown"
 
 
 def recheck_on() -> bool:
@@ -73,7 +72,7 @@ def _names_a_bird(sighting: Sighting, species: Species) -> bool:
         return False
     if sighting.classification_tier_used == "none":
         return False
-    return species.common_name.strip().lower() != _UNKNOWN
+    return not is_unknown_name(species.common_name)
 
 
 async def new_kinds(

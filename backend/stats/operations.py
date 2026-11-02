@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..database.models import Device, Sighting, Species
 from ..sightings.operations import _accessible_device_ids
-from ..species.operations import BIRD, is_bird_sighting
+from ..species.operations import BIRD, is_bird_sighting, names_a_species
 
 
 def _aware(dt: datetime) -> datetime:
@@ -245,12 +245,6 @@ async def species_counts(
     return result
 
 
-def _names_a_species():
-    """A WHERE clause that drops "Unknown", the species the Pi files when no tier names one."""
-    unknown = select(Species.id).where(func.lower(func.trim(Species.common_name)) == "unknown")
-    return Sighting.species_id.not_in(unknown)
-
-
 def _year_bounds(year: int, zone: ZoneInfo) -> tuple[datetime, datetime]:
     """1 January of ``year`` to 1 January of the next, local midnight, in UTC."""
     start = datetime(year, 1, 1, tzinfo=zone)
@@ -277,14 +271,15 @@ async def life_list(
     ``years`` lists every local year with a bird sighting, newest first, for the
     year picker. With ``device_id``, everything covers that one feeder.
 
-    Birds only, through ``is_bird_sighting()``, and never "Unknown".
+    Birds only, through ``is_bird_sighting()``, and never "Unknown", through
+    ``names_a_species()``.
     """
     zone = ZoneInfo(tz)
     accessible = await _scoped_device_ids(db, user_id, device_id)
     result = {"year": year, "years": [], "species": []}
     if not accessible:
         return result
-    named_birds = [Sighting.device_id.in_(accessible), is_bird_sighting(), _names_a_species()]
+    named_birds = [Sighting.device_id.in_(accessible), is_bird_sighting(), names_a_species()]
 
     first_ever: dict[int, datetime] = {
         sp_id: _aware(when)
