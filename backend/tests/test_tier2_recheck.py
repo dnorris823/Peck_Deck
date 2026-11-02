@@ -530,6 +530,34 @@ def test_client_health_needs_the_model_loaded():
     assert asyncio.run(_with_server(ready, lambda c: c.healthy())) is True
 
 
+def test_client_health_holds_while_the_server_is_paused():
+    for state in ("paused_game", "paused_manual", "loading"):
+        paused = [web.get("/health", _status_route(
+            200, {"status": "ok", "model_ready": False, "state": state}))]
+        assert asyncio.run(_with_server(paused, lambda c: c.healthy())) is False
+
+    ready = [web.get("/health", _status_route(
+        200, {"status": "ok", "model_ready": True, "state": "ready"}))]
+    assert asyncio.run(_with_server(ready, lambda c: c.healthy())) is True
+
+
+def test_a_paused_server_holds_the_pending_rows(client, published):
+    """A game paused Tier 2 between the health check and the classify call."""
+    asyncio.run(_clear_pending())
+    sid = asyncio.run(_add())
+    routes = [
+        web.get("/health", _status_route(200, {"model_ready": True, "state": "ready"})),
+        web.post("/classify", _status_route(
+            503, {"detail": "Tier 2 is paused while a game runs"})),
+    ]
+
+    assert asyncio.run(_with_server(routes, recheck.run_pass)) == 0
+
+    assert asyncio.run(_row(sid))[0].tier2_recheck == "pending"
+    assert published == []
+    asyncio.run(_clear_pending())
+
+
 # ── Feeder animals ────────────────────────────────────────────────────────────
 # The Pi's rule: the animal wins when it meets TIER2_ANIMAL_THRESHOLD and beats
 # Tier 2's bird. A squirrel caught while the 5080 was off has a Tier 1 bird.

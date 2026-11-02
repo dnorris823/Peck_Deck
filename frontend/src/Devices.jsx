@@ -10,6 +10,8 @@ import {
   fetchDeviceToken, fmtRelative, initials, logRefill, rotateDeviceToken, tierInfo, updateDevice,
 } from "./data.js";
 import { canManageFeeder, useFeederAccess } from "./feederAccess.js";
+import { TIER2_PAUSED, isTier2Paused, useTier2 } from "./tier2.js";
+import { Tier2Switch } from "./Tier2Switch.jsx";
 
 function RegisterDeviceModal({ onClose, onDone }) {
   const [form, setForm] = useState({ name: "", city: "", state: "", feed_type: "" });
@@ -118,12 +120,15 @@ export function tierMixText(mix) {
   return `Last ${mix.hours} h: ${parts.join(", ")}`;
 }
 
-function TierMix({ mix }) {
+// A pause for gaming replaces the GPU warning. The captures that missed Tier 2
+// then wait for it, and nothing is wrong.
+function TierMix({ mix, tier2Paused }) {
   if (!mix) return null;
   return (
     <div className="station-tiers">
       <span className="tnum">{tierMixText(mix)}</span>
-      {mix.tier2Down && (
+      {tier2Paused && <span className="station-tiers-warn">{TIER2_PAUSED}</span>}
+      {!tier2Paused && mix.tier2Down && (
         <span className="station-tiers-warn"
           title={`${mix.tier2Missed} of ${mix.tier2Asked} captures got no answer from the GPU server.`}>
           GPU not answering
@@ -238,7 +243,7 @@ function locationText(d) {
     .filter(Boolean).join(" · ") || "No location set";
 }
 
-function DeviceListCard({ d, latest, onClick, canRefill, onRefilled }) {
+function DeviceListCard({ d, latest, onClick, canRefill, onRefilled, tier2Paused = false }) {
   return (
     <div className="station-card">
       <button type="button" className="station-card-open" onClick={() => onClick(d)}>
@@ -278,7 +283,7 @@ function DeviceListCard({ d, latest, onClick, canRefill, onRefilled }) {
               <div className="device-stat-lbl">All time</div>
             </div>
           </div>
-          <TierMix mix={d.tierMix} />
+          <TierMix mix={d.tierMix} tier2Paused={tier2Paused} />
           <PiHealthRow health={d.piHealth} />
           <div className="station-seen">Last heard from {d.lastSeen}</div>
         </div>
@@ -719,6 +724,8 @@ export function DevicesPage() {
   const [openId, setOpenId] = useState(null);
   const open = DEVICES.find(d => d.id === openId);
   const [registering, setRegistering] = useState(false);
+  const tier2 = useTier2();
+  const tier2Paused = isTier2Paused(tier2.status?.state);
   return (
     <>
       <div className="page-header">
@@ -731,11 +738,13 @@ export function DevicesPage() {
         </button>
       </div>
 
+      <Tier2Switch tier2={tier2} isOwner={ME?.role === "owner"} />
+
       {DEVICES.length > 0 ? (
         <div className="station-grid">
           {DEVICES.map(d => (
             <DeviceListCard key={d.id} d={d} latest={latestBy.get(d.id)} onClick={d => setOpenId(d.id)}
-              canRefill={!!ME && canManageFeeder(d, ME)} onRefilled={reload} />
+              canRefill={!!ME && canManageFeeder(d, ME)} onRefilled={reload} tier2Paused={tier2Paused} />
           ))}
         </div>
       ) : (

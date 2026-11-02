@@ -1,6 +1,7 @@
 // Home's wording and the day timeline. Kept apart from Dashboard.jsx so the
 // sentences can be tested against a fixed clock.
 import { startOfToday } from "./data.js";
+import { TIER2_PAUSED } from "./tier2.js";
 
 // The timeline covers 6 am to 9 pm, the hours a feeder sees birds.
 export const DAY_START_HOUR = 6;
@@ -54,13 +55,23 @@ export function isUnknown(species) {
 // no tier names: the Feeders page has those.
 export const TIER2_DOWN = "The gaming PC has stopped naming birds, so names may be rougher until it is back.";
 
+// Home's sentence while Tier 2 is paused for a game or by the owner. It replaces
+// TIER2_DOWN, since the captures that missed Tier 2 wait for it.
+export const TIER2_PAUSED_LINE = `${TIER2_PAUSED}.`;
+
 /**
  * The status line under the hero: the bold quiet span, the day's count, and a
- * warning that is null unless `tier2Down`. `capped` means every loaded sighting
- * is from today, so the true count may be higher than the list holds.
+ * warning that is null unless `tier2Paused` or `tier2Down`. `capped` means every
+ * loaded sighting is from today, so the true count may be higher than the list
+ * holds.
  */
-export function statusLine(latest, today, { now = new Date(), capped = false, tier2Down = false } = {}) {
-  return { ...dayLine(latest, today, now, capped), warning: tier2Down ? TIER2_DOWN : null };
+export function statusLine(
+  latest, today, { now = new Date(), capped = false, tier2Down = false, tier2Paused = false } = {},
+) {
+  let warning = null;
+  if (tier2Paused) warning = TIER2_PAUSED_LINE;
+  else if (tier2Down) warning = TIER2_DOWN;
+  return { ...dayLine(latest, today, now, capped), warning };
 }
 
 function dayLine(latest, today, now, capped) {

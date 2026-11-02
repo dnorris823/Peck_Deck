@@ -29,6 +29,9 @@ when Tier 2 fails. `SETUP.md` §7 has the tier orders and how to turn Tier 3 on.
 - Tier 2 re-check. When an upload fell back to Tier 1 because Tier 2 gave no
   answer, the backend sends it to Tier 2 once the GPU server is back. Tier 2's
   answer replaces the species when it wins.
+- Gaming pause. The GPU server unloads the Tier 2 model while a game holds the
+  GPU, and loads it again when the GPU goes quiet. The owner can also pause it
+  from the Feeders page.
 - Live video. The Live tab plays a feeder's camera over WebRTC from the Pi, and
   falls back to HLS through the backend when the browser cannot reach the Pi.
 - Animal visits. Tier 2 names a squirrel, raccoon or other feeder mammal, and the
@@ -66,6 +69,7 @@ Smaller cleanups without a milestone are in the
 | Setting up the Pi | `SETUP.md` |
 | Adding a user | `docs/user-onboarding.md` |
 | Adding a feeder at another house | `docs/feeder-onboarding.md` |
+| The sheet for the person at that house | `docs/feeder-handover.md` |
 | Requirements | `PRD.md` |
 | Models and measured accuracy | `machine_learning/MODELS.md` |
 | Backups, migrations, health checks, tests | `docs/operations.md` |

@@ -149,6 +149,7 @@ async def update_preferences(
     new_species_alerts: dict[str, bool | None] | None = None,
     animal_alerts: dict[str, bool] | None = None,
     animal_quiet_interval_seconds: int | None = None,
+    digests: dict[str, object] | None = None,
 ) -> UserPreferences:
     if quiet_interval_seconds is not None:
         prefs.quiet_interval_seconds = quiet_interval_seconds
@@ -163,6 +164,10 @@ async def update_preferences(
         prefs.animal_alerts = {**(prefs.animal_alerts or {}), **animal_alerts}
     if animal_quiet_interval_seconds is not None:
         prefs.animal_quiet_interval_seconds = animal_quiet_interval_seconds
+    # time_zone and the digest settings. A None leaves the field alone.
+    for name, value in (digests or {}).items():
+        if value is not None:
+            setattr(prefs, name, value)
     await db.flush()
     return prefs
 
